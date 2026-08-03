@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Prompt Pet</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="pet-shell" data-state="idle" data-view="compact" data-resizing="false">
+      <section id="petCard" class="pet-card" aria-label="Prompt Pet 桌面助手">
+        <header class="pet-header" aria-label="拖动区域">
+          <button id="petAvatar" class="pet-avatar" type="button" aria-label="一键处理当前输入">
+            <span class="pet-sprite" aria-hidden="true">
+              <span class="pet-flame pet-flame-left"><i></i></span>
+              <span class="pet-flame pet-flame-right"><i></i></span>
+              <span class="pet-cape pet-cape-left"></span>
+              <span class="pet-cape pet-cape-right"></span>
+              <span class="pet-shoulder pet-shoulder-left"><i></i></span>
+              <span class="pet-shoulder pet-shoulder-right"><i></i></span>
+              <span class="pet-helmet">
+                <span class="pet-helmet-ridge"></span>
+                <span class="pet-visor"><i></i><i></i></span>
+                <span class="pet-gem"></span>
+                <span class="pet-mouth"><i></i><i></i><i></i></span>
+              </span>
+              <span class="pet-arm pet-arm-left"><i></i></span>
+              <span class="pet-arm pet-arm-right"><i></i></span>
+              <span class="pet-boot pet-boot-left"></span>
+              <span class="pet-boot pet-boot-right"></span>
+            </span>
+          </button>
+          <div class="pet-identity">
+            <strong>Prompt Pet</strong>
+            <span id="petHint">左键处理 · 右键切换模式</span>
+          </div>
+          <button id="collapseButton" class="pet-collapse" type="button" aria-label="收起为小宠物" title="收起为小宠物">⌄</button>
+          <button id="closeButton" class="pet-close" type="button" aria-label="隐藏助手">×</button>
+          <button id="resizeHandle" class="resize-handle" type="button" aria-label="拖动调整助手大小">
+            <span></span><span></span><span></span>
+          </button>
+        </header>
+        <span id="compactModeBadge" class="compact-mode-badge" aria-label="当前模式">P</span>
+        <div id="compactFeedback" class="compact-feedback" role="status" aria-live="polite" hidden>
+          <span id="compactFeedbackText" class="compact-feedback-text">处理中…</span>
+          <button id="compactCancelButton" type="button" hidden>取消</button>
+        </div>
+
+        <button id="petAction" class="pet-action" type="button">
+          <span class="action-orb" aria-hidden="true">✦</span>
+          <span class="action-copy">
+            <strong id="petActionTitle">一键增强提示词</strong>
+            <small id="petActionHint">自动读取当前 Codex / Claude 输入框</small>
+          </span>
+          <span class="action-arrow" aria-hidden="true">→</span>
+        </button>
+
+        <div class="status-bubble" role="status" aria-live="polite">
+          <span id="statusDot" class="status-dot" aria-hidden="true"></span>
+          <p id="statusMessage">准备就绪。左键处理当前发言，右键切换工作模式。</p>
+        </div>
+
+        <section id="needsInputPanel" class="needs-input-panel" hidden aria-labelledby="needsInputHeading">
+          <div class="result-heading">
+            <div>
+              <span class="panel-kicker">需要补充</span>
+              <strong id="needsInputHeading">确认必要信息</strong>
+            </div>
+          </div>
+          <ol id="missingFields" class="missing-fields"></ol>
+          <label class="result-label" for="clarificationInput">补充信息</label>
+          <textarea id="clarificationInput" rows="3" maxlength="2000" placeholder="只需补充上面必要的信息"></textarea>
+          <div class="panel-actions">
+            <button id="clarifyRegenerateButton" class="small-primary" type="button">带补充信息重新生成</button>
+          </div>
+        </section>
+
+        <section id="sourceInfo" class="source-info" hidden>
+          <span>已读取原始内容</span>
+          <span id="originalMeta">0 字符</span>
+        </section>
+
+        <section id="resultPanel" class="result-panel" hidden>
+          <div class="result-heading">
+            <div>
+              <span class="panel-kicker">优化结果</span>
+              <strong>确认后应用</strong>
+            </div>
+            <span id="resultMeta">0 字符</span>
+          </div>
+          <details class="source-disclosure">
+            <summary>查看原文</summary>
+            <pre id="originalPreview" class="original-preview"></pre>
+          </details>
+          <section class="diff-section" aria-labelledby="diffHeading">
+            <div id="diffHeading" class="result-label">修改差异</div>
+            <div id="diffPreview" class="diff-preview" aria-live="polite"></div>
+          </section>
+          <label class="result-label" for="enhancedPrompt">可编辑结果</label>
+          <textarea id="enhancedPrompt" spellcheck="false" aria-label="处理结果"></textarea>
+          <div class="result-actions">
+            <button id="cancelButton" class="text-button" type="button" disabled>取消</button>
+            <button id="restoreButton" class="text-button" type="button" disabled>恢复原文</button>
+            <button id="regenerateButton" class="text-button" type="button" disabled>重新生成</button>
+            <button id="copyButton" class="text-button" type="button" disabled>复制</button>
+            <button id="applyEditedButton" class="small-primary" type="button" disabled>应用</button>
+          </div>
+        </section>
+
+      <nav id="contextMenu" class="context-menu" hidden aria-label="助手功能菜单" role="menu">
+        <button id="resultMenuButton" role="menuitem" type="button" data-menu-action="result" hidden><span>↗</span><span>查看增强结果</span></button>
+        <button role="menuitem" type="button" data-menu-action="mode"><span>◇</span><span>工作模式</span><span id="currentModeLabel" class="menu-value">提示词增强</span></button>
+        <button id="reviewModeButton" role="menuitemcheckbox" type="button" data-menu-action="review" aria-checked="false"><span>○</span><span>审阅后应用</span><span id="reviewModeLabel" class="menu-value">已关闭</span></button>
+        <button role="menuitem" type="button" data-menu-action="configure"><span>⚙</span><span>模型与 Key 配置</span></button>
+        <button role="menuitem" type="button" data-menu-action="style"><span>✦</span><span>提示词风格</span><span id="currentStyleLabel" class="menu-value">标准</span></button>
+        <button role="menuitem" type="button" data-menu-action="check"><span>✓</span><span>检查模型配置</span></button>
+        <button role="menuitem" type="button" data-menu-action="startup"><span>◉</span><span>开机自启动</span><span id="startupLabel" class="menu-value">已关闭</span></button>
+        <span class="menu-divider" aria-hidden="true"></span>
+        <button role="menuitem" type="button" data-menu-action="quit"><span>×</span><span>退出 Prompt Pet</span></button>
+      </nav>
+
+      <section id="modePanel" class="floating-panel mode-panel" hidden aria-label="工作模式" role="dialog">
+        <div class="panel-heading">
+          <div>
+            <span class="panel-kicker">WORK MODE</span>
+            <strong>选择工作模式</strong>
+          </div>
+          <button class="panel-close" type="button" data-close-panel="modePanel" aria-label="关闭">×</button>
+        </div>
+        <button class="mode-option" type="button" data-mode="enhance">
+          <strong>AI 提示词</strong>
+          <span>明确目标、上下文、约束和输出格式，不执行原任务。</span>
+        </button>
+        <button class="mode-option" type="button" data-mode="upward-communication">
+          <strong>向上沟通</strong>
+          <span>结论前置，整理依据、风险、下一步和需要的支持。</span>
+        </button>
+        <button class="mode-option" type="button" data-mode="chat-polish">
+          <strong>用户沟通</strong>
+          <span>表达更安全、礼貌、清晰，避免扩大承诺并给出下一步。</span>
+        </button>
+        <button class="mode-option" type="button" data-mode="ppt-copy">
+          <strong>PPT 文案</strong>
+          <span>把当前整段文本整理为结论型标题和单页分层正文。</span>
+        </button>
+      </section>
+
+      <section id="settingsPanel" class="floating-panel" hidden aria-label="模型配置" role="dialog">
+        <div class="panel-heading">
+          <div>
+            <span class="panel-kicker">MODEL SETTINGS</span>
+            <strong>模型与 Key</strong>
+          </div>
+          <button class="panel-close" type="button" data-close-panel="settingsPanel" aria-label="关闭">×</button>
+        </div>
+        <label class="field-label" for="modelEndpoint">API Base URL</label>
+        <input id="modelEndpoint" class="panel-input" type="url" value="https://tokenhub.tencentmaas.com/v1" autocomplete="off" spellcheck="false" />
+        <label class="field-label" for="modelName">模型</label>
+        <input id="modelName" class="panel-input" type="text" value="deepseek-v4-flash" autocomplete="off" spellcheck="false" />
+        <label class="field-label" for="apiKey">API Key</label>
+        <input id="apiKey" class="panel-input" type="password" placeholder="请输入你的 API Key" autocomplete="off" spellcheck="false" />
+        <label class="field-label" for="targetWindowTitlePattern">目标窗口标题（可选）</label>
+        <input id="targetWindowTitlePattern" class="panel-input" type="text" placeholder="留空使用当前目标窗口" autocomplete="off" />
+        <p id="modelStorageStatus" class="panel-note" role="status">API Key 使用 Windows 加密存储，可保存后留空复用。</p>
+        <div class="panel-actions">
+          <button id="checkModelButton" class="text-button" type="button">检查并保存</button>
+          <button id="saveModelButton" class="small-primary" type="button">保存配置</button>
+        </div>
+      </section>
+
+      <section id="stylePanel" class="floating-panel style-panel" hidden aria-label="提示词风格" role="dialog">
+        <div class="panel-heading">
+          <div>
+            <span class="panel-kicker">PROMPT STYLE</span>
+            <strong>提示词风格</strong>
+          </div>
+          <button class="panel-close" type="button" data-close-panel="stylePanel" aria-label="关闭">×</button>
+        </div>
+        <p id="promptProtocolLabel" class="panel-note">系统提示词规范 v2 · 原意、事实与语言保护</p>
+        <button class="style-option" type="button" data-style="faithful"><strong>严格保真</strong><span>只澄清和整理，不扩大原任务范围</span></button>
+        <button class="style-option" type="button" data-style="balanced"><strong>标准</strong><span>清晰、完整、实用</span></button>
+        <button class="style-option" type="button" data-style="concise"><strong>简洁</strong><span>减少重复，表达更紧凑</span></button>
+        <button class="style-option" type="button" data-style="detailed"><strong>详细</strong><span>补充更多执行细节</span></button>
+        <button class="style-option" type="button" data-style="professional"><strong>专业</strong><span>正式、结构化的表达</span></button>
+        <button class="style-option" type="button" data-style="creative"><strong>创意</strong><span>更有表现力但保持可执行</span></button>
+      </section>
+      </section>
+    </main>
+    <script type="module" src="./renderer.mjs"></script>
+  </body>
+</html>

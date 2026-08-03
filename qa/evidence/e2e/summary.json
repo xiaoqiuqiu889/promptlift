@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-03T13:24:32.804Z",
+  "result": "FAIL",
+  "endpoint": "https://tokenhub.tencentmaas.com/v1",
+  "model": "deepseek-v4-flash",
+  "apiKeySaved": false,
+  "realModelCalls": 0,
+  "requiredRealReturn": false,
+  "entries": {
+    "avatar": {
+      "entry": "avatar",
+      "expectedTextSha256": "f4c9ccb6fa396c014d7680bb0d0d9d1ba5ac51b3d85c863b0fb236c0c813d59e",
+      "stages": {
+        "event": null,
+        "loading": null,
+        "capture": null,
+        "model": null,
+        "apply": null,
+        "restore": null
+      },
+      "model": {
+        "returned": false,
+        "characters": 0
+      },
+      "copy": {
+        "attempted": false,
+        "verified": false
+      },
+      "host": {},
+      "focus": {},
+      "notes": []
+    },
+    "double-alt": {
+      "entry": "double-alt",
+      "expectedTextSha256": "ca43d2ac753fe7931a7f29b5b7f7d8b5c194be6aba3c85842a09d09100c35d29",
+      "stages": {
+        "event": null,
+        "loading": null,
+        "capture": null,
+        "model": null,
+        "apply": null,
+        "restore": null
+      },
+      "model": {
+        "returned": false,
+        "characters": 0
+      },
+      "copy": {
+        "attempted": false,
+        "verified": false
+      },
+      "host": {},
+      "focus": {},
+      "notes": []
+    }
+  },
+  "failureProtection": {
+    "emptyInput": {
+      "passed": true,
+      "code": "EMPTY_PROMPT"
+    },
+    "cancellation": {
+      "passed": true,
+      "code": "CANCELLED"
+    },
+    "targetChanged": {
+      "passed": true,
+      "code": "TARGET_CONTENT_CHANGED"
+    },
+    "mode": "module-level mock delay / injected bridge; no real API call"
+  },
+  "process": {
+    "hostPid": 67348,
+    "promptLiftPid": 67448,
+    "hostAlive": true,
+    "promptLiftAlive": true,
+    "listenerPid": 60320,
+    "listenerName": "powershell.exe",
+    "listenerAlive": true,
+    "foreground": null,
+    "appUserDataPathVerified": true,
+    "configDestinationExists": true
+  },
+  "guards": {
+    "singleAltNoTrigger": false,
+    "altTabNoTrigger": false,
+    "rightAltNoTrigger": false
+  },
+  "interruption": null,
+  "safety": {
+    "apiKeyInStdout": false,
+    "apiKeyInStderr": false,
+    "apiKeyInReport": false,
+    "apiKeyInScreenshots": false,
+    "rawPromptInSummary": false
+  },
+  "notExecuted": [
+    "avatar.event: 未观察到或未执行",
+    "avatar.loading: 未观察到或未执行",
+    "avatar.capture: 未观察到或未执行",
+    "avatar.model: 未观察到或未执行",
+    "avatar.apply: 未观察到或未执行",
+    "avatar.restore: 未观察到或未执行",
+    "avatar.copy: 未通过 QA host 的真实 Ctrl+V 验证",
+    "double-alt.event: 未观察到或未执行",
+    "double-alt.loading: 未观察到或未执行",
+    "double-alt.capture: 未观察到或未执行",
+    "double-alt.model: 未观察到或未执行",
+    "double-alt.apply: 未观察到或未执行",
+    "double-alt.restore: 未观察到或未执行",
+    "double-alt.guard.singleAltNoTrigger: 未通过 Computer Use 实际按键验证",
+    "double-alt.guard.altTabNoTrigger: 未通过 Computer Use 实际按键验证",
+    "double-alt.guard.rightAltNoTrigger: 未通过 Computer Use 实际按键验证"
+  ],
+  "cleanup": {
+    "tempRoot": "C:\\Users\\xiaoqiu\\AppData\\Local\\Temp\\prompt-lift-qa-e2e-X7RMub",
+    "removed": true
+  }
+}

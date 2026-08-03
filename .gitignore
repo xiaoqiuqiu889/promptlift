@@ -1,0 +1,10 @@
+node_modules/
+dist/
+release/
+release-*/
+deliverables/
+.env
+*.log
+
+# Ephemeral Electron user-data created by UI visual QA runs.
+qa/evidence/ui/launcher-user-data-*/

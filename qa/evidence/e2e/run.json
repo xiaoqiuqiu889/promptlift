@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "title": "External Chat QA Input Host",
+  "hostPid": 67348,
+  "promptLiftPid": 67448,
+  "sourceConfigExists": true,
+  "configCopied": true,
+  "configDestination": "C:\\Users\\xiaoqiu\\AppData\\Local\\Temp\\prompt-lift-qa-e2e-X7RMub\\prompt-lift-user-data\\prompt-lift-model.json",
+  "configDestinationExists": true,
+  "sourceSafeStorageStateExists": true,
+  "safeStorageStateCopied": true,
+  "safeStorageStateDestination": "C:\\Users\\xiaoqiu\\AppData\\Local\\Temp\\prompt-lift-qa-e2e-X7RMub\\prompt-lift-user-data\\Local State",
+  "safeStorageStateDestinationExists": true,
+  "appUserDataPathExpected": "C:\\Users\\xiaoqiu\\AppData\\Local\\Temp\\prompt-lift-qa-e2e-X7RMub\\prompt-lift-user-data",
+  "appUserDataPathVerified": true,
+  "appUserDataPathActual": "C:\\Users\\xiaoqiu\\AppData\\Local\\Temp\\prompt-lift-qa-e2e-X7RMub\\prompt-lift-user-data",
+  "model": "deepseek-v4-flash",
+  "endpoint": "https://tokenhub.tencentmaas.com/v1",
+  "tempRoot": "C:\\Users\\xiaoqiu\\AppData\\Local\\Temp\\prompt-lift-qa-e2e-X7RMub",
+  "createdAt": "2026-08-03T13:24:17.505Z"
+}
