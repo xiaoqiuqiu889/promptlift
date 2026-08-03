@@ -14,7 +14,7 @@ import {
 test('recipe registry exposes four complete versioned expression recipes', () => {
   const recipes = listRecipes();
 
-  assert.equal(RECIPE_SCHEMA_VERSION, '1.0');
+  assert.equal(RECIPE_SCHEMA_VERSION, '1.1');
   assert.deepEqual(
     recipes.map((recipe) => recipe.id),
     [
@@ -37,6 +37,60 @@ test('recipe registry exposes four complete versioned expression recipes', () =>
     assert.ok(recipe.edgeCases.en.length >= 1);
     assert.ok(recipe.outputContract.zh && recipe.outputContract.en);
     assert.equal(Object.isFrozen(recipe), true);
+  }
+});
+
+test('each communication recipe defines four mode-specific optimization tier contracts', () => {
+  const expectedTierNames = {
+    [RECIPE_IDS.enhance]: ['原意守护', '清晰直达', '专业展开', '创意策划'],
+    [RECIPE_IDS.upwardCommunication]: ['事实直报', '结论先行', '决策建议', '影响力表达'],
+    [RECIPE_IDS.chatPolish]: ['安全保真', '友好清晰', '专业服务', '共情化解'],
+    [RECIPE_IDS.pptCopy]: ['原文压缩', '结论标题', '结构化叙事', '创意提案'],
+  };
+  const styleIds = ['faithful', 'concise', 'professional', 'creative'];
+  const serializedChineseContracts = new Set();
+  const distinctChineseFields = {
+    goal: new Set(),
+    changeBudget: new Set(),
+    structure: new Set(),
+    forbidden: new Set(),
+  };
+
+  for (const recipe of listRecipes()) {
+    assert.deepEqual(Object.keys(recipe.styleContracts.zh), styleIds);
+    assert.deepEqual(Object.keys(recipe.styleContracts.en), styleIds);
+    assert.deepEqual(
+      styleIds.map((style) => recipe.styleContracts.zh[style].name),
+      expectedTierNames[recipe.id],
+    );
+
+    for (const language of ['zh', 'en']) {
+      for (const style of styleIds) {
+        const contract = recipe.styleContracts[language][style];
+        assert.ok(contract.name);
+        assert.ok(contract.goal);
+        assert.ok(contract.changeBudget);
+        assert.ok(contract.structure);
+        assert.ok(contract.forbidden);
+        assert.equal(Object.isFrozen(contract), true);
+      }
+    }
+
+    for (const style of styleIds) {
+      const contract = recipe.styleContracts.zh[style];
+      serializedChineseContracts.add(JSON.stringify(contract));
+      for (const [field, values] of Object.entries(distinctChineseFields)) {
+        values.add(contract[field]);
+      }
+    }
+    assert.equal(Object.isFrozen(recipe.styleContracts), true);
+    assert.equal(Object.isFrozen(recipe.styleContracts.zh), true);
+    assert.equal(Object.isFrozen(recipe.styleContracts.en), true);
+  }
+
+  assert.equal(serializedChineseContracts.size, 16);
+  for (const values of Object.values(distinctChineseFields)) {
+    assert.equal(values.size, 16);
   }
 });
 

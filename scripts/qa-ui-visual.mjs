@@ -21,6 +21,49 @@ const EXPANDED_VIEWPORTS = Object.freeze([
   { name: "480x700", width: 480, height: 700 },
   { name: "640x760", width: 640, height: 760 },
 ]);
+const PROMPT_TIERS = Object.freeze([
+  "faithful",
+  "concise",
+  "professional",
+  "creative",
+]);
+const WORK_MODES = Object.freeze([
+  "enhance",
+  "upward-communication",
+  "chat-polish",
+  "ppt-copy",
+]);
+const PNG_MASCOTS = Object.freeze([
+  "cockapoo",
+  "green-knight-pup",
+]);
+const CSS_MASCOTS = Object.freeze([
+  "classic-green-knight",
+]);
+const MASCOTS = Object.freeze([...PNG_MASCOTS, ...CSS_MASCOTS]);
+const REVIEW_ACTIONS = Object.freeze([
+  "#cancelButton",
+  "#restoreButton",
+  "#regenerateButton",
+  "#copyButton",
+  "#applyEditedButton",
+]);
+const REVIEW_ACTION_PHASES = Object.freeze({
+  pending: Object.freeze({
+    "#cancelButton": true,
+    "#restoreButton": false,
+    "#regenerateButton": true,
+    "#copyButton": true,
+    "#applyEditedButton": true,
+  }),
+  applied: Object.freeze({
+    "#cancelButton": false,
+    "#restoreButton": true,
+    "#regenerateButton": true,
+    "#copyButton": true,
+    "#applyEditedButton": false,
+  }),
+});
 const DEFAULT_SCENARIO = Object.freeze({
   captureDelay: 60,
   configureDelay: 20,
@@ -100,7 +143,13 @@ function geometryAudit() {
     while (current && current.nodeType === 1 && current !== document.documentElement) {
       const tag = current.tagName.toLowerCase();
       let part = tag;
-      for (const [attribute, property] of [["menu-action", "menuAction"], ["mode", "mode"], ["style", "style"], ["close-panel", "closePanel"]]) {
+      for (const [attribute, property] of [
+        ["menu-action", "menuAction"],
+        ["mode", "mode"],
+        ["style", "style"],
+        ["mascot", "mascot"],
+        ["close-panel", "closePanel"],
+      ]) {
         const value = current.dataset?.[property];
         if (value) {
           part += "[data-" + attribute + "=" + JSON.stringify(String(value)) + "]";
@@ -163,7 +212,14 @@ function geometryAudit() {
     return getComputedStyle(element).pointerEvents === "none";
   };
   const interactiveSelector = "button, input, textarea, [role=button], [role=menuitem]";
-  const overlaySelectors = ["#contextMenu", "#modePanel", "#settingsPanel", "#stylePanel", "#resultPanel"];
+  const overlaySelectors = [
+    "#contextMenu",
+    "#modePanel",
+    "#settingsPanel",
+    "#stylePanel",
+    "#mascotPanel",
+    "#resultPanel",
+  ];
   const viewport = {
     width: window.innerWidth,
     height: window.innerHeight,
@@ -230,7 +286,7 @@ function geometryAudit() {
       });
     }
   }
-  for (const selector of ["#contextMenu", "#modePanel", "#settingsPanel", "#stylePanel"]) {
+  for (const selector of ["#contextMenu", "#modePanel", "#settingsPanel", "#stylePanel", "#mascotPanel"]) {
     const element = document.querySelector(selector);
     if (isVisible(element) && !inHorizontalViewport(rectOf(element))) {
       failures.push({
@@ -255,7 +311,7 @@ function geometryAudit() {
       againstSelector: "document.clientBox",
     });
   }
-  for (const selector of ["#modePanel", "#settingsPanel", "#stylePanel"]) {
+  for (const selector of ["#modePanel", "#settingsPanel", "#stylePanel", "#mascotPanel"]) {
     const panel = document.querySelector(selector);
     if (!isVisible(panel)) {
       continue;
@@ -483,16 +539,19 @@ function readPageState() {
   return {
     phase: root?.dataset.state || "unknown",
     view: root?.dataset.view || "unknown",
+    mode: root?.dataset.mode || "unknown",
+    mascot: root?.dataset.mascot || "unknown",
+    reviewMode: document.querySelector("#reviewModeButton")?.getAttribute("aria-checked") === "true",
     resizing: root?.dataset.resizing || "false",
     dragging: root?.dataset.dragging || "false",
     viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
     visible: Object.fromEntries([
-      "#contextMenu", "#modePanel", "#settingsPanel", "#stylePanel", "#resultPanel",
-      "#resultMenuButton", "#compactFeedback", "#compactCancelButton", "#collapseButton", "#closeButton",
+      "#contextMenu", "#modePanel", "#settingsPanel", "#stylePanel", "#mascotPanel", "#resultPanel",
+      "#compactFeedback", "#compactCancelButton", "#collapseButton", "#closeButton",
     ].map((selector) => [selector, visible(selector)])),
     controls: Object.fromEntries([
-      "#cancelButton", "#restoreButton", "#copyButton", "#compactCancelButton",
-      "#resizeHandle", "#compactModeBadge",
+      "#cancelButton", "#restoreButton", "#regenerateButton", "#copyButton",
+      "#applyEditedButton", "#compactCancelButton", "#resizeHandle", "#compactModeBadge",
     ].map((selector) => [selector, controlState(selector)])),
     inputs: Object.fromEntries([
       "#modelEndpoint", "#modelName", "#apiKey", "#targetWindowTitlePattern",
@@ -714,6 +773,146 @@ async function runElectron(electron, args) {
     }
     throw new Error("API call timeout: " + name);
   };
+  const assertAbsent = async (selector) => {
+    const present = await readOnly(
+      function selectorPresentRead() {
+        return Boolean(document.querySelector("__SELECTOR__"));
+      }.toString().replaceAll("\"__SELECTOR__\"", JSON.stringify(selector)),
+    );
+    if (present) {
+      throw new Error("removed control is still present: " + selector);
+    }
+  };
+  const readModeSemantic = () => readOnly(function modeSemanticRead() {
+    const root = document.querySelector(".pet-shell");
+    const frame = document.querySelector(".pet-mascot-frame");
+    const frameStyle = frame ? getComputedStyle(frame) : undefined;
+    return {
+      mode: root?.dataset.mode || "",
+      accent: root ? getComputedStyle(root).getPropertyValue("--mode-accent").trim() : "",
+      visibleColor: frameStyle
+        ? [frameStyle.backgroundColor, frameStyle.borderTopColor].join("|")
+        : "",
+    };
+  });
+  const readTierLabels = () => readOnly(function tierLabelsRead() {
+    return [...document.querySelectorAll(".style-option[data-style] strong")]
+      .filter((element) => {
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return !element.hidden
+          && style.display !== "none"
+          && style.visibility !== "hidden"
+          && rect.width > 0
+          && rect.height > 0;
+      })
+      .map((element) => element.textContent?.trim() || "");
+  });
+  const readMascotState = () => readOnly(function mascotStateRead() {
+    const root = document.querySelector(".pet-shell");
+    const image = document.querySelector("#mascotImage");
+    if (!image) {
+      return {
+        mascot: root?.dataset.mascot || "",
+        src: "",
+        complete: false,
+        naturalWidth: 0,
+        naturalHeight: 0,
+      };
+    }
+    return {
+      mascot: root?.dataset.mascot || "",
+      src: image.getAttribute("src") || "",
+      complete: image.complete,
+      naturalWidth: image.naturalWidth,
+      naturalHeight: image.naturalHeight,
+    };
+  });
+  const waitForMascotImage = async (mascot, timeout = 3_500) => {
+    const expectedSuffix = "/assets/mascots/" + mascot + ".png";
+    const started = Date.now();
+    let latest;
+    while (Date.now() - started < timeout) {
+      latest = await readMascotState();
+      const normalizedSrc = String(latest.src || "").replaceAll("\\", "/");
+      if (latest.mascot === mascot
+        && normalizedSrc.endsWith(expectedSuffix)
+        && latest.complete
+        && latest.naturalWidth > 0
+        && latest.naturalHeight > 0) {
+        return {
+          mascot: latest.mascot,
+          src: expectedSuffix,
+          naturalWidth: latest.naturalWidth,
+          naturalHeight: latest.naturalHeight,
+        };
+      }
+      await sleep(35);
+    }
+    throw new Error(
+      "mascot image failed to load: "
+        + JSON.stringify({
+          expectedMascot: mascot,
+          actualMascot: latest?.mascot || "",
+          srcMatches: String(latest?.src || "").replaceAll("\\", "/").endsWith(expectedSuffix),
+          complete: latest?.complete === true,
+          naturalWidth: Number(latest?.naturalWidth) || 0,
+          naturalHeight: Number(latest?.naturalHeight) || 0,
+      }),
+    );
+  };
+  const readCssMascotState = () => readOnly(function cssMascotStateRead() {
+    const root = document.querySelector(".pet-shell");
+    const sprite = document.querySelector(
+      '#mascotSprite[data-mascot="classic-green-knight"]',
+    );
+    const style = sprite ? getComputedStyle(sprite) : undefined;
+    const rect = sprite?.getBoundingClientRect();
+    return {
+      mascot: root?.dataset.mascot || "",
+      semanticMascot: sprite?.dataset.mascot || "",
+      present: Boolean(sprite),
+      visible: Boolean(sprite
+        && !sprite.hidden
+        && style?.display !== "none"
+        && style?.visibility !== "hidden"
+        && Number(style?.opacity) !== 0
+        && rect?.width > 0
+        && rect?.height > 0),
+      width: rect?.width || 0,
+      height: rect?.height || 0,
+    };
+  });
+  const waitForCssMascot = async (mascot, timeout = 3_500) => {
+    const started = Date.now();
+    let latest;
+    while (Date.now() - started < timeout) {
+      latest = await readCssMascotState();
+      if (latest.mascot === mascot
+        && latest.semanticMascot === mascot
+        && latest.present
+        && latest.visible) {
+        return {
+          mascot,
+          kind: "css",
+          semantic: '#mascotSprite[data-mascot="classic-green-knight"]',
+          width: latest.width,
+          height: latest.height,
+        };
+      }
+      await sleep(35);
+    }
+    throw new Error(
+      "mascot CSS sprite semantic contract failed: "
+        + JSON.stringify({
+          expectedMascot: mascot,
+          actualMascot: latest?.mascot || "",
+          semanticMascot: latest?.semanticMascot || "",
+          present: latest?.present === true,
+          visible: latest?.visible === true,
+        }),
+    );
+  };
   const setScenario = async (patch = {}, resetCalls = false) => {
     qaWindow.webContents.send("qa:set-scenario", {
       ...DEFAULT_SCENARIO,
@@ -766,6 +965,10 @@ async function runElectron(electron, args) {
         if (style) {
           return "[data-style=\"" + style + "\"]";
         }
+        const mascot = element.closest?.("[data-mascot]")?.dataset.mascot;
+        if (mascot) {
+          return "[data-mascot=\"" + mascot + "\"]";
+        }
         return element.tagName?.toLowerCase() || "element";
       };
       return {
@@ -812,6 +1015,10 @@ async function runElectron(electron, args) {
         const style = element.closest?.("[data-style]")?.dataset.style;
         if (style) {
           return "[data-style=\"" + style + "\"]";
+        }
+        const mascot = element.closest?.("[data-mascot]")?.dataset.mascot;
+        if (mascot) {
+          return "[data-mascot=\"" + mascot + "\"]";
         }
         return element.tagName?.toLowerCase() || "element";
       };
@@ -972,14 +1179,25 @@ async function runElectron(electron, args) {
       }
     }
   };
-  const compactReady = async (size, scenario, resetCalls = true) => {
+  const compactReady = async (size, scenario, resetCalls = true, options = {}) => {
     await reloadPage();
     await setScenario(scenario || {}, resetCalls);
     await setWindowSize(size.width, size.height);
-    await waitForState({ phase: "idle", view: "compact" });
+    const ready = await waitForState({ phase: "idle", view: "compact" });
+    if (!MASCOTS.includes(ready.mascot)) {
+      throw new Error("compact renderer did not expose a supported data-mascot value");
+    }
+    if (PNG_MASCOTS.includes(ready.mascot)) {
+      await waitForMascotImage(ready.mascot);
+    } else {
+      await waitForCssMascot(ready.mascot);
+    }
+    if (typeof options.reviewMode === "boolean") {
+      await ensureReviewMode(options.reviewMode);
+    }
   };
   const expandedMenuReady = async (viewport) => {
-    await compactReady(COMPACT_SIZES[1], {}, true);
+    await compactReady(COMPACT_SIZES[1], {}, true, { reviewMode: false });
     await rightClickAvatar("open context menu");
     await waitForState({ phase: "idle", view: "expanded", visible: { "#contextMenu": true } });
     await setWindowSize(viewport.width, viewport.height);
@@ -989,6 +1207,54 @@ async function runElectron(electron, args) {
     label || "menu:" + action,
     { wait: 120 },
   );
+  const ensureReviewMode = async (enabled) => {
+    let current = await state();
+    if (current.reviewMode === enabled) {
+      return current;
+    }
+    if (current.view !== "compact") {
+      await clickAt("#collapseButton", "normalize before review mode toggle");
+      current = await waitForState({ view: "compact" });
+    }
+    await rightClickAvatar("open review mode toggle");
+    await waitForState({ view: "expanded", visible: { "#contextMenu": true } });
+    await menuAction("review", "context menu → review mode " + (enabled ? "on" : "off"));
+    current = await waitForState({ reviewMode: enabled });
+    if (current.visible["#contextMenu"]) {
+      await pressEscape("close review mode context menu");
+    }
+    current = await state();
+    if (current.view !== "compact") {
+      await clickAt("#collapseButton", "review mode toggle → compact");
+    }
+    return waitForState({ view: "compact", reviewMode: enabled });
+  };
+  const assertReviewActions = async (phase) => {
+    const expected = REVIEW_ACTION_PHASES[phase];
+    const current = await state();
+    for (const selector of REVIEW_ACTIONS) {
+      const control = current.controls[selector];
+      const expectedEnabled = expected?.[selector] === true;
+      if (!control
+        || control.visible !== true
+        || control.disabled !== !expectedEnabled) {
+        const error = new Error(
+          "review action must be visible and match phase availability: "
+            + JSON.stringify({
+              phase,
+              selector,
+              expectedEnabled,
+              actual: control,
+            }),
+        );
+        error.selector = selector;
+        error.state = current;
+        error.viewport = current.viewport;
+        throw error;
+      }
+    }
+    return current;
+  };
 
   const runDoubleAltRegression = async () => {
     const emitDoubleAltCapture = async (text) => {
@@ -1013,12 +1279,14 @@ async function runElectron(electron, args) {
     await emitDoubleAltCapture("Double Alt first run: keep number 42.");
     await waitForCall("enhance");
     await waitForCall("apply");
-    const firstSuccess = await waitForState({ phase: "success", view: "compact" });
+    const firstSuccess = await waitForState(
+      { phase: "success", view: "compact", visible: { "#resultPanel": false } },
+    );
     const firstCalls = apiCalls
       .filter((call) => ["setMode", "configure", "enhance", "apply"].includes(call.name))
       .map((call) => call.name);
 
-    await compactReady(COMPACT_SIZES[1], { enhanceDelay: 1_200 }, true);
+    await compactReady(COMPACT_SIZES[1], { enhanceDelay: 1_200 }, true, { reviewMode: false });
     await emitDoubleAltCapture("Double Alt cancellation run: keep number 84.");
     await waitForCall("enhance");
     await clickAt("#compactCancelButton", "double Alt loading → cancel", { wait: 50 });
@@ -1028,7 +1296,10 @@ async function runElectron(electron, args) {
     await emitDoubleAltCapture("Double Alt retry after cancellation: keep number 126.");
     await waitForCall("enhance");
     await waitForCall("apply");
-    const retrySuccess = await waitForState({ phase: "success", view: "compact" }, 4_000);
+    const retrySuccess = await waitForState(
+      { phase: "success", view: "compact", visible: { "#resultPanel": false } },
+      4_000,
+    );
     const retryCalls = apiCalls
       .filter((call) => ["setMode", "configure", "enhance", "apply"].includes(call.name))
       .map((call) => call.name);
@@ -1053,7 +1324,7 @@ async function runElectron(electron, args) {
   };
 
   const runP0LeftClick = async () => {
-    await compactReady(COMPACT_SIZES[1], {}, true);
+    await compactReady(COMPACT_SIZES[1], {}, true, { reviewMode: false });
     const idle = await takeSnapshot("compact-idle-p0-before-left-click", "compact idle → #petAvatar left click");
     const click = await clickAt("#petAvatar", "P0 trusted left click #petAvatar", { wait: 50 });
     const loading = await waitForState({ phase: "loading", view: "compact" });
@@ -1061,8 +1332,13 @@ async function runElectron(electron, args) {
     await waitForCall("capture");
     await waitForCall("enhance");
     await waitForCall("apply");
-    const success = await waitForState({ phase: "success", view: "compact" });
-    await takeSnapshot("compact-success-p0-avatar", "#petAvatar left click → capture → enhance → apply → success");
+    const success = await waitForState(
+      { phase: "success", view: "compact", visible: { "#resultPanel": false } },
+    );
+    await takeSnapshot(
+      "compact-success-p0-avatar",
+      "#petAvatar left click → capture → enhance → auto apply → compact; fast mode success",
+    );
     const relevantCalls = apiCalls.filter((call) => ["capture", "enhance", "apply"].includes(call.name));
     const centerHit = await readOnly(function centerHitRead() {
       const target = document.querySelector("#petAvatar");
@@ -1093,7 +1369,9 @@ async function runElectron(electron, args) {
     await waitForCall("capture");
     await waitForCall("enhance");
     const secondApply = await waitForCall("apply");
-    const secondSuccess = await waitForState({ phase: "success", view: "compact" });
+    const secondSuccess = await waitForState(
+      { phase: "success", view: "compact", visible: { "#resultPanel": false } },
+    );
     qaResult.p0.consecutiveLeftClick = {
       success: secondSuccess,
       expectedTextMatchesFreshCapture: secondApply.expectedTextMatchesCaptured === true,
@@ -1168,72 +1446,150 @@ async function runElectron(electron, args) {
       await takeSnapshot("expanded-error-model-check", "context menu → check model → error");
     });
 
-    await runFlow("result-panel-controls", async () => {
-      await compactReady(COMPACT_SIZES[1], {}, true);
-      await clickAt("#petAvatar", "create result for result panel", { wait: 50 });
-      await waitForState({ phase: "success", view: "compact" });
-      await rightClickAvatar("open result context menu");
-      await waitForState({ phase: "success", view: "expanded", visible: { "#contextMenu": true, "#resultMenuButton": true } });
-      await menuAction("result", "context menu → view result");
-      await waitForState({ phase: "success", view: "expanded", visible: { "#resultPanel": true } });
-      const successControls = await takeSnapshot("expanded-success-result-controls", "context menu → view result");
-      await clickAt("#copyButton", "result panel → #copyButton enabled", { wait: 100 });
-      await takeSnapshot("result-copy-success", "result panel → #copyButton");
-      await clickAt("#restoreButton", "result panel → #restoreButton enabled", { wait: 100 });
-      await waitForState({ phase: "success", view: "expanded", visible: { "#resultPanel": false } });
-      await takeSnapshot("result-restore-success", "result panel → #restoreButton");
-      if (successControls.controls["#cancelButton"]?.disabled !== true
-        || successControls.controls["#restoreButton"]?.disabled !== false
-        || successControls.controls["#copyButton"]?.disabled !== false) {
-        throw new Error("result button enabled/disabled contract did not match success state");
-      }
+    await runFlow("fast-mode-auto-apply-compact", async () => {
+      // fast mode success → auto apply → compact
+      await compactReady(COMPACT_SIZES[1], {}, true, { reviewMode: false });
+      await assertAbsent("[data-menu-action=\"result\"]");
+      await clickAt("#petAvatar", "fast mode success → auto apply → compact", { wait: 50 });
+      await waitForCall("apply");
+      await waitForState({
+        phase: "success",
+        view: "compact",
+        visible: { "#resultPanel": false },
+      });
+      await takeSnapshot(
+        "compact-success-fast-auto-apply",
+        "fast mode success → auto apply → compact",
+      );
     });
 
-    await runFlow("result-panel-loading-cancel-disabled", async () => {
-      await compactReady(COMPACT_SIZES[1], { applyDelay: 4_000 }, true);
-      await clickAt("#petAvatar", "create delayed result", { wait: 40 });
-      await waitForState({ phase: "loading", view: "compact" });
+    await runFlow("review-mode-discard-preserves-original", async () => {
+      const originalText = "Review discard baseline: keep URL https://example.test/review and number 314.";
+      await compactReady(
+        COMPACT_SIZES[1],
+        { capturedText: originalText },
+        true,
+        { reviewMode: true },
+      );
+      await clickAt("#petAvatar", "review result pending → discard", { wait: 50 });
       await waitForCall("enhance");
-      await sleep(150);
-      await rightClickAvatar("open delayed-result context");
-      await waitForState({ phase: "loading", view: "expanded", visible: { "#contextMenu": true, "#resultMenuButton": true } });
-      await menuAction("result", "delayed result → view result");
-      const loadingControls = await takeSnapshot("expanded-loading-result-controls", "delayed apply → context menu → view result");
-      await clickAt("#cancelButton", "result panel → #cancelButton disabled", { wait: 50 });
-      await waitForState({ phase: "success", view: "expanded", visible: { "#resultPanel": true } }, 4_000);
-      await takeSnapshot("expanded-success-after-delayed-apply", "delayed apply → success");
-      if (loadingControls.controls["#cancelButton"]?.disabled !== true) {
-        throw new Error("result panel cancel button was not disabled while safe apply was in flight");
+      await waitForState({
+        phase: "success",
+        view: "expanded",
+        reviewMode: true,
+        visible: { "#resultPanel": true },
+      });
+      await assertReviewActions("pending");
+      const beforeDiscard = await readOnly(function reviewOriginalRead() {
+        return {
+          original: document.querySelector("#originalPreview")?.textContent || "",
+          revised: document.querySelector("#enhancedPrompt")?.value || "",
+        };
+      });
+      if (beforeDiscard.original !== originalText
+        || !beforeDiscard.revised
+        || beforeDiscard.revised === originalText) {
+        throw new Error("review discard fixture did not preserve a distinct original baseline");
       }
+      await clickAt("#cancelButton", "review result pending → #cancelButton discard", { wait: 100 });
+      await waitForState({
+        phase: "idle",
+        view: "compact",
+        reviewMode: true,
+        visible: { "#resultPanel": false },
+      });
+      const afterDiscard = await readOnly(function discardedOriginalRead() {
+        return {
+          original: document.querySelector("#originalPreview")?.textContent || "",
+          revised: document.querySelector("#enhancedPrompt")?.value || "",
+        };
+      });
+      const mutatingCalls = apiCalls.filter((call) => ["apply", "restore"].includes(call.name));
+      if (afterDiscard.original !== originalText
+        || afterDiscard.revised !== ""
+        || mutatingCalls.length !== 0) {
+        throw new Error(
+          "review discard changed the original transaction or invoked target mutation: "
+            + JSON.stringify({
+              originalPreserved: afterDiscard.original === originalText,
+              revisedCleared: afterDiscard.revised === "",
+              mutatingCalls: mutatingCalls.map((call) => call.name),
+            }),
+        );
+      }
+      qaResult.reviewDiscard = {
+        originalPreserved: afterDiscard.original === originalText,
+        revisedCleared: afterDiscard.revised === "",
+        applyCallCount: mutatingCalls.filter((call) => call.name === "apply").length,
+        restoreCallCount: mutatingCalls.filter((call) => call.name === "restore").length,
+        cancelCallCount: apiCalls.filter((call) => call.name === "cancel").length,
+      };
+      await takeSnapshot(
+        "compact-review-discard-preserved-original",
+        "review pending → discard → compact; original transaction preserved",
+      );
     });
 
-    await runFlow("expanded-collapse", async () => {
-      await compactReady(COMPACT_SIZES[1], {}, true);
-      await clickAt("#petAvatar", "create success before collapse", { wait: 50 });
-      await waitForState({ phase: "success", view: "compact" });
-      await rightClickAvatar("open success context before collapse");
-      await menuAction("result", "open result before collapse");
-      await waitForState({ phase: "success", view: "expanded", visible: { "#resultPanel": true } });
-      await clickAt("#collapseButton", "expanded → #collapseButton");
-      await waitForState({ phase: "success", view: "compact" });
-      await takeSnapshot("compact-after-expanded-collapse", "expanded result → #collapseButton → compact");
+    await runFlow("review-mode-result-actions-and-topbar-menu", async () => {
+      await compactReady(COMPACT_SIZES[1], {}, true, { reviewMode: true });
+      await assertAbsent("[data-menu-action=\"result\"]");
+      await clickAt("#petAvatar", "review mode success → primary result region", { wait: 50 });
+      await waitForCall("enhance");
+      await waitForState({
+        phase: "success",
+        view: "expanded",
+        reviewMode: true,
+        visible: { "#resultPanel": true },
+      });
+      if (apiCalls.some((call) => call.name === "apply")) {
+        throw new Error("review mode applied before explicit user confirmation");
+      }
+      await assertReviewActions("pending");
+      const pendingControls = await takeSnapshot(
+        "expanded-review-pending-actions",
+        "review mode success → primary result region → pending actions",
+      );
+      const topbarMenu = pendingControls.controls["#resizeHandle"];
+      if (!topbarMenu
+        || topbarMenu.visible !== true
+        || topbarMenu.disabled !== false) {
+        throw new Error("topbar menu entry must be visible and usable");
+      }
+      await clickAt("#copyButton", "review result → copy", { wait: 80 });
+      await clickAt("#applyEditedButton", "review result → explicit apply", { wait: 50 });
+      await waitForCall("apply");
+      await waitForState({
+        phase: "success",
+        view: "expanded",
+        reviewMode: true,
+        visible: { "#resultPanel": true },
+      });
+      await assertReviewActions("applied");
+      await takeSnapshot(
+        "expanded-review-applied-actions",
+        "review result → explicit apply → applied actions",
+      );
+      await clickAt("#resizeHandle", "review result → topbar menu entry", { wait: 80 });
+      await waitForState({
+        view: "expanded",
+        reviewMode: true,
+        visible: { "#contextMenu": true, "#resultPanel": true },
+      });
+      await takeSnapshot(
+        "expanded-review-topbar-menu-open",
+        "review result → topbar menu entry → context menu",
+      );
     });
+
   };
 
   const runMenusAndPanels = async () => {
     await runFlow("context-menu-complete", async () => {
-      for (const action of ["result", "mode", "configure", "style", "check", "startup", "quit"]) {
+      await assertAbsent("[data-menu-action=\"result\"]");
+      for (const action of ["mode", "mascot", "review", "configure", "style", "check", "startup", "quit"]) {
         await compactReady(COMPACT_SIZES[1], {}, true);
-        if (action === "result") {
-          await clickAt("#petAvatar", "create result for context result item", { wait: 50 });
-          await waitForState({ phase: "success", view: "compact" });
-        }
         await rightClickAvatar("reopen context for " + action);
-        if (action === "result") {
-          await waitForState({ view: "expanded", visible: { "#contextMenu": true, "#resultMenuButton": true } });
-        } else {
-          await waitForState({ view: "expanded", visible: { "#contextMenu": true } });
-        }
+        await waitForState({ view: "expanded", visible: { "#contextMenu": true } });
         await takeSnapshot("context-menu-before-" + action, "trusted right click #petAvatar → " + action);
         await menuAction(action, "context menu → " + action);
         if (action === "quit") {
@@ -1241,15 +1597,18 @@ async function runElectron(electron, args) {
           if (qaWindow.isDestroyed()) {
             throw new Error("mock quit unexpectedly destroyed QA window");
           }
-        } else if (action === "result") {
-          await waitForState({ view: "expanded", visible: { "#resultPanel": true } });
-          await takeSnapshot("context-result-panel", "context menu → view result");
-        } else if (action === "startup") {
+        } else if (action === "startup" || action === "review") {
           await waitForState({ view: "expanded", visible: { "#contextMenu": true } });
           await takeSnapshot("context-startup-visible", "context menu → startup");
           await pressEscape("close startup context menu");
         } else {
-          const panel = action === "mode" ? "#modePanel" : action === "style" ? "#stylePanel" : "#settingsPanel";
+          const panel = action === "mode"
+            ? "#modePanel"
+            : action === "style"
+              ? "#stylePanel"
+              : action === "mascot"
+                ? "#mascotPanel"
+                : "#settingsPanel";
           await waitForState({ view: "expanded", visible: { [panel]: true } });
           await takeSnapshot("context-" + action + "-panel", "context menu → " + action);
           await clickAt("[data-close-panel=\"" + panel.slice(1) + "\"]", action + " panel → close");
@@ -1257,27 +1616,96 @@ async function runElectron(electron, args) {
       }
     });
 
-    await runFlow("mode-options", async () => {
-      const expectedModeFeedback = {
-        enhance: "已切换：AI 提示词",
-        "upward-communication": "已切换：向上沟通",
-        "chat-polish": "已切换：用户沟通",
-        "ppt-copy": "已切换：PPT 文案",
-      };
-      for (const mode of ["enhance", "upward-communication", "chat-polish", "ppt-copy"]) {
-        await compactReady(COMPACT_SIZES[1], {}, true);
-        await rightClickAvatar("open mode panel for " + mode);
-        await menuAction("mode", "context menu → mode (" + mode + ")");
-        await waitForState({ view: "expanded", visible: { "#modePanel": true } });
-        await takeSnapshot("mode-panel-" + mode, "mode panel before " + mode);
-        await clickAt("[data-mode=\"" + mode + "\"]", "mode option → " + mode);
-        await waitForState({ view: "compact", visible: { "#modePanel": false } });
-        const feedback = await elementInfo("#compactFeedbackText");
-        if (feedback?.textContent !== expectedModeFeedback[mode]) {
-          throw new Error(`compact mode feedback mismatch for ${mode}: ${feedback?.textContent}`);
+    await runFlow("right-click-mode-colors", async () => {
+      await compactReady(COMPACT_SIZES[1], {}, true);
+      await rightClickAvatar("open mode panel for right-click baseline");
+      await menuAction("mode", "context menu → mode baseline");
+      await waitForState({ view: "expanded", visible: { "#modePanel": true } });
+      await clickAt("[data-mode=\"ppt-copy\"]", "set right-click baseline → ppt-copy");
+      await waitForState({
+        view: "expanded",
+        mode: "ppt-copy",
+        visible: { "#contextMenu": true, "#modePanel": false },
+      });
+      await takeSnapshot(
+        "mode-selection-returns-parent-menu",
+        "mode option → parent menu remains open",
+      );
+      await clickAt("#collapseButton", "mode parent menu → compact");
+      await waitForState({ view: "compact", mode: "ppt-copy" });
+
+      const modeColors = [];
+      const visibleModeColors = [];
+      const observations = [];
+      for (const mode of WORK_MODES) {
+        await setScenario({}, true);
+        await clickAt(
+          "#petAvatar",
+          "right-click mode toggle → " + mode,
+          { button: "right", wait: 50 },
+        );
+        await waitForCall("setMode");
+        await waitForState({ phase: "success", view: "compact", mode });
+        const semantic = await readModeSemantic();
+        if (semantic.mode !== mode || !semantic.accent || !semantic.visibleColor) {
+          throw new Error(
+            "right-click mode semantic mismatch: "
+              + JSON.stringify({ expected: mode, actual: semantic }),
+          );
         }
-        await takeSnapshot("mode-selected-" + mode, "mode option → " + mode + " → close");
+        modeColors.push(semantic.accent);
+        visibleModeColors.push(semantic.visibleColor);
+        observations.push(semantic);
+        await takeSnapshot("mode-right-click-" + mode, "right-click mode toggle → " + mode);
       }
+      if (new Set(modeColors).size !== WORK_MODES.length) {
+        throw new Error("right-click modes did not expose four distinct --mode-accent values");
+      }
+      if (new Set(visibleModeColors).size !== WORK_MODES.length) {
+        throw new Error("right-click modes did not produce four distinct visible mode colors");
+      }
+      qaResult.modeSemantics = observations;
+    });
+
+    await runFlow("mode-specific-tier-labels", async () => {
+      const tierLabelSets = [];
+      for (const mode of WORK_MODES) {
+        await compactReady(COMPACT_SIZES[1], {}, true, { reviewMode: false });
+        await rightClickAvatar("open mode panel for tier labels: " + mode);
+        await menuAction("mode", "context menu → mode for tier labels: " + mode);
+        await waitForState({ view: "expanded", visible: { "#modePanel": true } });
+        await clickAt("[data-mode=\"" + mode + "\"]", "mode option for tier labels → " + mode);
+        await waitForState({
+          view: "expanded",
+          mode,
+          visible: { "#contextMenu": true, "#modePanel": false },
+        });
+        await menuAction("style", "context menu → style labels: " + mode);
+        await waitForState({ view: "expanded", visible: { "#stylePanel": true } });
+        const labels = await readTierLabels();
+        if (labels.length !== PROMPT_TIERS.length || labels.some((label) => !label)) {
+          throw new Error(
+            "mode did not expose four visible non-empty tier labels: "
+              + JSON.stringify({ mode, labels }),
+          );
+        }
+        tierLabelSets.push(labels);
+        await takeSnapshot(
+          "tier-labels-" + mode,
+          "mode " + mode + " → four visible tier labels",
+        );
+        await clickAt(
+          "[data-close-panel=\"stylePanel\"]",
+          "close style labels panel: " + mode,
+        );
+      }
+      if (new Set(tierLabelSets.map((labels) => JSON.stringify(labels))).size !== WORK_MODES.length) {
+        throw new Error("four work modes did not expose four distinct visible tier label sets");
+      }
+      qaResult.tierLabelSets = WORK_MODES.map((mode, index) => ({
+        mode,
+        labels: tierLabelSets[index],
+      }));
     });
 
     await runFlow("model-settings", async () => {
@@ -1328,7 +1756,7 @@ async function runElectron(electron, args) {
     });
 
     await runFlow("style-options", async () => {
-      for (const style of ["faithful", "balanced", "concise", "detailed", "professional", "creative"]) {
+      for (const style of PROMPT_TIERS) {
         await compactReady(COMPACT_SIZES[1], {}, true);
         await rightClickAvatar("open style panel for " + style);
         await menuAction("style", "context menu → style (" + style + ")");
@@ -1337,6 +1765,28 @@ async function runElectron(electron, args) {
         await waitForState({ view: "compact", visible: { "#stylePanel": false } });
         await takeSnapshot("style-selected-" + style, "style option → " + style + " → close");
       }
+    });
+
+    await runFlow("mascot-options", async () => {
+      const observations = [];
+      for (const mascot of MASCOTS) {
+        await compactReady(COMPACT_SIZES[1], {}, true);
+        await rightClickAvatar("open mascot panel for " + mascot);
+        await menuAction("mascot", "context menu → mascot (" + mascot + ")");
+        await waitForState({ view: "expanded", visible: { "#mascotPanel": true } });
+        await clickAt(
+          ".mascot-option[data-mascot=\"" + mascot + "\"]",
+          "mascot option → " + mascot,
+        );
+        await waitForState({ view: "compact", mascot, visible: { "#mascotPanel": false } });
+        observations.push(
+          PNG_MASCOTS.includes(mascot)
+            ? await waitForMascotImage(mascot)
+            : await waitForCssMascot(mascot),
+        );
+        await takeSnapshot("mascot-selected-" + mascot, "mascot option → " + mascot);
+      }
+      qaResult.mascots = observations;
     });
 
     await runFlow("startup-toggle", async () => {
@@ -1462,6 +1912,9 @@ async function runElectron(electron, args) {
       matrices: {
         compactSizes: COMPACT_SIZES,
         expandedViewports: EXPANDED_VIEWPORTS,
+        promptTiers: PROMPT_TIERS,
+        workModes: WORK_MODES,
+        mascots: MASCOTS,
         deviceScaleFactorObserved: observedDpr,
       },
       totals: {
@@ -1494,6 +1947,10 @@ async function runElectron(electron, args) {
       p0: qaResult.p0,
       overlayChecks: qaResult.overlayChecks,
       altDoubleClick: qaResult.altDoubleClick,
+      reviewDiscard: qaResult.reviewDiscard,
+      modeSemantics: qaResult.modeSemantics,
+      tierLabelSets: qaResult.tierLabelSets,
+      mascots: qaResult.mascots,
       failures: {
         geometry: geometryFailures,
         workflow: workflowFailures,
@@ -1589,6 +2046,21 @@ async function runElectron(electron, args) {
       "## Scope notes",
       "",
       "- No real API key or network model request was used. Password-field evidence is length-only and rendered as a mask.",
+      "- Prompt tiers: " + PROMPT_TIERS.join(", ") + ".",
+      "- Right-click mode color semantics: "
+        + (qaResult.modeSemantics?.map((item) => item.mode + "=" + item.accent).join(", ") || "not recorded") + ".",
+      "- Review discard transaction: original preserved="
+        + (qaResult.reviewDiscard?.originalPreserved === true)
+        + ", revised cleared=" + (qaResult.reviewDiscard?.revisedCleared === true)
+        + ", apply/restore calls="
+        + (qaResult.reviewDiscard?.applyCallCount ?? "unknown") + "/"
+        + (qaResult.reviewDiscard?.restoreCallCount ?? "unknown") + ".",
+      "- Mascot checks: "
+        + (qaResult.mascots?.map((item) => item.kind === "css"
+          ? item.mascot + " CSS semantic " + item.width + "x" + item.height
+          : item.mascot + " PNG " + item.naturalWidth + "x" + item.naturalHeight)
+          .join(", ") || "not recorded")
+        + "; PNG checks record only relative asset identifiers, and CSS uses DOM semantics.",
       "- No PowerShell UI Automation and no Codex/ChatGPT/Claude UI control were used.",
       "- The quit menu item is clicked but mocked so the QA process remains alive.",
       "- Double Alt renderer handoff is tested as loading event → captured payload → model → apply → terminal state, including cancel then retry. The Windows hook process is covered separately by the automated platform tests.",

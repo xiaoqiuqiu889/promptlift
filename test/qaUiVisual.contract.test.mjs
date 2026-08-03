@@ -32,3 +32,62 @@ test("UI visual QA uses trusted input, read-only DOM inspection, and masked mock
   assert.match(preload, /apiKeyLength/);
   assert.doesNotMatch(runner, /Add-Type.*Automation|Get-UIAutomation|System\.Windows\.Automation/i);
 });
+
+test("UI visual QA locks the four prompt tiers and four right-click mode color semantics", async () => {
+  const runner = await readFile(path.join(projectRoot, "scripts/qa-ui-visual.mjs"), "utf8");
+  assert.match(
+    runner,
+    /PROMPT_TIERS\s*=\s*Object\.freeze\(\[\s*"faithful",\s*"concise",\s*"professional",\s*"creative",?\s*\]\)/s,
+  );
+  assert.match(
+    runner,
+    /WORK_MODES\s*=\s*Object\.freeze\(\[\s*"enhance",\s*"upward-communication",\s*"chat-polish",\s*"ppt-copy",?\s*\]\)/s,
+  );
+  assert.match(runner, /right-click mode toggle/);
+  assert.match(runner, /root\?\.dataset\.mode/);
+  assert.match(runner, /getPropertyValue\("--mode-accent"\)/);
+  assert.match(runner, /new Set\(modeColors\)\.size !== WORK_MODES\.length/);
+  assert.match(runner, /style-option\[data-style\].*strong/);
+  assert.match(runner, /new Set\(tierLabelSets\.map\(\(labels\) => JSON\.stringify\(labels\)\)\)\.size !== WORK_MODES\.length/);
+  assert.match(runner, /mode-selection-returns-parent-menu/);
+  assert.match(runner, /visible:\s*\{\s*"#contextMenu":\s*true,\s*"#modePanel":\s*false\s*\}/s);
+});
+
+test("UI visual QA verifies two decoded PNG mascots plus the semantic CSS green knight", async () => {
+  const runner = await readFile(path.join(projectRoot, "scripts/qa-ui-visual.mjs"), "utf8");
+  assert.match(
+    runner,
+    /PNG_MASCOTS\s*=\s*Object\.freeze\(\[\s*"cockapoo",\s*"green-knight-pup",?\s*\]\)/s,
+  );
+  assert.match(
+    runner,
+    /CSS_MASCOTS\s*=\s*Object\.freeze\(\[\s*"classic-green-knight",?\s*\]\)/s,
+  );
+  assert.match(runner, /#mascotImage/);
+  assert.match(runner, /root\?\.dataset\.mascot/);
+  assert.match(runner, /image\.complete/);
+  assert.match(runner, /image\.naturalWidth/);
+  assert.match(runner, /\.mascot-option\[data-mascot=/);
+  assert.match(runner, /mascot image failed to load/);
+  assert.match(runner, /#mascotSprite\[data-mascot=\\?"classic-green-knight\\?"\]/);
+  assert.match(runner, /mascot CSS sprite semantic contract/);
+  assert.doesNotMatch(runner, /mascot(?:Image)?(?:Path|AbsolutePath)\s*:/i);
+});
+
+test("UI visual QA verifies fast auto-apply compacts while review mode exposes phase-safe actions", async () => {
+  const runner = await readFile(path.join(projectRoot, "scripts/qa-ui-visual.mjs"), "utf8");
+  assert.match(runner, /assertAbsent\("\[data-menu-action=\\?"result\\?"\]"\)/);
+  assert.match(runner, /fast mode success.*auto apply.*compact/is);
+  assert.match(runner, /review mode success.*primary result region/is);
+  assert.match(
+    runner,
+    /REVIEW_ACTIONS\s*=\s*Object\.freeze\(\[\s*"#cancelButton",\s*"#restoreButton",\s*"#regenerateButton",\s*"#copyButton",\s*"#applyEditedButton",?\s*\]\)/s,
+  );
+  assert.match(runner, /REVIEW_ACTION_PHASES\s*=\s*Object\.freeze/);
+  assert.match(runner, /review action must be visible and match phase availability/);
+  assert.match(runner, /#resizeHandle/);
+  assert.match(runner, /topbar menu entry must be visible and usable/);
+  assert.match(runner, /"#resultPanel": false/);
+  assert.match(runner, /"#resultPanel": true/);
+  assert.doesNotMatch(runner, /menuAction\("result"/);
+});

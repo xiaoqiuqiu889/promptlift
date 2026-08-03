@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const read = (relativePath) => readFileSync(
@@ -23,11 +23,231 @@ test("renderer exposes four expression recipes without adding a hot-path choice"
   );
 });
 
+test("settings menu prioritizes optimization tier and mode selection returns to the parent menu", () => {
+  const html = read("src/renderer/index.html");
+  const renderer = read("src/renderer/renderer.mjs");
+  const menuStart = html.indexOf('<nav id="contextMenu"');
+  const menu = html.slice(menuStart, html.indexOf("</nav>", menuStart));
+  const actions = [...menu.matchAll(/data-menu-action="([^"]+)"/g)]
+    .map((match) => match[1]);
+  const handleMode = renderer.slice(
+    renderer.indexOf("async function handleMode"),
+    renderer.indexOf("async function handleStartupToggle"),
+  );
+
+  assert.deepEqual(actions.slice(0, 2), ["style", "mode"]);
+  assert.match(
+    handleMode,
+    /if \(returnToMenu\)\s*\{\s*showContextMenu\(\);\s*\}\s*else\s*\{\s*hidePanels\(\);/s,
+  );
+  assert.match(
+    renderer,
+    /modePanel\.addEventListener\("click"[\s\S]*handleMode\(mode,\s*\{\s*returnToMenu:\s*true\s*\}\)/,
+  );
+});
+
+test("prompt style UI exposes exactly four distinct tiers and migrates legacy values", () => {
+  const html = read("src/renderer/index.html");
+  const renderer = read("src/renderer/renderer.mjs");
+  const styleValues = [...html.matchAll(/class="style-option"[^>]*data-style="([^"]+)"/g)]
+    .map((match) => match[1]);
+
+  assert.deepEqual(styleValues, [
+    "faithful",
+    "concise",
+    "professional",
+    "creative",
+  ]);
+  for (const label of ["原意守护", "清晰直达", "专业展开", "创意策划"]) {
+    assert.match(html, new RegExp(`<strong>${label}</strong>`));
+    assert.match(renderer, new RegExp(`"${label}"`));
+  }
+  assert.match(renderer, /LEGACY_STYLE_ALIASES/);
+  assert.match(renderer, /balanced:\s*"concise"/);
+  assert.match(renderer, /detailed:\s*"professional"/);
+  assert.match(renderer, /normalizeStyle\(savedConfig\.style\)/);
+});
+
+test("each work mode presents its own four tier names while keeping canonical values", () => {
+  const html = read("src/renderer/index.html");
+  const renderer = read("src/renderer/renderer.mjs");
+  const styleValues = [...html.matchAll(/class="style-option"[^>]*data-style="([^"]+)"/g)]
+    .map((match) => match[1]);
+
+  assert.deepEqual(styleValues, ["faithful", "concise", "professional", "creative"]);
+  assert.match(renderer, /MODE_STYLE_PRESENTATION/);
+  for (const labels of [
+    ["原意守护", "清晰直达", "专业展开", "创意策划"],
+    ["事实直报", "结论先行", "决策建议", "影响力表达"],
+    ["安全保真", "友好清晰", "专业服务", "共情化解"],
+    ["原文压缩", "结论标题", "结构化叙事", "创意提案"],
+  ]) {
+    for (const label of labels) {
+      assert.match(renderer, new RegExp(`label:\\s*"${label}"`));
+    }
+  }
+  assert.match(
+    renderer,
+    /function updateStyleLabel\(\)[\s\S]*button\.querySelector\("strong"\)[\s\S]*button\.querySelector\("span"\)/,
+  );
+  assert.match(
+    renderer,
+    /function updateModeLabel\(\)[\s\S]*updateStyleLabel\(\)/,
+    "switching mode must refresh all four visible tier labels immediately",
+  );
+});
+
+test("mode state colors the mascot frame without recoloring the source image", () => {
+  const renderer = read("src/renderer/renderer.mjs");
+  const css = read("src/renderer/styles.css");
+
+  assert.match(renderer, /root\.dataset\.mode\s*=\s*state\.mode/);
+  for (const [mode, color] of [
+    ["enhance", "#07c160"],
+    ["upward-communication", "#3478f6"],
+    ["chat-polish", "#f59a23"],
+    ["ppt-copy", "#8b5cf6"],
+  ]) {
+    assert.match(
+      css,
+      new RegExp(`data-mode="${mode}"[^}]*--mode-accent:\\s*${color}`, "s"),
+    );
+  }
+  assert.match(css, /\.pet-mascot-frame[\s\S]*border:[^;]*var\(--mode-accent\)/);
+  assert.match(css, /\.pet-mascot-image[\s\S]*object-fit:\s*contain/);
+  assert.match(css, /\.pet-flame\s*\{[^}]*background:\s*var\(--mode-accent\)/s);
+  assert.match(css, /\.pet-gem\s*\{[^}]*background:\s*var\(--mode-accent\)/s);
+  assert.doesNotMatch(css, /\.pet-mascot-image[\s\S]{0,240}\bfilter\s*:/);
+});
+
+test("green knight pup is frameless and the Q cockapoo option is removed", () => {
+  const html = read("src/renderer/index.html");
+  const renderer = read("src/renderer/renderer.mjs");
+  const css = read("src/renderer/styles.css");
+
+  assert.doesNotMatch(html, /cockapoo-chibi|可卡布犬 · Q版/);
+  assert.doesNotMatch(renderer, /cockapoo-chibi/);
+  assert.equal(
+    existsSync(new URL("../src/renderer/assets/mascots/cockapoo-chibi.png", import.meta.url)),
+    false,
+  );
+  assert.match(
+    css,
+    /\.pet-shell\[data-mascot="green-knight-pup"\]\s+\.pet-mascot-frame\s*\{[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*background:\s*transparent;[^}]*overflow:\s*visible;/s,
+  );
+});
+
+test("result menu shortcut is removed while the primary result actions remain", () => {
+  const html = read("src/renderer/index.html");
+  const renderer = read("src/renderer/renderer.mjs");
+
+  assert.doesNotMatch(html, /id="resultMenuButton"|data-menu-action="result"|查看增强结果/);
+  assert.doesNotMatch(renderer, /resultMenuButton|handleShowResult|action === "result"/);
+  for (const id of ["resultPanel", "restoreButton", "copyButton", "applyEditedButton"]) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+});
+
+test("fast success returns compact while review success keeps the first-level editor visible", () => {
+  const renderer = read("src/renderer/renderer.mjs");
+  const handleEnhance = renderer.slice(
+    renderer.indexOf("async function handleEnhance"),
+    renderer.indexOf("async function handleApplyEdited"),
+  );
+
+  assert.match(handleEnhance, /replace:\s*!state\.reviewMode/);
+  assert.match(
+    handleEnhance,
+    /if \(state\.reviewMode\)\s*\{\s*resultPanel\.hidden = false;\s*expandAssistant\(\);\s*\}\s*else\s*\{\s*collapseAssistant\(\);/s,
+  );
+  assert.doesNotMatch(
+    handleEnhance,
+    /resultPanel\.hidden = false;\s*expandAssistant\(\);\s*updateMeta\(\)/,
+    "the fast path must not unconditionally open the review editor",
+  );
+});
+
+test("review result keeps explicit actions and supports non-destructive discard", () => {
+  const html = read("src/renderer/index.html");
+  const renderer = read("src/renderer/renderer.mjs");
+  for (const [id, label] of [
+    ["cancelButton", "放弃"],
+    ["restoreButton", "恢复原文"],
+    ["regenerateButton", "重新生成"],
+    ["copyButton", "复制"],
+    ["applyEditedButton", "应用"],
+  ]) {
+    assert.match(html, new RegExp(`id="${id}"[^>]*>${label}</button>`));
+  }
+  assert.match(renderer, /const canDiscardReview/);
+  assert.match(renderer, /async function handleDiscardReview/);
+  assert.match(
+    renderer,
+    /handleDiscardReview\(\)[\s\S]*api\.cancel\(operationId\)[\s\S]*resultPanel\.hidden = true[\s\S]*collapseAssistant\(\)/,
+  );
+  assert.match(renderer, /cancelButton\.disabled\s*=\s*!\(canCancelRequest \|\| canDiscardReview\)/);
+
+  const showMenu = renderer.slice(
+    renderer.indexOf("function showContextMenu"),
+    renderer.indexOf("function hidePanels"),
+  );
+  assert.doesNotMatch(showMenu, /resultPanel\.hidden|enhancedText\s*=|generationOperationId\s*=/);
+  for (const action of ["mode", "mascot", "review", "configure", "style", "check", "startup", "quit"]) {
+    assert.match(html, new RegExp(`data-menu-action="${action}"`));
+  }
+});
+
+test("mascot picker keeps the original cockapoo and both green knights", () => {
+  const html = read("src/renderer/index.html");
+  const renderer = read("src/renderer/renderer.mjs");
+  const css = read("src/renderer/styles.css");
+  const sourceAsset = readFileSync(
+    new URL("../deliverables/cockapoo-mascot-images/green-knight-pup-css-transparent.png", import.meta.url),
+  );
+  const runtimeAsset = readFileSync(
+    new URL("../src/renderer/assets/mascots/green-knight-pup.png", import.meta.url),
+  );
+
+  assert.match(html, /id="mascotImage"/);
+  assert.match(html, /id="mascotSprite"[^>]*data-mascot="classic-green-knight"[^>]*hidden/);
+  assert.match(html, /src="\.\/assets\/mascots\/cockapoo\.png"/);
+  assert.match(html, /data-menu-action="mascot"/);
+  assert.match(html, /id="mascotPanel"/);
+  for (const [value, label, asset] of [
+    ["cockapoo", "可卡布犬 · 原风格", "cockapoo.png"],
+    ["green-knight-pup", "绿色骑士小狗", "green-knight-pup.png"],
+  ]) {
+    assert.match(html, new RegExp(`data-mascot="${value}"`));
+    assert.match(html, new RegExp(`<strong>${label}</strong>`));
+    assert.match(renderer, new RegExp(`assets/mascots/${asset.replace(".", "\\.")}`));
+  }
+  assert.match(html, /data-mascot="classic-green-knight"[\s\S]*<strong>绿色骑士<\/strong>/);
+  for (const cssPart of ["pet-flame", "pet-helmet", "pet-gem"]) {
+    assert.match(html, new RegExp(`id="mascotSprite"[\\s\\S]*class="[^"]*${cssPart}`));
+  }
+  assert.match(renderer, /"classic-green-knight"[\s\S]*kind:\s*"css"/);
+  assert.match(renderer, /mascotImageFrame\.hidden\s*=\s*usesCssSprite/);
+  assert.match(renderer, /mascotSprite\.hidden\s*=\s*!usesCssSprite/);
+  assert.match(
+    css,
+    /\.pet-shell\[data-mascot="green-knight-pup"\]\s+\.pet-mascot-frame\s*\{[^}]*background:\s*transparent;/s,
+  );
+  assert.deepEqual(runtimeAsset, sourceAsset);
+  assert.match(renderer, /MASCOT_STORAGE_KEY/);
+  assert.match(renderer, /mascot:\s*readMascot\(\)/);
+  assert.match(renderer, /localStorage\.setItem\(MASCOT_STORAGE_KEY/);
+  assert.match(renderer, /mascotImage\.addEventListener\("error"/);
+  assert.match(renderer, /setMascot\("cockapoo"/);
+  assert.doesNotMatch(html, /幽魂骑士|精绝女王|spectral-rider|desert-queen/);
+});
+
 test("review mode offers editable diff, regenerate, and CAS apply", () => {
   const html = read("src/renderer/index.html");
   const renderer = read("src/renderer/renderer.mjs");
   for (const id of [
     "reviewModeButton",
+    "cancelButton",
+    "restoreButton",
     "originalPreview",
     "diffPreview",
     "enhancedPrompt",

@@ -12,6 +12,21 @@ const TEXT_EXTENSIONS = new Set([
   '.mjs',
   '.txt',
 ]);
+const RUNTIME_IMAGE_EXTENSIONS = new Set([
+  '.bmp',
+  '.gif',
+  '.ico',
+  '.jpeg',
+  '.jpg',
+  '.png',
+  '.svg',
+  '.webp',
+]);
+const REQUIRED_MASCOT_ASSETS = Object.freeze([
+  'src/renderer/assets/mascots/cockapoo.png',
+  'src/renderer/assets/mascots/green-knight-pup.png',
+]);
+const REQUIRED_MASCOT_ASSET_SET = new Set(REQUIRED_MASCOT_ASSETS);
 const FORBIDDEN_SEGMENTS = new Set([
   '.git',
   'coverage',
@@ -128,11 +143,27 @@ export async function auditPackageSurface({ archivePath, sourceRoot }) {
   const expectedFiles = ['package.json', ...sourceFiles.map((file) => `src/${file}`)];
   const actualSet = new Set(archiveFiles.map((entry) => entry.normalizedPath));
   const expectedSet = new Set(expectedFiles);
+  const archiveByPath = new Map(
+    archiveFiles.map((entry) => [entry.normalizedPath, entry]),
+  );
+  const runtimeImages = archiveFiles.filter(({ normalizedPath }) => (
+    RUNTIME_IMAGE_EXTENSIONS.has(path.posix.extname(normalizedPath).toLowerCase())
+  ));
 
   for (const { normalizedPath: filePath } of archiveFiles) {
     inspectPath(filePath, findings);
     if (!expectedSet.has(filePath)) {
       findings.push({ path: filePath, rule: 'unexpected-file' });
+    }
+  }
+  for (const { normalizedPath: filePath } of runtimeImages) {
+    if (!REQUIRED_MASCOT_ASSET_SET.has(filePath)) {
+      findings.push({ path: filePath, rule: 'unexpected-runtime-asset' });
+    }
+  }
+  for (const filePath of REQUIRED_MASCOT_ASSETS) {
+    if (!actualSet.has(filePath)) {
+      findings.push({ path: filePath, rule: 'missing-runtime-asset' });
     }
   }
   for (const filePath of expectedFiles) {
@@ -142,12 +173,37 @@ export async function auditPackageSurface({ archivePath, sourceRoot }) {
   }
 
   let sourceMismatchCount = 0;
+  let verifiedMascotHashes = 0;
+  for (const filePath of REQUIRED_MASCOT_ASSETS) {
+    const archiveEntry = archiveByPath.get(filePath);
+    if (!archiveEntry) {
+      continue;
+    }
+    let reviewedContents;
+    try {
+      reviewedContents = await fs.readFile(
+        path.join(sourceRoot, filePath.slice('src/'.length)),
+      );
+    } catch {
+      findings.push({ path: filePath, rule: 'missing-reviewed-runtime-asset' });
+      continue;
+    }
+    const contents = extractFile(archivePath, archiveEntry.accessPath, false);
+    if (digest(contents) !== digest(reviewedContents)) {
+      sourceMismatchCount += 1;
+      findings.push({ path: filePath, rule: 'mascot-source-mismatch' });
+    } else {
+      verifiedMascotHashes += 1;
+    }
+  }
   for (const { accessPath, normalizedPath: filePath } of archiveFiles) {
     const contents = extractFile(archivePath, accessPath, false);
     inspectSecrets(filePath, contents, findings);
     if (filePath === 'package.json') {
       inspectMetadata(contents, findings);
-    } else if (filePath.startsWith('src/') && expectedSet.has(filePath)) {
+    } else if (filePath.startsWith('src/')
+      && expectedSet.has(filePath)
+      && !REQUIRED_MASCOT_ASSET_SET.has(filePath)) {
       const reviewedContents = await fs.readFile(
         path.join(sourceRoot, filePath.slice('src/'.length)),
       );
@@ -166,5 +222,10 @@ export async function auditPackageSurface({ archivePath, sourceRoot }) {
     sourceFileCount: sourceFiles.length,
     sourceMismatchCount,
     secretFindingCount: 0,
+    runtimeImageCount: runtimeImages.length,
+    mascotAssetCount: runtimeImages.filter(({ normalizedPath }) => (
+      REQUIRED_MASCOT_ASSET_SET.has(normalizedPath)
+    )).length,
+    verifiedMascotHashes,
   };
 }

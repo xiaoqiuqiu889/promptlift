@@ -2,9 +2,16 @@ node_modules/
 dist/
 release/
 release-*/
-deliverables/
+deliverables/*
+!deliverables/Prompt-Lift-20260804-r4/
+!deliverables/Prompt-Lift-20260804-r4/**
+!deliverables/Prompt-Lift-20260804-r4-win32-x64.zip
 .env
 *.log
 
 # Ephemeral Electron user-data created by UI visual QA runs.
 qa/evidence/ui/launcher-user-data-*/
+qa/evidence/ui/run-*/
+
+# Image-generation scratch files and other local packaging scratch space.
+tmp/

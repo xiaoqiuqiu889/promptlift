@@ -71,7 +71,8 @@ try {
   await fs.access(executablePath);
   console.log(
     `Package surface verified: ${packageSurface.fileCount} files, `
-      + `${packageSurface.sourceFileCount} reviewed source files`,
+      + `${packageSurface.sourceFileCount} reviewed source files, `
+      + `${packageSurface.verifiedMascotHashes}/2 mascot hashes`,
   );
   console.log(`Windows package ready: ${executablePath}`);
 } finally {

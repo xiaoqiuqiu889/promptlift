@@ -10,6 +10,7 @@ import {
   checkModel,
   enhancePrompt,
   isPromptMode,
+  resolveModelStyle,
 } from './core/promptEnhancer.mjs';
 import { createCapturedPayload, hasVisiblePromptText } from './core/capturePayload.mjs';
 import { createEncryptedModelConfigStore } from './core/modelConfigStore.mjs';
@@ -62,7 +63,7 @@ let modelConfig = {
   endpoint: DEFAULT_MODEL_ENDPOINT,
   model: DEFAULT_MODEL,
   apiKey: '',
-  style: MODEL_STYLES.balanced,
+  style: MODEL_STYLES.concise,
   mode: PROMPT_MODES.enhance,
   targetWindowTitlePattern: '',
   apiKeySaved: false,
@@ -91,9 +92,7 @@ async function configureModel(_event, input = {}, { persist = true } = {}) {
     : DEFAULT_MODEL;
   const apiKey = typeof input.apiKey === 'string' ? input.apiKey.trim() : '';
   const resolvedApiKey = apiKey || modelConfig.apiKey;
-  const style = typeof input.style === 'string' && Object.hasOwn(MODEL_STYLES, input.style)
-    ? input.style
-    : modelConfig.style;
+  const style = resolveModelStyle(input.style) ?? modelConfig.style;
   const targetWindowTitlePattern = typeof input.targetWindowTitlePattern === 'string'
     ? input.targetWindowTitlePattern.trim()
     : modelConfig.targetWindowTitlePattern;
@@ -171,8 +170,9 @@ async function loadPersistedModelConfig() {
   if (typeof persisted.model === 'string' && persisted.model.length > 0) {
     modelConfig.model = persisted.model;
   }
-  if (Object.hasOwn(MODEL_STYLES, persisted.style)) {
-    modelConfig.style = persisted.style;
+  const persistedStyle = resolveModelStyle(persisted.style);
+  if (persistedStyle) {
+    modelConfig.style = persistedStyle;
   }
   if (isPromptMode(persisted.mode)) {
     modelConfig.mode = persisted.mode;
@@ -198,8 +198,8 @@ function getModelConfig() {
 }
 
 async function setPromptStyle(_event, input = {}) {
-  const style = typeof input.style === 'string' ? input.style : '';
-  if (!Object.hasOwn(MODEL_STYLES, style)) {
+  const style = resolveModelStyle(input.style);
+  if (!style) {
     throw createConfigError('STYLE_INVALID', '提示词风格无效。');
   }
   modelConfig.style = style;

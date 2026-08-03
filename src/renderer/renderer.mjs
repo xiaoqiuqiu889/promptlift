@@ -17,13 +17,106 @@ const MAX_COMPACT_WIDTH = 700;
 const MAX_COMPACT_HEIGHT = 820;
 const COMPACT_SIZE_STORAGE_KEY = "prompt-pet.compact-size.v1";
 const REVIEW_MODE_STORAGE_KEY = "prompt-pet.review-mode.v1";
+const MASCOT_STORAGE_KEY = "prompt-pet.mascot.v1";
 const STYLE_LABELS = Object.freeze({
-  faithful: "严格保真",
-  balanced: "标准",
-  concise: "简洁",
-  detailed: "详细",
-  professional: "专业",
-  creative: "创意",
+  faithful: "原意守护",
+  concise: "清晰直达",
+  professional: "专业展开",
+  creative: "创意策划",
+});
+const MODE_STYLE_PRESENTATION = Object.freeze({
+  enhance: Object.freeze({
+    faithful: Object.freeze({
+      label: "原意守护",
+      description: "只澄清目标与结构，不新增范围、假设或承诺",
+    }),
+    concise: Object.freeze({
+      label: "清晰直达",
+      description: "去除重复，补齐关键约束，用更短路径表达",
+    }),
+    professional: Object.freeze({
+      label: "专业展开",
+      description: "补充执行背景、步骤、标准与专业输出结构",
+    }),
+    creative: Object.freeze({
+      label: "创意策划",
+      description: "在专业完整基础上增加可控创意方向与备选方案",
+    }),
+  }),
+  "upward-communication": Object.freeze({
+    faithful: Object.freeze({
+      label: "事实直报",
+      description: "保留事实、数字与原结论，不添加未经确认的判断",
+    }),
+    concise: Object.freeze({
+      label: "结论先行",
+      description: "结论前置，压缩背景，明确影响与下一步",
+    }),
+    professional: Object.freeze({
+      label: "决策建议",
+      description: "组织结论、依据、风险、选项与所需决策",
+    }),
+    creative: Object.freeze({
+      label: "影响力表达",
+      description: "在保真基础上增强叙事节奏与说服力，不夸大承诺",
+    }),
+  }),
+  "chat-polish": Object.freeze({
+    faithful: Object.freeze({
+      label: "安全保真",
+      description: "保留原意与责任边界，不扩大承诺或推断",
+    }),
+    concise: Object.freeze({
+      label: "友好清晰",
+      description: "更礼貌、更易读，直接说明重点与下一步",
+    }),
+    professional: Object.freeze({
+      label: "专业服务",
+      description: "使用稳定、克制、可执行的服务沟通结构",
+    }),
+    creative: Object.freeze({
+      label: "共情化解",
+      description: "先承接情绪再化解问题，仍保持事实与边界",
+    }),
+  }),
+  "ppt-copy": Object.freeze({
+    faithful: Object.freeze({
+      label: "原文压缩",
+      description: "压缩原文但保留事实、数字、逻辑与结论",
+    }),
+    concise: Object.freeze({
+      label: "结论标题",
+      description: "提炼结论型标题与一页最必要的信息",
+    }),
+    professional: Object.freeze({
+      label: "结构化叙事",
+      description: "构造成因、判断、证据与行动的清晰层级",
+    }),
+    creative: Object.freeze({
+      label: "创意提案",
+      description: "在事实不变前提下增加有记忆点的提案表达",
+    }),
+  }),
+});
+const LEGACY_STYLE_ALIASES = Object.freeze({
+  balanced: "concise",
+  detailed: "professional",
+});
+const MASCOTS = Object.freeze({
+  cockapoo: Object.freeze({
+    label: "可卡布犬 · 原风格",
+    kind: "image",
+    asset: "./assets/mascots/cockapoo.png",
+  }),
+  "green-knight-pup": Object.freeze({
+    label: "绿色骑士小狗",
+    kind: "image",
+    asset: "./assets/mascots/green-knight-pup.png",
+  }),
+  "classic-green-knight": Object.freeze({
+    label: "绿色骑士",
+    kind: "css",
+  }),
 });
 const MODE_LABELS = Object.freeze({
   enhance: "AI 提示词",
@@ -61,6 +154,9 @@ const MODE_PRESENTATION = Object.freeze({
 const root = document.querySelector(".pet-shell");
 const petCard = document.querySelector("#petCard");
 const petAvatar = document.querySelector("#petAvatar");
+const mascotImageFrame = document.querySelector("#mascotImageFrame");
+const mascotImage = document.querySelector("#mascotImage");
+const mascotSprite = document.querySelector("#mascotSprite");
 const petAction = document.querySelector("#petAction");
 const petActionTitle = document.querySelector("#petActionTitle");
 const petActionHint = document.querySelector("#petActionHint");
@@ -85,15 +181,16 @@ const copyButton = document.querySelector("#copyButton");
 const applyEditedButton = document.querySelector("#applyEditedButton");
 const regenerateButton = document.querySelector("#regenerateButton");
 const contextMenu = document.querySelector("#contextMenu");
-const resultMenuButton = document.querySelector("#resultMenuButton");
 const currentStyleLabel = document.querySelector("#currentStyleLabel");
 const currentModeLabel = document.querySelector("#currentModeLabel");
+const currentMascotLabel = document.querySelector("#currentMascotLabel");
 const reviewModeButton = document.querySelector("#reviewModeButton");
 const reviewModeLabel = document.querySelector("#reviewModeLabel");
 const startupLabel = document.querySelector("#startupLabel");
 const settingsPanel = document.querySelector("#settingsPanel");
 const stylePanel = document.querySelector("#stylePanel");
 const modePanel = document.querySelector("#modePanel");
+const mascotPanel = document.querySelector("#mascotPanel");
 const modelEndpoint = document.querySelector("#modelEndpoint");
 const modelName = document.querySelector("#modelName");
 const apiKeyInput = document.querySelector("#apiKey");
@@ -151,6 +248,34 @@ function persistReviewMode(enabled) {
   }
 }
 
+function normalizeStyle(style) {
+  if (typeof style !== "string") {
+    return "concise";
+  }
+  const normalized = LEGACY_STYLE_ALIASES[style] ?? style;
+  return STYLE_LABELS[normalized] ? normalized : "concise";
+}
+
+function normalizeMascot(mascot) {
+  return typeof mascot === "string" && MASCOTS[mascot] ? mascot : "cockapoo";
+}
+
+function readMascot() {
+  try {
+    return normalizeMascot(localStorage.getItem(MASCOT_STORAGE_KEY));
+  } catch {
+    return "cockapoo";
+  }
+}
+
+function persistMascot(mascot) {
+  try {
+    localStorage.setItem(MASCOT_STORAGE_KEY, mascot);
+  } catch {
+    // The selected character is a non-sensitive preference; use it in memory.
+  }
+}
+
 const initialCompactSize = readCompactSize();
 
 const state = {
@@ -160,8 +285,9 @@ const state = {
   target: undefined,
   requestId: undefined,
   cancelled: false,
-  style: "balanced",
+  style: "concise",
   mode: "enhance",
+  mascot: readMascot(),
   startup: false,
   apiKeySaved: false,
   storageAvailable: true,
@@ -212,7 +338,12 @@ function setStatus(phase, message = messages[phase]) {
   statusDot.dataset.state = phase;
   petAction.disabled = phase === "loading";
   petAvatar.disabled = false;
-  cancelButton.disabled = phase !== "loading" || state.applying;
+  const canCancelRequest = phase === "loading" && !state.applying;
+  const canDiscardReview = state.reviewMode
+    && phase !== "loading"
+    && state.enhancedText.trim().length > 0
+    && !state.replacementConfirmed;
+  cancelButton.disabled = !(canCancelRequest || canDiscardReview);
   copyButton.disabled = phase === "loading" || enhancedPrompt.value.trim().length === 0;
   regenerateButton.disabled = phase === "loading" || state.originalText.trim().length === 0;
   applyEditedButton.disabled = phase === "loading"
@@ -284,8 +415,18 @@ function collapseAssistant() {
 }
 
 function updateStyleLabel() {
-  currentStyleLabel.textContent = STYLE_LABELS[state.style] ?? STYLE_LABELS.balanced;
+  state.style = normalizeStyle(state.style);
+  const presentation = MODE_STYLE_PRESENTATION[state.mode]
+    ?? MODE_STYLE_PRESENTATION.enhance;
+  currentStyleLabel.textContent = presentation[state.style]?.label
+    ?? STYLE_LABELS[state.style]
+    ?? STYLE_LABELS.concise;
   document.querySelectorAll(".style-option").forEach((button) => {
+    const item = presentation[button.dataset.style];
+    if (item) {
+      button.querySelector("strong").textContent = item.label;
+      button.querySelector("span").textContent = item.description;
+    }
     const selected = button.dataset.style === state.style;
     button.classList.toggle("is-active", selected);
     button.setAttribute("aria-pressed", String(selected));
@@ -294,6 +435,7 @@ function updateStyleLabel() {
 
 function updateModeLabel() {
   const presentation = MODE_PRESENTATION[state.mode] ?? MODE_PRESENTATION.enhance;
+  root.dataset.mode = state.mode;
   currentModeLabel.textContent = MODE_LABELS[state.mode] ?? MODE_LABELS.enhance;
   petActionTitle.textContent = presentation.action;
   compactModeBadge.textContent = presentation.badge;
@@ -303,6 +445,30 @@ function updateModeLabel() {
     button.classList.toggle("is-active", selected);
     button.setAttribute("aria-pressed", String(selected));
   });
+  updateStyleLabel();
+}
+
+function setMascot(mascot, { persist = true } = {}) {
+  const normalized = normalizeMascot(mascot);
+  const presentation = MASCOTS[normalized];
+  state.mascot = normalized;
+  root.dataset.mascot = normalized;
+  currentMascotLabel.textContent = presentation.label;
+  petAvatar.setAttribute("aria-label", `${presentation.label}：一键处理当前输入`);
+  const usesCssSprite = presentation.kind === "css";
+  mascotImageFrame.hidden = usesCssSprite;
+  mascotSprite.hidden = !usesCssSprite;
+  if (!usesCssSprite && mascotImage.getAttribute("src") !== presentation.asset) {
+    mascotImage.setAttribute("src", presentation.asset);
+  }
+  document.querySelectorAll(".mascot-option").forEach((button) => {
+    const selected = button.dataset.mascot === normalized;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+  if (persist) {
+    persistMascot(normalized);
+  }
 }
 
 function updateReviewModeLabel() {
@@ -518,6 +684,7 @@ function showPanel(panel) {
   settingsPanel.hidden = panel !== settingsPanel;
   stylePanel.hidden = panel !== stylePanel;
   modePanel.hidden = panel !== modePanel;
+  mascotPanel.hidden = panel !== mascotPanel;
   requestAnimationFrame(() => {
     panel.scrollIntoView({ block: "nearest" });
   });
@@ -529,6 +696,10 @@ function showContextMenu() {
   settingsPanel.hidden = true;
   stylePanel.hidden = true;
   modePanel.hidden = true;
+  mascotPanel.hidden = true;
+  requestAnimationFrame(() => {
+    contextMenu.scrollIntoView({ block: "nearest" });
+  });
 }
 
 function hidePanels({ collapse = true } = {}) {
@@ -536,6 +707,7 @@ function hidePanels({ collapse = true } = {}) {
   settingsPanel.hidden = true;
   stylePanel.hidden = true;
   modePanel.hidden = true;
+  mascotPanel.hidden = true;
   if (collapse) {
     collapseAssistant();
   }
@@ -546,17 +718,6 @@ function toggleWorkMode() {
   const currentIndex = modeOrder.indexOf(state.mode);
   const nextMode = modeOrder[(currentIndex + 1) % modeOrder.length];
   return handleMode(nextMode);
-}
-
-function handleShowResult() {
-  if (!state.enhancedText) {
-    return;
-  }
-  expandAssistant();
-  hidePanels({ collapse: false });
-  resultPanel.hidden = false;
-  resultMenuButton.hidden = false;
-  updateMeta();
 }
 
 function unpackCapture(result) {
@@ -630,7 +791,6 @@ function acceptCapturedPayload(payload) {
   hideNeedsInput();
   renderDiff();
   resultPanel.hidden = true;
-  resultMenuButton.hidden = true;
   sourceInfo.hidden = false;
   updateMeta();
   return { ...captured, text: state.originalText };
@@ -697,8 +857,8 @@ async function configureModel() {
     targetWindowTitlePattern: targetWindowTitlePattern.value.trim(),
   });
   apiKeyInput.value = "";
-  if (result?.style && STYLE_LABELS[result.style]) {
-    state.style = result.style;
+  if (result?.style) {
+    state.style = normalizeStyle(result.style);
     updateStyleLabel();
   }
   if (typeof result?.apiKeySaved === "boolean") {
@@ -741,7 +901,6 @@ async function handleEnhance({ capturedSource } = {}) {
   state.generationOperationId = undefined;
   enhancedPrompt.value = "";
   resultPanel.hidden = true;
-  resultMenuButton.hidden = true;
   updateMeta();
   setStatus("loading");
 
@@ -785,9 +944,14 @@ async function handleEnhance({ capturedSource } = {}) {
     state.generationOperationId = requestId;
     enhancedPrompt.value = state.enhancedText;
     renderDiff();
-    resultPanel.hidden = false;
-    resultMenuButton.hidden = false;
     updateMeta();
+    if (state.reviewMode) {
+      resultPanel.hidden = false;
+      expandAssistant();
+    } else {
+      collapseAssistant();
+      resultPanel.hidden = false;
+    }
 
     if (enhanced.replaced) {
       try {
@@ -810,9 +974,6 @@ async function handleEnhance({ capturedSource } = {}) {
       }
     }
 
-    if (state.reviewMode) {
-      expandAssistant();
-    }
     const successCopy = (MODE_PRESENTATION[state.mode] ?? MODE_PRESENTATION.enhance).success;
     setStatus(
       "success",
@@ -831,10 +992,8 @@ async function handleEnhance({ capturedSource } = {}) {
     if (!state.enhancedText) {
       enhancedPrompt.value = "";
       resultPanel.hidden = true;
-      resultMenuButton.hidden = true;
     } else {
       resultPanel.hidden = false;
-      resultMenuButton.hidden = false;
     }
     expandAssistant();
     updateMeta();
@@ -978,17 +1137,19 @@ async function handleStyle(style) {
   }
   try {
     const result = await api.setStyle(style);
-    state.style = result?.style ?? style;
+    state.style = normalizeStyle(result?.style ?? style);
     updateStyleLabel();
     hidePanels();
     setStatus("success", "提示词风格已切换为“"
-      + (STYLE_LABELS[state.style] ?? state.style) + "”。");
+      + (MODE_STYLE_PRESENTATION[state.mode]?.[state.style]?.label
+        ?? STYLE_LABELS[state.style]
+        ?? state.style) + "”。");
   } catch (error) {
     setStatus("error", errorMessage(error, "提示词风格保存失败。"));
   }
 }
 
-async function handleMode(mode) {
+async function handleMode(mode, { returnToMenu = false } = {}) {
   if (state.requestId) {
     setStatus("loading", "正在处理当前输入，本次使用的模式不会中途切换。");
     return;
@@ -997,7 +1158,11 @@ async function handleMode(mode) {
     const result = await api.setMode(mode);
     state.mode = result?.mode ?? mode;
     updateModeLabel();
-    hidePanels();
+    if (returnToMenu) {
+      showContextMenu();
+    } else {
+      hidePanels();
+    }
     setStatus("success", "工作模式已切换为“"
       + (MODE_LABELS[state.mode] ?? state.mode) + "”。");
   } catch (error) {
@@ -1049,7 +1214,6 @@ async function handleRestore() {
     enhancedPrompt.value = "";
     renderDiff();
     resultPanel.hidden = true;
-    resultMenuButton.hidden = true;
     updateMeta();
     setStatus("success", "已恢复原文，目标输入框内容未再被增强结果覆盖。");
   } catch (error) {
@@ -1057,8 +1221,38 @@ async function handleRestore() {
   }
 }
 
+async function handleDiscardReview() {
+  if (state.requestId
+    || state.applying
+    || !state.reviewMode
+    || !state.enhancedText.trim()
+    || state.replacementConfirmed) {
+    return;
+  }
+  const operationId = state.generationOperationId;
+  if (operationId && typeof api?.cancel === "function") {
+    try {
+      await api.cancel(operationId);
+    } catch {
+      // The model request may already be settled; local discard is still safe.
+    }
+  }
+  state.enhancedText = "";
+  state.appliedText = "";
+  state.generationOperationId = undefined;
+  state.replacementConfirmed = false;
+  enhancedPrompt.value = "";
+  renderDiff();
+  resultPanel.hidden = true;
+  hideNeedsInput();
+  updateMeta();
+  collapseAssistant();
+  setStatus("idle", "已放弃本次审阅，原始输入框保持不变。");
+}
+
 async function handleCancel() {
   if (state.phase !== "loading") {
+    await handleDiscardReview();
     return;
   }
   if (state.applying) {
@@ -1280,6 +1474,8 @@ contextMenu.addEventListener("click", (event) => {
     showPanel(settingsPanel);
   } else if (action === "mode") {
     showPanel(modePanel);
+  } else if (action === "mascot") {
+    showPanel(mascotPanel);
   } else if (action === "review") {
     handleReviewModeToggle();
   } else if (action === "style") {
@@ -1289,8 +1485,6 @@ contextMenu.addEventListener("click", (event) => {
     void handleCheckModel();
   } else if (action === "startup") {
     void handleStartupToggle();
-  } else if (action === "result") {
-    handleShowResult();
   } else if (action === "quit") {
     void api.quit();
   }
@@ -1306,7 +1500,25 @@ stylePanel.addEventListener("click", (event) => {
 modePanel.addEventListener("click", (event) => {
   const mode = event.target.closest("[data-mode]")?.dataset.mode;
   if (mode) {
-    void handleMode(mode);
+    void handleMode(mode, { returnToMenu: true });
+  }
+});
+
+mascotPanel.addEventListener("click", (event) => {
+  const mascot = event.target.closest("[data-mascot]")?.dataset.mascot;
+  if (mascot) {
+    setMascot(mascot);
+    hidePanels();
+    setStatus("success", `小精灵已切换为“${MASCOTS[state.mascot].label}”。`);
+  }
+});
+
+mascotImage.addEventListener("error", () => {
+  const current = MASCOTS[state.mascot];
+  if (current?.kind === "image"
+    && mascotImage.getAttribute("src") === current.asset
+    && state.mascot !== "cockapoo") {
+    setMascot("cockapoo");
   }
 });
 
@@ -1319,7 +1531,7 @@ petCard.addEventListener("contextmenu", (event) => {
   void toggleWorkMode();
 });
 document.addEventListener("click", (event) => {
-  if (!event.target.closest("#contextMenu, #settingsPanel, #stylePanel, #modePanel, #petCard")) {
+  if (!event.target.closest("#contextMenu, #settingsPanel, #stylePanel, #modePanel, #mascotPanel, #petCard")) {
     hidePanels();
   }
 });
@@ -1379,8 +1591,8 @@ void (async () => {
     if (savedConfig?.model) {
       modelName.value = savedConfig.model;
     }
-    if (savedConfig?.style && STYLE_LABELS[savedConfig.style]) {
-      state.style = savedConfig.style;
+    if (savedConfig?.style) {
+      state.style = normalizeStyle(savedConfig.style);
     }
     if (savedConfig?.mode && MODE_LABELS[savedConfig.mode]) {
       state.mode = savedConfig.mode;
@@ -1391,6 +1603,7 @@ void (async () => {
     state.apiKeySaved = savedConfig?.apiKeySaved === true;
     state.storageAvailable = savedConfig?.storageAvailable !== false;
     updateModelStorageLabel();
+    updateStyleLabel();
     updateModeLabel();
   } catch (error) {
     setStatus("error", errorMessage(error, "Prompt Pet 尚未连接到 Electron 主进程。"));
@@ -1402,6 +1615,7 @@ updateStartupLabel();
 updateModelStorageLabel();
 updateMeta();
 updateModeLabel();
+setMascot(state.mascot, { persist: false });
 updateReviewModeLabel();
 updateCompactScale();
 restoreCompactBounds();

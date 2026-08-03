@@ -36,7 +36,9 @@ test("desktop assistant exposes left-click, right-click settings, and non-destru
     "startupLabel",
     "restoreButton",
     "copyButton",
-    "resultMenuButton",
+    "mascotImage",
+    "mascotSprite",
+    "mascotPanel",
     "compactModeBadge",
     "compactFeedback",
     "compactCancelButton",
@@ -85,8 +87,8 @@ test("desktop assistant exposes left-click, right-click settings, and non-destru
   assert.match(renderer, /api\.setStartup/);
   assert.match(renderer, /api\.restore/);
   assert.match(renderer, /api\.copy/);
-  assert.match(renderer, /handleShowResult/);
-  assert.match(renderer, /resultMenuButton\.hidden/);
+  assert.doesNotMatch(renderer, /handleShowResult/);
+  assert.doesNotMatch(renderer, /resultMenuButton/);
   assert.match(renderer, /compactCancelButton\.addEventListener/);
   assert.match(renderer, /compactFeedbackTimer/);
   assert.match(renderer, /function inferErrorCode/);
@@ -104,7 +106,7 @@ test("desktop assistant exposes left-click, right-click settings, and non-destru
   assert.match(html, /data-style="faithful"/);
   assert.match(html, /系统提示词规范 v2/);
   assert.match(html, /检查并保存/);
-  assert.match(renderer, /faithful:\s*"严格保真"/);
+  assert.match(renderer, /faithful:\s*"原意守护"/);
   assert.match(renderer, /setAttribute\("aria-pressed"/);
   assert.match(html, /role="menu"/);
   assert.match(html, /role="dialog"/);

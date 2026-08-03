@@ -41,10 +41,32 @@ button {
 }
 
 .pet-shell {
+  --mode-accent: #07c160;
+  --mode-soft: #e9f8ef;
   position: relative;
   width: 100vw;
   height: 100vh;
   padding: 10px;
+}
+
+.pet-shell[data-mode="enhance"] {
+  --mode-accent: #07c160;
+  --mode-soft: #e9f8ef;
+}
+
+.pet-shell[data-mode="upward-communication"] {
+  --mode-accent: #3478f6;
+  --mode-soft: #eaf2ff;
+}
+
+.pet-shell[data-mode="chat-polish"] {
+  --mode-accent: #f59a23;
+  --mode-soft: #fff3df;
+}
+
+.pet-shell[data-mode="ppt-copy"] {
+  --mode-accent: #8b5cf6;
+  --mode-soft: #f1ebff;
 }
 
 .pet-shell[data-resizing="true"] {
@@ -113,7 +135,8 @@ button {
   cursor: grabbing;
 }
 
-.pet-avatar:hover:not(:disabled) .pet-sprite {
+.pet-avatar:hover:not(:disabled) .pet-sprite,
+.pet-avatar:hover:not(:disabled) .pet-mascot-frame {
   transform: translateY(-2px) rotate(-3deg);
 }
 
@@ -130,6 +153,35 @@ button {
   transition: transform 140ms ease;
 }
 
+.pet-mascot-frame {
+  position: relative;
+  display: block;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  border: 3px solid var(--mode-accent);
+  border-radius: 18px;
+  background: var(--mode-soft);
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.pet-shell[data-mascot="green-knight-pup"] .pet-mascot-frame {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.pet-mascot-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
+  user-select: none;
+}
+
 .pet-flame,
 .pet-cape,
 .pet-shoulder,
@@ -143,7 +195,7 @@ button {
   top: 0;
   width: 20px;
   height: 25px;
-  background: var(--accent);
+  background: var(--mode-accent);
   clip-path: polygon(52% 0, 70% 18%, 100% 7%, 83% 39%, 100% 51%, 74% 58%, 78% 100%, 49% 80%, 24% 100%, 29% 65%, 0 76%, 20% 42%, 7% 30%, 38% 28%);
   transform-origin: 50% 100%;
 }
@@ -165,7 +217,7 @@ button {
   left: 7px;
   width: 7px;
   height: 14px;
-  background: #c3ffd8;
+  background: var(--mode-soft);
   clip-path: polygon(54% 0, 100% 35%, 72% 46%, 78% 100%, 42% 73%, 0 93%, 25% 45%, 9% 35%);
 }
 
@@ -217,7 +269,7 @@ button {
   height: 10px;
   align-items: center;
   justify-content: space-around;
-  border: 1px solid #6aff9d;
+  border: 1px solid var(--mode-accent);
   border-radius: 4px 4px 8px 8px;
   background: #07100f;
   transform: skewY(-4deg);
@@ -227,7 +279,7 @@ button {
   width: 9px;
   height: 3px;
   border-radius: 1px;
-  background: #9bffc0;
+  background: var(--mode-accent);
   transform: skewX(-20deg);
 }
 
@@ -237,8 +289,8 @@ button {
   left: 17px;
   width: 8px;
   height: 10px;
-  border: 1px solid #a6ffc6;
-  background: var(--accent);
+  border: 1px solid var(--mode-soft);
+  background: var(--mode-accent);
   clip-path: polygon(50% 0, 100% 40%, 50% 100%, 0 40%);
 }
 
@@ -267,7 +319,7 @@ button {
   height: 13px;
   border: 2px solid #65716e;
   border-radius: 50%;
-  background: #277d5b;
+  background: var(--mode-accent);
 }
 
 .pet-shoulder-left {
@@ -304,7 +356,7 @@ button {
   left: 1px;
   width: 4px;
   height: 2px;
-  background: #78f5a7;
+  background: var(--mode-accent);
 }
 
 .pet-boot {
@@ -636,6 +688,7 @@ button {
 .small-primary,
 .style-option,
 .mode-option,
+.mascot-option,
 .context-menu button {
   cursor: pointer;
 }
@@ -758,12 +811,14 @@ button {
 }
 
 .style-panel,
-.mode-panel {
+.mode-panel,
+.mascot-panel {
   bottom: auto;
 }
 
 .style-option,
-.mode-option {
+.mode-option,
+.mascot-option {
   display: grid;
   width: 100%;
   gap: 3px;
@@ -779,18 +834,61 @@ button {
 .style-option:hover,
 .style-option.is-active,
 .mode-option:hover,
-.mode-option.is-active {
+.mode-option.is-active,
+.mascot-option:hover,
+.mascot-option.is-active {
   border-color: rgba(124, 147, 255, 0.62);
   background: rgba(91, 111, 224, 0.16);
 }
 
 .style-option strong,
-.mode-option strong {
+.mode-option strong,
+.mascot-option strong {
   font-size: 11px;
 }
 
 .style-option span,
 .mode-option span {
+  line-height: 1.45;
+}
+
+.mascot-option {
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+}
+
+.mascot-option > img {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  object-fit: contain;
+}
+
+.mascot-css-preview {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--accent-strong);
+  background: var(--surface);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.mascot-option > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.mascot-option small {
+  color: var(--muted);
+  font-size: 10px;
   line-height: 1.45;
 }
 
@@ -912,12 +1010,14 @@ button {
   flex: 0 0 100%;
 }
 
-.pet-shell[data-view="compact"] .pet-sprite {
+.pet-shell[data-view="compact"] .pet-sprite,
+.pet-shell[data-view="compact"] .pet-mascot-frame {
   transform: scale(var(--pet-scale, 1));
   transform-origin: center;
 }
 
-.pet-shell[data-view="compact"] .pet-avatar:hover:not(:disabled) .pet-sprite {
+.pet-shell[data-view="compact"] .pet-avatar:hover:not(:disabled) .pet-sprite,
+.pet-shell[data-view="compact"] .pet-avatar:hover:not(:disabled) .pet-mascot-frame {
   transform: scale(var(--pet-scale, 1)) translateY(-2px) rotate(-3deg);
 }
 
@@ -957,7 +1057,8 @@ button {
   }
 }
 
-.pet-shell[data-view="compact"][data-state="loading"] .pet-sprite {
+.pet-shell[data-view="compact"][data-state="loading"] .pet-sprite,
+.pet-shell[data-view="compact"][data-state="loading"] .pet-mascot-frame {
   opacity: 0.72;
 }
 
@@ -1031,6 +1132,7 @@ textarea:focus-visible {
 .panel-heading strong,
 .style-option,
 .mode-option,
+.mascot-option,
 .context-menu button {
   color: var(--text);
 }
@@ -1149,7 +1251,8 @@ textarea:focus-visible {
 }
 
 .style-option,
-.mode-option {
+.mode-option,
+.mascot-option {
   border-color: var(--line);
   background: var(--panel);
 }
@@ -1158,6 +1261,8 @@ textarea:focus-visible {
 .style-option.is-active,
 .mode-option:hover,
 .mode-option.is-active,
+.mascot-option:hover,
+.mascot-option.is-active,
 .context-menu button.is-active {
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -1165,6 +1270,7 @@ textarea:focus-visible {
 
 .style-option span,
 .mode-option span,
+.mascot-option small,
 .panel-note,
 .field-label,
 .menu-value {

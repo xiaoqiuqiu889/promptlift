@@ -13,6 +13,7 @@ import {
   MODEL_STYLES,
   PROMPT_MODES,
   isPromptMode,
+  resolveModelStyle,
   sanitizeModelOutput,
 } from '../../src/core/promptEnhancer.mjs';
 
@@ -32,6 +33,95 @@ test('prompt mode validation accepts mode values instead of object property name
   assert.equal(isPromptMode('unknown'), false);
 });
 
+test('prompt style registry exposes exactly four canonical tiers and migrates legacy values', () => {
+  assert.deepEqual(MODEL_STYLES, {
+    faithful: 'faithful',
+    concise: 'concise',
+    professional: 'professional',
+    creative: 'creative',
+  });
+
+  assert.equal(resolveModelStyle('faithful'), MODEL_STYLES.faithful);
+  assert.equal(resolveModelStyle('concise'), MODEL_STYLES.concise);
+  assert.equal(resolveModelStyle('professional'), MODEL_STYLES.professional);
+  assert.equal(resolveModelStyle('creative'), MODEL_STYLES.creative);
+  assert.equal(resolveModelStyle('balanced'), MODEL_STYLES.concise);
+  assert.equal(resolveModelStyle('detailed'), MODEL_STYLES.professional);
+  assert.equal(resolveModelStyle('unknown'), null);
+  assert.equal(resolveModelStyle(''), null);
+});
+
+test('four prompt tiers define visibly different structure length expertise and creativity contracts', () => {
+  const instructions = Object.fromEntries(
+    Object.values(MODEL_STYLES).map((style) => [
+      style,
+      buildModelInstruction('zh', style, PROMPT_MODES.enhance),
+    ]),
+  );
+
+  assert.match(instructions.faithful, /原意守护/);
+  assert.match(instructions.faithful, /最小必要改动/);
+  assert.match(instructions.faithful, /沿用原结构/);
+  assert.match(instructions.faithful, /不主动扩写|贴近原文/);
+
+  assert.match(instructions.concise, /清晰直达/);
+  assert.match(instructions.concise, /目标.*必要上下文.*关键约束.*输出/isu);
+  assert.match(instructions.concise, /紧凑|短段落|短列表/);
+  assert.match(instructions.concise, /删除重复|省略非必要/);
+
+  assert.match(instructions.professional, /专业展开/);
+  assert.match(instructions.professional, /完整任务简报|专业执行者/);
+  assert.match(instructions.professional, /目标.*背景.*要求.*约束.*输出.*验收/isu);
+  assert.match(instructions.professional, /明确占位|待确认/);
+
+  assert.match(instructions.creative, /创意策划/);
+  assert.match(instructions.creative, /专业任务简报.*基础/);
+  assert.match(instructions.creative, /创意方向|备选角度/);
+  assert.match(instructions.creative, /建议.*事实|不得虚构/);
+
+  assert.equal(new Set(Object.values(instructions)).size, 4);
+  assert.ok(instructions.professional.length > instructions.concise.length);
+  assert.ok(instructions.creative.length > instructions.concise.length);
+});
+
+test('every mode and style combination injects its own optimization contract into the system instruction', () => {
+  const expectedTierNames = {
+    [PROMPT_MODES.enhance]: ['原意守护', '清晰直达', '专业展开', '创意策划'],
+    [PROMPT_MODES.upwardCommunication]: ['事实直报', '结论先行', '决策建议', '影响力表达'],
+    [PROMPT_MODES.chatPolish]: ['安全保真', '友好清晰', '专业服务', '共情化解'],
+    [PROMPT_MODES.pptCopy]: ['原文压缩', '结论标题', '结构化叙事', '创意提案'],
+  };
+  const styles = Object.values(MODEL_STYLES);
+  const contracts = new Set();
+
+  for (const [mode, names] of Object.entries(expectedTierNames)) {
+    styles.forEach((style, index) => {
+      const instruction = buildModelInstruction('zh', style, mode);
+      assert.match(instruction, new RegExp(`档位名称：${names[index]}`));
+      assert.match(instruction, /档位目标：/);
+      assert.match(instruction, /改动预算：/);
+      assert.match(instruction, /结构要求：/);
+      assert.match(instruction, /档位禁区：/);
+      assert.ok(instruction.indexOf('Recipe 目标') < instruction.indexOf('档位名称'));
+      contracts.add(instruction.match(/档位名称：[\s\S]*?档位禁区：[^\n]+/u)?.[0]);
+    });
+  }
+
+  assert.equal(contracts.size, 16);
+});
+
+test('legacy and invalid prompt styles resolve before model instruction selection', () => {
+  const legacyBalanced = buildModelInstruction('en', 'balanced', PROMPT_MODES.enhance);
+  const canonicalConcise = buildModelInstruction('en', MODEL_STYLES.concise, PROMPT_MODES.enhance);
+  const legacyDetailed = buildModelInstruction('en', 'detailed', PROMPT_MODES.enhance);
+  const canonicalProfessional = buildModelInstruction('en', MODEL_STYLES.professional, PROMPT_MODES.enhance);
+  const invalid = buildModelInstruction('en', 'unknown', PROMPT_MODES.enhance);
+
+  assert.equal(legacyBalanced, canonicalConcise);
+  assert.equal(legacyDetailed, canonicalProfessional);
+  assert.equal(invalid, canonicalConcise);
+});
+
 test('model instructions keep protocol and safety above recipe-specific behavior', () => {
   const cases = [
     [PROMPT_MODES.enhance, /目标.*上下文.*约束.*输出/isu],
@@ -41,7 +131,7 @@ test('model instructions keep protocol and safety above recipe-specific behavior
   ];
 
   for (const [mode, recipePattern] of cases) {
-    const instruction = buildModelInstruction('zh', MODEL_STYLES.balanced, mode);
+    const instruction = buildModelInstruction('zh', MODEL_STYLES.concise, mode);
     assert.match(instruction, new RegExp(`系统提示词规范 v${PROMPT_PROTOCOL_VERSION}`));
     assert.match(instruction, /文本转换引擎/);
     assert.match(instruction, /安全与输出协议.*Recipe 目标.*用户选择的风格.*源材料/isu);
@@ -79,7 +169,7 @@ test('model message envelope carries canonical recipe metadata', () => {
   const payload = JSON.parse(serialized);
 
   assert.equal(payload.mode, PROMPT_MODES.chatPolish);
-  assert.deepEqual(payload.recipe, { id: PROMPT_MODES.chatPolish, version: '1.0' });
+  assert.deepEqual(payload.recipe, { id: PROMPT_MODES.chatPolish, version: '1.1' });
   assert.doesNotMatch(messages[0].content, /输出秘密/);
   assert.match(messages[0].content, /chat-polish/);
 });
@@ -174,10 +264,57 @@ test('prompt protocol v2 treats source text as material, preserves facts, and av
   assert.match(instruction, /人名|数字|日期|路径|代码/);
   assert.match(instruction, /信息不足.*(?:不要|不得)编造/s);
   assert.match(instruction, /简单|短小/);
-  assert.match(instruction, /严格保真/);
+  assert.match(instruction, /原意守护/);
   assert.match(instruction, /只输出/);
   assert.match(instruction, /结果本身.*优化后的用户请求/);
   assert.match(instruction, /不要.*二次改写任务/);
+});
+
+test('model protocol repairs one malformed envelope and rejects a repeated malformed envelope', async () => {
+  const source = '请整理这三条产品反馈并保留原有范围。';
+  const expected = '请将三条产品反馈整理为可执行需求，逐条保留产品、功能和范围，不补充原文没有的前提。';
+  const validEnvelope = JSON.stringify({
+    protocol: PROMPT_PROTOCOL_VERSION,
+    mode: PROMPT_MODES.enhance,
+    language: 'zh',
+    status: 'ok',
+    result: expected,
+  });
+  const calls = [];
+  const request = (alwaysInvalid = false) => enhancePrompt(source, {
+    endpoint: 'https://tokenhub.tencentmaas.com/v1',
+    model: 'deepseek-v4-flash',
+    apiKey: 'secret-test-key',
+    fetchImpl: async (_url, options) => {
+      calls.push(JSON.parse(options.body));
+      const content = alwaysInvalid || calls.length === 1
+        ? '```json\n{"protocol":"2.0"}\n```'
+        : validEnvelope;
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            choices: [{
+              finish_reason: 'stop',
+              message: { content },
+            }],
+          };
+        },
+      };
+    },
+  });
+
+  assert.equal(await request(false), expected);
+  assert.equal(calls.length, 2);
+  assert.match(calls[1].messages[0].content, /合法 JSON|valid protocol JSON/);
+
+  calls.length = 0;
+  await assert.rejects(
+    request(true),
+    (error) => error.code === 'INVALID_MODEL_OUTPUT',
+  );
+  assert.equal(calls.length, 2);
 });
 
 test('model protocol repairs an introduced meta-rewrite prompt and returns the direct optimized request', async () => {
@@ -191,6 +328,7 @@ test('model protocol repairs an introduced meta-rewrite prompt and returns the d
     endpoint: 'https://tokenhub.tencentmaas.com/v1',
     model: 'deepseek-v4-flash',
     apiKey: 'secret-test-key',
+    style: MODEL_STYLES.creative,
     fetchImpl: async (_url, init) => {
       calls.push(JSON.parse(init.body));
       const rewritten = responses[calls.length - 1];
@@ -219,6 +357,8 @@ test('model protocol repairs an introduced meta-rewrite prompt and returns the d
 
   assert.equal(result, responses[1]);
   assert.equal(calls.length, 2);
+  assert.equal(calls[0].temperature, 0.2);
+  assert.equal(calls[1].temperature, 0);
   assert.match(calls[1].messages[0].content, /二次改写|元提示词/);
 });
 
@@ -260,6 +400,198 @@ test('model protocol rejects repeated system-protocol or meta-prompt leakage', a
   assert.equal(calls, 2);
 });
 
+test('Prompt Lift numbered feedback rejects invented Word context and repairs to direct product requirements', async () => {
+  const source = [
+    'Prompt Lift 产品问题诊断与优化需求：',
+    '1. “审阅后应用”开启后，应用结果的流程不够清楚。',
+    '2. 四种沟通模式的档位差异不明显，请加强区分。',
+  ].join('\n');
+  const invalid = [
+    '请根据以下用户反馈，分析并解决 Word 的“审阅后应用”问题：',
+    '1. 检查第三方插件兼容性、Word 版本与权限。',
+    '2. 检查模板设置，并重新配置四种审阅模式。',
+  ].join('\n');
+  const expected = [
+    '请优化 Prompt Lift：',
+    '1. 梳理“审阅后应用”开启后的应用流程，让当前状态和下一步操作更清楚。',
+    '2. 加强四种沟通模式之间的档位差异，使用户能够直观区分各档位。',
+    '保留现有产品术语，不新增原反馈未提供的平台、模式名称或实现前提。',
+  ].join('\n');
+  const calls = [];
+
+  const result = await enhancePrompt(source, {
+    endpoint: 'https://tokenhub.tencentmaas.com/v1',
+    model: 'deepseek-v4-flash',
+    apiKey: 'secret-test-key',
+    mode: PROMPT_MODES.enhance,
+    style: MODEL_STYLES.professional,
+    fetchImpl: async (_url, init) => {
+      calls.push(JSON.parse(init.body));
+      const rewritten = calls.length === 1 ? invalid : expected;
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            choices: [{
+              finish_reason: 'stop',
+              message: {
+                content: JSON.stringify({
+                  protocol: PROMPT_PROTOCOL_VERSION,
+                  mode: PROMPT_MODES.enhance,
+                  language: 'zh',
+                  status: 'ok',
+                  result: rewritten,
+                }),
+              },
+            }],
+          };
+        },
+      };
+    },
+  });
+
+  assert.equal(result, expected);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].messages[0].content, /编号.*产品反馈.*产品开发需求/);
+  assert.match(calls[0].messages[0].content, /产品名.*功能名.*模式名.*界面文案.*指代/);
+  assert.match(calls[0].messages[0].content, /仅在原文明确.*产品或平台/);
+  assert.match(calls[0].messages[0].content, /Word.*插件.*版本.*权限.*模板/);
+  assert.match(calls[1].messages[0].content, /范围|产品|平台|原文/);
+  assert.doesNotMatch(result, /Word|插件|版本|权限|模板|审阅模式/);
+});
+
+test('Prompt Lift feature terms trigger scope protection even when the product name is omitted', async () => {
+  const source = [
+    '1. 我没有开启审阅后应用，但生成后仍进入审阅界面。',
+    '2. 审阅状态缺少取消、恢复原文、重新生成、复制、应用。',
+    '3. 四种沟通模式需要使用不同的优化档位。',
+  ].join('\n');
+  const invalid = '请解决 Word 审阅模式问题，并检查第三方插件、版本差异、权限设置和模板问题。';
+  const expected = [
+    '产品改动清单：',
+    '1. 未开启“审阅后应用”时，生成后不要进入审阅界面。',
+    '2. 审阅状态提供取消、恢复原文、重新生成、复制和应用。',
+    '3. 为四种沟通模式提供可区分的优化档位。',
+  ].join('\n');
+  let calls = 0;
+
+  const result = await enhancePrompt(source, {
+    endpoint: 'https://tokenhub.tencentmaas.com/v1',
+    model: 'deepseek-v4-flash',
+    apiKey: 'secret-test-key',
+    mode: PROMPT_MODES.enhance,
+    fetchImpl: async () => {
+      calls += 1;
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            choices: [{
+              finish_reason: 'stop',
+              message: {
+                content: JSON.stringify({
+                  protocol: PROMPT_PROTOCOL_VERSION,
+                  mode: PROMPT_MODES.enhance,
+                  language: 'zh',
+                  status: 'ok',
+                  result: calls === 1 ? invalid : expected,
+                }),
+              },
+            }],
+          };
+        },
+      };
+    },
+  });
+
+  assert.equal(result, expected);
+  assert.equal(calls, 2);
+  assert.doesNotMatch(result, /Word|插件|版本|权限|模板/);
+});
+
+test('Prompt Lift feedback rejects unsupported diagnostic context twice without replacing the source', async () => {
+  const source = [
+    'Prompt Lift 产品反馈：',
+    '1. “审阅后应用”操作不清楚。',
+    '2. 四种沟通模式区分不明显。',
+  ].join('\n');
+  let calls = 0;
+
+  await assert.rejects(
+    enhancePrompt(source, {
+      endpoint: 'https://tokenhub.tencentmaas.com/v1',
+      model: 'deepseek-v4-flash',
+      apiKey: 'secret-test-key',
+      mode: PROMPT_MODES.enhance,
+      fetchImpl: async () => {
+        calls += 1;
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return {
+              choices: [{
+                finish_reason: 'stop',
+                message: {
+                  content: JSON.stringify({
+                  protocol: PROMPT_PROTOCOL_VERSION,
+                  mode: PROMPT_MODES.enhance,
+                  language: 'zh',
+                  status: 'ok',
+                  result: [
+                    '请修复 Prompt Lift：',
+                    '1. 排查“审阅后应用”的第三方插件、版本和权限问题。',
+                    '2. 通过模板设置重新配置四种审阅模式。',
+                  ].join('\n'),
+                }),
+                },
+              }],
+            };
+          },
+        };
+      },
+    }),
+    (error) => error.code === 'MODEL_OUTPUT_SCOPE_INVENTION',
+  );
+  assert.equal(calls, 2);
+});
+
+test('scope validation allows Word when the source explicitly names Word', async () => {
+  const source = '请优化 Word 的“审阅后应用”流程，保留当前模板设置。';
+  const expected = '请优化 Word 的“审阅后应用”流程：保留当前模板设置，并让操作状态和下一步更清楚。';
+
+  const result = await enhancePrompt(source, {
+    endpoint: 'https://tokenhub.tencentmaas.com/v1',
+    model: 'deepseek-v4-flash',
+    apiKey: 'secret-test-key',
+    mode: PROMPT_MODES.enhance,
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          choices: [{
+            finish_reason: 'stop',
+            message: {
+              content: JSON.stringify({
+                protocol: PROMPT_PROTOCOL_VERSION,
+                mode: PROMPT_MODES.enhance,
+                language: 'zh',
+                status: 'ok',
+                result: expected,
+              }),
+            },
+          }],
+        };
+      },
+    }),
+  });
+
+  assert.equal(result, expected);
+});
+
 test('model protocol accepts a direct optimized request', async () => {
   const expected = '请优化桌面宠物的拖动交互：减少指针移动与窗口位置更新之间的延迟，避免连续拖动时出现卡顿、跳变或明显滞后。';
   const result = await enhancePrompt('拖动起来不够跟手，不够丝滑', {
@@ -290,6 +622,81 @@ test('model protocol accepts a direct optimized request', async () => {
 
   assert.equal(result, expected);
   assert.doesNotMatch(result, /请将以下|用户反馈原文|待改写内容/);
+});
+
+test('a direct structured prompt may retain the source under a context label', async () => {
+  const expected = [
+    '请分析并优化这个拖动交互问题。',
+    '用户反馈原文：拖动起来不够跟手，不够丝滑',
+    '请先诊断可能原因，再给出可执行的优化方案；信息不足时列出需要确认的平台和组件信息。',
+  ].join('\n');
+  const result = await enhancePrompt('拖动起来不够跟手，不够丝滑', {
+    endpoint: 'https://tokenhub.tencentmaas.com/v1',
+    model: 'deepseek-v4-flash',
+    apiKey: 'secret-test-key',
+    style: MODEL_STYLES.creative,
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          choices: [{
+            finish_reason: 'stop',
+            message: {
+              content: JSON.stringify({
+                protocol: PROMPT_PROTOCOL_VERSION,
+                mode: PROMPT_MODES.enhance,
+                language: 'zh',
+                status: 'ok',
+                result: expected,
+              }),
+            },
+          }],
+        };
+      },
+    }),
+  });
+
+  assert.equal(result, expected);
+});
+
+test('a direct product task may ask to optimize features based on the following feedback', async () => {
+  const source = [
+    '1. 审阅后应用关闭时不应进入审阅界面。',
+    '2. 四种沟通模式需要不同档位。',
+  ].join('\n');
+  const expected = [
+    '请根据以下用户反馈优化产品功能：',
+    '1. “审阅后应用”关闭时，生成后保持快速应用流程。',
+    '2. 为四种沟通模式配置可清晰区分的档位。',
+  ].join('\n');
+  const result = await enhancePrompt(source, {
+    endpoint: 'https://tokenhub.tencentmaas.com/v1',
+    model: 'deepseek-v4-flash',
+    apiKey: 'secret-test-key',
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          choices: [{
+            finish_reason: 'stop',
+            message: {
+              content: JSON.stringify({
+                protocol: PROMPT_PROTOCOL_VERSION,
+                mode: PROMPT_MODES.enhance,
+                language: 'zh',
+                status: 'ok',
+                result: expected,
+              }),
+            },
+          }],
+        };
+      },
+    }),
+  });
+
+  assert.equal(result, expected);
 });
 
 test('model protocol rejects a high-confidence mismatch between the declared and actual result language', async () => {
@@ -492,7 +899,7 @@ test('model messages isolate prompt injection inside a serialized source envelop
     mode: PROMPT_MODES.enhance,
     recipe: {
       id: PROMPT_MODES.enhance,
-      version: '1.0',
+      version: '1.1',
     },
     language: 'zh',
     sourceText: source,
@@ -880,13 +1287,65 @@ test('enhancePrompt calls an OpenAI-compatible model with a bearer key', async (
   const body = JSON.parse(calls[0].init.body);
   assert.equal(body.model, 'deepseek-v4-flash');
   assert.equal(body.stream, false);
-  assert.equal(body.temperature, 0.2);
+  assert.equal(body.temperature, 0.05);
   assert.deepEqual(body.thinking, { type: 'disabled' });
   assert.ok(body.max_tokens >= 512 && body.max_tokens <= 4096);
   assert.match(body.messages.at(-1).content, /SOURCE_MATERIAL_JSON/);
   assert.match(body.messages.at(-1).content, /Improve this prompt/);
   assert.match(body.messages[0].content, /original intent|原意/i);
-  assert.match(body.messages[0].content, /concise|简洁/i);
+  assert.match(body.messages[0].content, /Clear and Direct|清晰直达/i);
+});
+
+test('prompt tiers use bounded temperatures that reinforce fidelity and creativity differences', async () => {
+  const expectedTemperatures = new Map([
+    [MODEL_STYLES.faithful, 0],
+    [MODEL_STYLES.concise, 0.05],
+    [MODEL_STYLES.professional, 0.1],
+    [MODEL_STYLES.creative, 0.2],
+  ]);
+  const expectedTokenFloors = new Map([
+    [MODEL_STYLES.faithful, 512],
+    [MODEL_STYLES.concise, 512],
+    [MODEL_STYLES.professional, 768],
+    [MODEL_STYLES.creative, 1_024],
+  ]);
+
+  for (const [style, expectedTemperature] of expectedTemperatures) {
+    let requestBody;
+    const result = await enhancePrompt('Improve this prompt', {
+      endpoint: 'https://example.test/v1',
+      model: 'other-compatible-model',
+      apiKey: 'secret-test-key',
+      style,
+      fetchImpl: async (_url, init) => {
+        requestBody = JSON.parse(init.body);
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return {
+              choices: [{
+                finish_reason: 'stop',
+                message: {
+                  content: JSON.stringify({
+                    protocol: PROMPT_PROTOCOL_VERSION,
+                    mode: PROMPT_MODES.enhance,
+                    language: 'en',
+                    status: 'ok',
+                    result: 'Improve this prompt with a clear objective and expected output.',
+                  }),
+                },
+              }],
+            };
+          },
+        };
+      },
+    });
+
+    assert.equal(result, 'Improve this prompt with a clear objective and expected output.');
+    assert.equal(requestBody.temperature, expectedTemperature);
+    assert.ok(requestBody.max_tokens >= expectedTokenFloors.get(style));
+  }
 });
 
 test('enhancePrompt reports an empty truncated completion without touching the original', async () => {

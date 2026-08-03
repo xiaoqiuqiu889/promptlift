@@ -336,7 +336,7 @@ const promptLiftApi = Object.freeze({
       return {
         original: prompt,
         enhanced: `[QA ${qaState.model.mode}] ${prompt} Keep the output actionable.`,
-        replaced: true,
+        replaced: payload.replace !== false,
       };
     });
   },

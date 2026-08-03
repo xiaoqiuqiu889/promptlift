@@ -12,21 +12,43 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="pet-shell" data-state="idle" data-view="compact" data-resizing="false">
+    <main
+      class="pet-shell"
+      data-state="idle"
+      data-view="compact"
+      data-mode="enhance"
+      data-mascot="cockapoo"
+      data-resizing="false"
+    >
       <section id="petCard" class="pet-card" aria-label="Prompt Pet 桌面助手">
         <header class="pet-header" aria-label="拖动区域">
           <button id="petAvatar" class="pet-avatar" type="button" aria-label="一键处理当前输入">
-            <span class="pet-sprite" aria-hidden="true">
+            <span id="mascotImageFrame" class="pet-mascot-frame" aria-hidden="true">
+              <img
+                id="mascotImage"
+                class="pet-mascot-image"
+                src="./assets/mascots/cockapoo.png"
+                alt=""
+                draggable="false"
+              />
+            </span>
+            <span
+              id="mascotSprite"
+              class="pet-sprite mascot-css-sprite"
+              data-mascot="classic-green-knight"
+              hidden
+              aria-hidden="true"
+            >
               <span class="pet-flame pet-flame-left"><i></i></span>
               <span class="pet-flame pet-flame-right"><i></i></span>
               <span class="pet-cape pet-cape-left"></span>
               <span class="pet-cape pet-cape-right"></span>
-              <span class="pet-shoulder pet-shoulder-left"><i></i></span>
-              <span class="pet-shoulder pet-shoulder-right"><i></i></span>
+              <span class="pet-shoulder pet-shoulder-left"></span>
+              <span class="pet-shoulder pet-shoulder-right"></span>
               <span class="pet-helmet">
-                <span class="pet-helmet-ridge"></span>
+                <i class="pet-helmet-ridge"></i>
                 <span class="pet-visor"><i></i><i></i></span>
-                <span class="pet-gem"></span>
+                <i class="pet-gem"></i>
                 <span class="pet-mouth"><i></i><i></i><i></i></span>
               </span>
               <span class="pet-arm pet-arm-left"><i></i></span>
@@ -104,7 +126,7 @@
           <label class="result-label" for="enhancedPrompt">可编辑结果</label>
           <textarea id="enhancedPrompt" spellcheck="false" aria-label="处理结果"></textarea>
           <div class="result-actions">
-            <button id="cancelButton" class="text-button" type="button" disabled>取消</button>
+            <button id="cancelButton" class="text-button" type="button" disabled>放弃</button>
             <button id="restoreButton" class="text-button" type="button" disabled>恢复原文</button>
             <button id="regenerateButton" class="text-button" type="button" disabled>重新生成</button>
             <button id="copyButton" class="text-button" type="button" disabled>复制</button>
@@ -113,11 +135,11 @@
         </section>
 
       <nav id="contextMenu" class="context-menu" hidden aria-label="助手功能菜单" role="menu">
-        <button id="resultMenuButton" role="menuitem" type="button" data-menu-action="result" hidden><span>↗</span><span>查看增强结果</span></button>
+        <button role="menuitem" type="button" data-menu-action="style"><span>✦</span><span>优化档位</span><span id="currentStyleLabel" class="menu-value">清晰直达</span></button>
         <button role="menuitem" type="button" data-menu-action="mode"><span>◇</span><span>工作模式</span><span id="currentModeLabel" class="menu-value">提示词增强</span></button>
+        <button role="menuitem" type="button" data-menu-action="mascot"><span>◉</span><span>小精灵形象</span><span id="currentMascotLabel" class="menu-value">可卡布犬 · 原风格</span></button>
         <button id="reviewModeButton" role="menuitemcheckbox" type="button" data-menu-action="review" aria-checked="false"><span>○</span><span>审阅后应用</span><span id="reviewModeLabel" class="menu-value">已关闭</span></button>
         <button role="menuitem" type="button" data-menu-action="configure"><span>⚙</span><span>模型与 Key 配置</span></button>
-        <button role="menuitem" type="button" data-menu-action="style"><span>✦</span><span>提示词风格</span><span id="currentStyleLabel" class="menu-value">标准</span></button>
         <button role="menuitem" type="button" data-menu-action="check"><span>✓</span><span>检查模型配置</span></button>
         <button role="menuitem" type="button" data-menu-action="startup"><span>◉</span><span>开机自启动</span><span id="startupLabel" class="menu-value">已关闭</span></button>
         <span class="menu-divider" aria-hidden="true"></span>
@@ -150,6 +172,28 @@
         </button>
       </section>
 
+      <section id="mascotPanel" class="floating-panel mascot-panel" hidden aria-label="小精灵形象" role="dialog">
+        <div class="panel-heading">
+          <div>
+            <span class="panel-kicker">MASCOT</span>
+            <strong>选择小精灵</strong>
+          </div>
+          <button class="panel-close" type="button" data-close-panel="mascotPanel" aria-label="关闭">×</button>
+        </div>
+        <button class="mascot-option" type="button" data-mascot="cockapoo">
+          <img src="./assets/mascots/cockapoo.png" alt="" draggable="false" />
+          <span><strong>可卡布犬 · 原风格</strong><small>保留真实卷毛与棕白花色</small></span>
+        </button>
+        <button class="mascot-option" type="button" data-mascot="green-knight-pup">
+          <img src="./assets/mascots/green-knight-pup.png" alt="" draggable="false" />
+          <span><strong>绿色骑士小狗</strong><small>保真犬犬形象，加入绿色骑士装束</small></span>
+        </button>
+        <button class="mascot-option" type="button" data-mascot="classic-green-knight">
+          <span class="mascot-css-preview" aria-hidden="true">CSS</span>
+          <span><strong>绿色骑士</strong><small>Prompt Pet 经典扁平小精灵</small></span>
+        </button>
+      </section>
+
       <section id="settingsPanel" class="floating-panel" hidden aria-label="模型配置" role="dialog">
         <div class="panel-heading">
           <div>
@@ -173,21 +217,19 @@
         </div>
       </section>
 
-      <section id="stylePanel" class="floating-panel style-panel" hidden aria-label="提示词风格" role="dialog">
+      <section id="stylePanel" class="floating-panel style-panel" hidden aria-label="优化档位" role="dialog">
         <div class="panel-heading">
           <div>
-            <span class="panel-kicker">PROMPT STYLE</span>
-            <strong>提示词风格</strong>
+            <span class="panel-kicker">PROMPT TIER</span>
+            <strong>优化档位</strong>
           </div>
           <button class="panel-close" type="button" data-close-panel="stylePanel" aria-label="关闭">×</button>
         </div>
         <p id="promptProtocolLabel" class="panel-note">系统提示词规范 v2 · 原意、事实与语言保护</p>
-        <button class="style-option" type="button" data-style="faithful"><strong>严格保真</strong><span>只澄清和整理，不扩大原任务范围</span></button>
-        <button class="style-option" type="button" data-style="balanced"><strong>标准</strong><span>清晰、完整、实用</span></button>
-        <button class="style-option" type="button" data-style="concise"><strong>简洁</strong><span>减少重复，表达更紧凑</span></button>
-        <button class="style-option" type="button" data-style="detailed"><strong>详细</strong><span>补充更多执行细节</span></button>
-        <button class="style-option" type="button" data-style="professional"><strong>专业</strong><span>正式、结构化的表达</span></button>
-        <button class="style-option" type="button" data-style="creative"><strong>创意</strong><span>更有表现力但保持可执行</span></button>
+        <button class="style-option" type="button" data-style="faithful"><strong>原意守护</strong><span>只澄清目标与结构，不新增范围、假设或承诺</span></button>
+        <button class="style-option" type="button" data-style="concise"><strong>清晰直达</strong><span>去除重复，补齐关键约束，用更短路径表达</span></button>
+        <button class="style-option" type="button" data-style="professional"><strong>专业展开</strong><span>补充执行背景、步骤、标准与专业输出结构</span></button>
+        <button class="style-option" type="button" data-style="creative"><strong>创意策划</strong><span>在专业完整基础上增加可控创意方向与备选方案</span></button>
       </section>
       </section>
     </main>

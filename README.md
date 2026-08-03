@@ -1,73 +1,119 @@
-# Prompt Lift
+# Prompt Lift 🐾
 
-Prompt Lift is a small Windows expression assistant that works with ordinary editable input boxes. It keeps the original text in memory, sends it to the configured language model for a bounded rewrite, and lets the user apply, review, copy, cancel, or restore the result.
+> 一个会住在 Windows 任意输入框旁边的安全表达助手：双击一下 `Alt`，让想法更清楚，让语气更合适，让提示词更好用。
 
-## Run from the Windows exe
+Prompt Lift 不是一个需要你切换窗口的“聊天机器人”，而是一只随时待命的小精灵。它读取当前输入框里的文字，交给模型做一次有边界的优化，再由你决定预览、复制、应用、重试还是恢复原文。
 
-Run `release/Prompt Lift-win32-x64/Prompt Lift.exe` by double-clicking it. The packaged app includes its runtime files, so the target computer does not need Node.js, npm, or a command window. The window opens directly on startup; close it to keep Prompt Lift available in the tray.
+## 它能帮你做什么？
 
-To create or refresh the portable Windows package:
+Prompt Lift 当前把“表达目标”分成四类，每一类都有自己的优化策略和档位：
+
+| 工作模式 | 适合场景 | 优化重点 |
+| --- | --- | --- |
+| **AI 提示词** | 写给 AI 的任务说明 | 补齐目标、上下文、约束、验收标准和输出格式，但不替你执行原任务 |
+| **向上沟通** | 给老板、负责人或跨团队伙伴发消息 | 先说结论，再整理依据、风险、需要的支持和下一步 |
+| **用户沟通** | 客服、运营、销售和日常对外表达 | 更安全、更礼貌、更清晰，避免过度承诺和模糊措辞 |
+| **PPT 文案** | 优化一段标题或正文 | 把描述性标题改成结论型标题，压缩正文并建立信息层级 |
+
+四档风格不是“同一段话换个名字”，而是不同的编辑力度：
+
+- **原意守护**：尽量不改写，只修正明显歧义、错别字和必要结构。
+- **清晰直达**：删掉绕口表达，突出结论，适合高频快速发送。
+- **专业展开**：补齐逻辑、条件、风险与行动项，适合正式沟通和复杂提示词。
+- **创意策划**：在事实不变的前提下，提供更有记忆点的结构、标题或表达方式。
+
+## 主要功能
+
+- **双击 Alt 即用**：不需要切换窗口，聚焦任意可编辑输入框即可触发。
+- **预览后再决定**：可开启“审阅后应用”，先看结果、恢复原文、重新生成或复制，再手动应用。
+- **安全替换**：应用前会核对目标窗口、进程、原始文本和操作令牌；输入框内容被别人改过时，不会盲目覆盖。
+- **可撤销可恢复**：原文只保留在当前操作链路中，取消或恢复都不会悄悄丢字。
+- **模式与档位联动**：四种沟通模式分别使用自己的提示策略和推荐档位。
+- **三个小精灵**：原始可卡布犬、绿色骑士小狗、CSS 绿色骑士。绿色骑士小狗使用透明无边框切图，可以自然融入深色或浅色背景。
+- **极简扁平界面**：轻量的中性底色、克制的绿色强调和清楚的层级，不用厚重渐变或花哨动画抢走输入焦点。
+
+## Windows 运行方式
+
+### 推荐：下载完整 ZIP
+
+1. 在仓库的 Releases/文件列表中下载 [Prompt-Lift-20260804-r4-win32-x64.zip](deliverables/Prompt-Lift-20260804-r4-win32-x64.zip)。
+2. 将 ZIP 解压到一个有写入权限的目录。
+3. 先退出系统托盘里已经运行的旧版 Prompt Lift。
+4. 双击解压目录中的 `Prompt Lift-win32-x64/Prompt Lift.exe`。
+
+这是一个 Windows x64 便携包，已经包含运行时，不需要额外安装 Node.js、npm 或命令行工具。**不要只把 EXE 单独拎出来运行**，请保留它旁边的整个 `Prompt Lift-win32-x64` 文件夹。
+
+仓库里也保留了可直接查看和下载的 [Prompt Lift.exe](deliverables/Prompt-Lift-20260804-r4/Prompt%20Lift-win32-x64/Prompt%20Lift.exe)。如果浏览器提示大文件由 Git LFS 管理，下载 ZIP 会更稳妥。
+
+### 第一次使用
+
+1. 打开任意可以输入文字的 Windows 应用，把光标放进输入框。
+2. 双击 `Alt`，或右键小精灵选择“处理当前输入框”。
+3. 首次使用先进入“模型与 Key 配置”，填写兼容 Chat Completions 的接口地址、模型名和 API Key，并点击“检查并保存”。
+4. 在右键菜单里选择工作模式和优化档位；模式面板选中后会返回上级菜单，方便继续调整。
+5. 结果出现后，可以直接应用，也可以打开审阅流程后再复制、重新生成、恢复原文或放弃。
+
+API Key 通过 Electron 的 Windows `safeStorage` 加密保存，只对当前 Windows 用户可用，不会写进源码、日志或打包资源。模型请求失败时，原文不会被替换。
+
+## PPT 文案模式的边界
+
+PPT 文案模式适合把当前输入的一段标题或正文整理成“一个结论 + 清晰层级”的文案。它不会假装读取整个演示文稿，也不会凭空理解其他文本框、图表、备注或版式；如果需要整套 PPT 改稿，请先把需要处理的文字汇总到当前输入框。
+
+## 开发与技术栈
+
+- Electron + Node.js
+- 原生 HTML / CSS / JavaScript 渲染界面
+- Windows 原生输入捕获与原子化替换桥接
+- Electron `safeStorage` 保护模型凭据
+- 版本化 Recipe 与模型侧系统提示词协议
+- Git LFS 管理便携版 EXE 和 ZIP 发布文件
+
+本项目的核心原则是“先保护原文，再谈增强”：输入内容按不可信材料传给模型，系统规则优先于模式、档位和用户文本；结果必须满足严格的协议、语言和不可变锚点校验后，才允许进入替换流程。
+
+## 本地开发
 
 ```powershell
 npm install
-npm run package:win
-```
-
-The resulting entry is:
-
-```text
-release/Prompt Lift-win32-x64/Prompt Lift.exe
-```
-
-## Development run
-
-For local development only:
-
-```powershell
 npm start
-```
-
-Focus the Codex, Claude, WeChat, or WeCom input box, then double-tap `Alt`, left-click the pet, or choose `一键处理当前输入框` from the tray icon. Prompt Lift locks the exact target window, reads the input, calls the configured model, verifies the replacement, and moves the caret to the end. The original remains available through the right-click result panel for restoration.
-
-The assistant normally stays in compact pet mode. Right-click or open a result/settings panel to expand it; use the `收起为小宠物` button in the expanded header to return to the small pet without hiding the assistant or losing the current result/status.
-
-Four versioned rewrite recipes are available from the right-click mode panel:
-
-- `提示词增强`: clarify goals, context, constraints, and output requirements for AI;
-- `向上沟通`: lead with the conclusion and organize evidence, risk, and the next step;
-- `用户沟通`: improve politeness and clarity without inventing promises or service capabilities;
-- `PPT 文案`: create a conclusion-led title and concise, hierarchical copy for the current text only.
-
-The default fast path remains one action with automatic safe replacement. Enable `审阅后应用` when you want to compare the source and result, edit the result, regenerate it, and apply it only after confirmation. Every apply still verifies the captured window, process, expected text, and live operation token. If the model requests essential context, Prompt Lift shows up to three inline clarification prompts and regenerates in review mode without replacing the target text.
-
-## Model setup
-
-The UI is prefilled for Tencent Cloud TokenHub:
-
-```text
-API Base URL: https://tokenhub.tencentmaas.com/v1
-Model: deepseek-v4-flash
-```
-
-Enter your API Key in the UI and click `检查并保存`. A failed check does not replace the last saved configuration; a successful check saves the verified configuration immediately. The key is never hard-coded or logged; it is encrypted with Electron `safeStorage` backed by Windows and stored in the current user's app-data directory. The password field is cleared after saving. The app calls the OpenAI-compatible `/chat/completions` endpoint over HTTPS with a `Bearer` authorization header. If the key is missing or rejected, the original prompt is not replaced.
-
-The model path uses system-prompt protocol v2 and a versioned Recipe registry. Stable safety and output rules outrank the selected Recipe, style, and source material. Source text is serialized as untrusted rewrite material rather than executed as instructions. The protocol preserves intent and immutable anchors such as numbers, dates, links, paths, email addresses, issue identifiers, code, template variables, and command flags; it forbids invented context and avoids mechanically expanding simple requests. The model must return a mode- and language-bound JSON envelope. The client rejects truncated, polluted, cross-mode, fact-dropping, meta-rewrite, or abnormally long output before anything is written back.
-
-The `严格保真` style is available when the user wants only necessary clarification and organization. Window size and position are saved locally and clamped back onto a visible display after monitor or resolution changes.
-
-## Safety and limitations
-
-- The app uses a local Windows bridge instead of injecting code into Codex or Claude. This keeps the integration reversible and independent of either app's DOM internals.
-- The original prompt is kept in memory only for the current session; it is not written to disk or logged.
-- The model API key is encrypted for the current Windows user; it is never included in the packaged client or source files.
-- The bridge validates the target HWND and process identity, compares the current input with the originally captured text immediately before replacement, and uses atomic `SendInput` keyboard chords. User text travels as JSON over stdin rather than being interpolated into shell code.
-- Clipboard content is restored after capture and replacement when it is still owned by Prompt Lift; a newer clipboard value created by the user is not overwritten.
-- If the active input is not a normal editable control, capture may fail. Re-focus the prompt box and invoke the shortcut again.
-
-## Checks
-
-```powershell
 npm test
 npm run check
 npm run package:win
 ```
+
+当前版本的自动化回归为 **154/154 通过**，Windows 界面验收覆盖 67 个状态，包含双击 Alt、取消、审阅、恢复、模式切换、档位差异、三种小精灵和拖拽命中测试。
+
+打包结果默认写入 `deliverables/`。本仓库当前发布包为：
+
+```text
+deliverables/Prompt-Lift-20260804-r4-win32-x64.zip
+deliverables/Prompt-Lift-20260804-r4/Prompt Lift-win32-x64/Prompt Lift.exe
+```
+
+## 目录速览
+
+```text
+src/core/                 提示词 Recipe、协议与模型调用
+src/main.mjs              Electron 主进程和 Windows 桥接
+src/renderer/             小精灵界面、菜单与交互
+src/renderer/assets/      可卡布犬与绿色骑士小狗透明素材
+scripts/                  打包、契约检查和视觉验收脚本
+test/                     单元测试与产品契约测试
+deliverables/              当前 Windows x64 便携包
+```
+
+## 欢迎一起把表达变好
+
+欢迎提交 Issue 或 Pull Request：可以是一个 badcase、一条更好的提示词样例、一次界面改进，或者一只更可爱的透明小精灵。提交代码前请至少运行：
+
+```powershell
+npm test
+npm run check
+```
+
+如果你发现结果不符合预期，请附上原始输入、选择的模式/档位和模型返回的结果；不要上传 API Key、真实客户隐私或敏感业务内容。
+
+---
+
+![绿色骑士小狗](src/renderer/assets/mascots/green-knight-pup.png)
+
+愿每一次发送，都比刚才更清楚一点。✨

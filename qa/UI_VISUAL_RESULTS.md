@@ -1,12 +1,12 @@
 # Prompt Lift UI Visual QA Results
 
 - Verdict: **pass**
-- Status snapshots: 0
-- Trusted input clicks/gestures: 1/1
-- Screenshots: 0
-- API calls observed by the mock preload: 21
+- Status snapshots: 67
+- Trusted input clicks/gestures: 115/124
+- Screenshots: 67
+- API calls observed by the mock preload: 285
 - Defects: 0 (geometry 0, workflow 0)
-- Automation limitations (not product defects): 0
+- Automation limitations (not product defects): 2
 
 ## Matrix combinations
 
@@ -21,16 +21,83 @@
 - 480x700: 480x700 logical px
 - 640x760: 640x760 logical px
 
-- Observed deviceScaleFactor: unknown
+- Observed deviceScaleFactor: 2
 
 ## Covered visible states and paths
 
+- compact-idle-min-112x112: compact/idle, viewport 112x112, dpr 2, 1 visible interactive elements; path: compact idle at 112x112; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/001-compact-idle-min-112x112.png
+- compact-idle-default-120x140: compact/idle, viewport 120x140, dpr 2, 1 visible interactive elements; path: compact idle at 120x140; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/002-compact-idle-default-120x140.png
+- compact-idle-large-240x280: compact/idle, viewport 240x280, dpr 2, 1 visible interactive elements; path: compact idle at 240x280; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/003-compact-idle-large-240x280.png
+- compact-idle-p0-before-left-click: compact/idle, viewport 120x140, dpr 2, 1 visible interactive elements; path: compact idle → #petAvatar left click; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/004-compact-idle-p0-before-left-click.png
+- compact-loading-p0-avatar: compact/loading, viewport 120x140, dpr 2, 2 visible interactive elements; path: #petAvatar left click → loading; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/005-compact-loading-p0-avatar.png
+- compact-success-p0-avatar: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: #petAvatar left click → capture → enhance → auto apply → compact; fast mode success; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/006-compact-success-p0-avatar.png
+- compact-loading-cancel-available: compact/loading, viewport 120x140, dpr 2, 2 visible interactive elements; path: #petAvatar left click → compact loading; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/007-compact-loading-cancel-available.png
+- compact-loading-cancelled: compact/idle, viewport 120x140, dpr 2, 1 visible interactive elements; path: compact loading → #compactCancelButton; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/008-compact-loading-cancelled.png
+- expanded-error-before-collapse: expanded/error, viewport 360x520, dpr 2, 5 visible interactive elements; path: compact #petAvatar → error → expanded; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/009-expanded-error-before-collapse.png
+- compact-error-after-collapse: compact/error, viewport 120x140, dpr 2, 1 visible interactive elements; path: expanded error → #collapseButton → compact error; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/010-compact-error-after-collapse.png
+- expanded-idle-context-360x520: expanded/idle, viewport 360x520, dpr 2, 13 visible interactive elements; path: compact idle → right-click #petAvatar → expanded context at 360x520; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/011-expanded-idle-context-360x520.png
+- expanded-idle-context-420x620: expanded/idle, viewport 420x620, dpr 2, 13 visible interactive elements; path: compact idle → right-click #petAvatar → expanded context at 420x620; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/012-expanded-idle-context-420x620.png
+- expanded-idle-context-480x700: expanded/idle, viewport 480x700, dpr 2, 13 visible interactive elements; path: compact idle → right-click #petAvatar → expanded context at 480x700; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/013-expanded-idle-context-480x700.png
+- expanded-idle-context-640x760: expanded/idle, viewport 640x760, dpr 2, 13 visible interactive elements; path: compact idle → right-click #petAvatar → expanded context at 640x760; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/014-expanded-idle-context-640x760.png
+- expanded-loading-model-check: expanded/loading, viewport 360x520, dpr 2, 20 visible interactive elements; path: context menu → check model → loading; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/015-expanded-loading-model-check.png
+- expanded-success-model-check: expanded/success, viewport 360x520, dpr 2, 20 visible interactive elements; path: check model → success; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/016-expanded-success-model-check.png
+- expanded-error-model-check: expanded/error, viewport 360x520, dpr 2, 20 visible interactive elements; path: context menu → check model → error; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/017-expanded-error-model-check.png
+- compact-success-fast-auto-apply: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: fast mode success → auto apply → compact; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/018-compact-success-fast-auto-apply.png
+- compact-review-discard-preserved-original: compact/idle, viewport 120x140, dpr 2, 1 visible interactive elements; path: review pending → discard → compact; original transaction preserved; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/019-compact-review-discard-preserved-original.png
+- expanded-review-pending-actions: expanded/success, viewport 360x520, dpr 2, 11 visible interactive elements; path: review mode success → primary result region → pending actions; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/020-expanded-review-pending-actions.png
+- expanded-review-applied-actions: expanded/success, viewport 360x520, dpr 2, 11 visible interactive elements; path: review result → explicit apply → applied actions; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/021-expanded-review-applied-actions.png
+- expanded-review-topbar-menu-open: expanded/success, viewport 360x520, dpr 2, 19 visible interactive elements; path: review result → topbar menu entry → context menu; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/022-expanded-review-topbar-menu-open.png
+- context-menu-before-mode: expanded/idle, viewport 360x520, dpr 2, 13 visible interactive elements; path: trusted right click #petAvatar → mode; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/023-context-menu-before-mode.png
+- context-mode-panel: expanded/idle, viewport 360x520, dpr 2, 18 visible interactive elements; path: context menu → mode; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/024-context-mode-panel.png
+- context-menu-before-mascot: expanded/idle, viewport 360x520, dpr 2, 13 visible interactive elements; path: trusted right click #petAvatar → mascot; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/025-context-menu-before-mascot.png
+- context-mascot-panel: expanded/idle, viewport 360x520, dpr 2, 17 visible interactive elements; path: context menu → mascot; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/026-context-mascot-panel.png
+- context-menu-before-review: expanded/idle, viewport 360x520, dpr 2, 13 visible interactive elements; path: trusted right click #petAvatar → review; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/027-context-menu-before-review.png
+- context-startup-visible: expanded/success, viewport 360x520, dpr 2, 13 visible interactive elements; path: context menu → startup; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/028-context-startup-visible.png
+- context-menu-before-configure: expanded/idle, viewport 360x520, dpr 2, 13 visible interactive elements; path: trusted right click #petAvatar → configure; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/029-context-menu-before-configure.png
+- context-configure-panel: expanded/idle, viewport 360x520, dpr 2, 20 visible interactive elements; path: context menu → configure; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/030-context-configure-panel.png
+- context-menu-before-style: expanded/idle, viewport 360x520, dpr 2, 13 visible interactive elements; path: trusted right click #petAvatar → style; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/031-context-menu-before-style.png
+- context-style-panel: expanded/idle, viewport 360x520, dpr 2, 17 visible interactive elements; path: context menu → style; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/032-context-style-panel.png
+- context-menu-before-check: expanded/idle, viewport 360x520, dpr 2, 13 visible interactive elements; path: trusted right click #petAvatar → check; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/033-context-menu-before-check.png
+- context-check-panel: expanded/success, viewport 360x520, dpr 2, 20 visible interactive elements; path: context menu → check; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/034-context-check-panel.png
+- context-menu-before-startup: expanded/idle, viewport 360x520, dpr 2, 13 visible interactive elements; path: trusted right click #petAvatar → startup; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/035-context-menu-before-startup.png
+- context-startup-visible: expanded/success, viewport 360x520, dpr 2, 13 visible interactive elements; path: context menu → startup; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/036-context-startup-visible.png
+- context-menu-before-quit: expanded/idle, viewport 360x520, dpr 2, 13 visible interactive elements; path: trusted right click #petAvatar → quit; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/037-context-menu-before-quit.png
+- context-menu-quit-visible: expanded/idle, viewport 360x520, dpr 2, 13 visible interactive elements; path: context menu → quit (mocked, process retained); screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/038-context-menu-quit-visible.png
+- mode-selection-returns-parent-menu: expanded/success, viewport 360x520, dpr 2, 13 visible interactive elements; path: mode option → parent menu remains open; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/039-mode-selection-returns-parent-menu.png
+- mode-right-click-enhance: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: right-click mode toggle → enhance; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/040-mode-right-click-enhance.png
+- mode-right-click-upward-communication: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: right-click mode toggle → upward-communication; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/041-mode-right-click-upward-communication.png
+- mode-right-click-chat-polish: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: right-click mode toggle → chat-polish; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/042-mode-right-click-chat-polish.png
+- mode-right-click-ppt-copy: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: right-click mode toggle → ppt-copy; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/043-mode-right-click-ppt-copy.png
+- tier-labels-enhance: expanded/success, viewport 360x520, dpr 2, 17 visible interactive elements; path: mode enhance → four visible tier labels; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/044-tier-labels-enhance.png
+- tier-labels-upward-communication: expanded/success, viewport 360x520, dpr 2, 17 visible interactive elements; path: mode upward-communication → four visible tier labels; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/045-tier-labels-upward-communication.png
+- tier-labels-chat-polish: expanded/success, viewport 360x520, dpr 2, 17 visible interactive elements; path: mode chat-polish → four visible tier labels; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/046-tier-labels-chat-polish.png
+- tier-labels-ppt-copy: expanded/success, viewport 360x520, dpr 2, 17 visible interactive elements; path: mode ppt-copy → four visible tier labels; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/047-tier-labels-ppt-copy.png
+- settings-fields-initial: expanded/idle, viewport 360x520, dpr 2, 20 visible interactive elements; path: context menu → model settings; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/048-settings-fields-initial.png
+- settings-api-key-masked: expanded/idle, viewport 360x520, dpr 2, 20 visible interactive elements; path: settings API Key/title inputs typed; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/049-settings-api-key-masked.png
+- settings-check-save-success: expanded/success, viewport 360x520, dpr 2, 20 visible interactive elements; path: settings → 检查并保存 → success; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/050-settings-check-save-success.png
+- settings-check-error: expanded/error, viewport 360x520, dpr 2, 20 visible interactive elements; path: settings → 检查并保存 → error; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/051-settings-check-error.png
+- settings-save-error: expanded/error, viewport 360x520, dpr 2, 20 visible interactive elements; path: settings → 保存配置 → error; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/052-settings-save-error.png
+- settings-save-success: expanded/success, viewport 360x520, dpr 2, 20 visible interactive elements; path: settings → 保存配置 → success; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/053-settings-save-success.png
+- style-selected-faithful: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: style option → faithful → close; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/054-style-selected-faithful.png
+- style-selected-concise: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: style option → concise → close; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/055-style-selected-concise.png
+- style-selected-professional: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: style option → professional → close; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/056-style-selected-professional.png
+- style-selected-creative: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: style option → creative → close; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/057-style-selected-creative.png
+- mascot-selected-cockapoo: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: mascot option → cockapoo; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/058-mascot-selected-cockapoo.png
+- mascot-selected-green-knight-pup: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: mascot option → green-knight-pup; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/059-mascot-selected-green-knight-pup.png
+- mascot-selected-classic-green-knight: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: mascot option → classic-green-knight; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/060-mascot-selected-classic-green-knight.png
+- startup-enabled: expanded/success, viewport 360x520, dpr 2, 13 visible interactive elements; path: context menu → startup on; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/061-startup-enabled.png
+- startup-disabled: expanded/success, viewport 360x520, dpr 2, 13 visible interactive elements; path: context menu → startup off; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/062-startup-disabled.png
+- close-button-window-restored: expanded/idle, viewport 360x520, dpr 2, 13 visible interactive elements; path: #closeButton → hidden → QA runner show; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/063-close-button-window-restored.png
+- compact-overlay-before-drag: compact/idle, viewport 120x140, dpr 2, 1 visible interactive elements; path: compact overlay hit test; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/064-compact-overlay-before-drag.png
+- compact-avatar-dragged: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: compact avatar pointer drag; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/065-compact-avatar-dragged.png
+- failure-avatar-drag-and-overlay-hit-tests: compact/success, viewport 120x140, dpr 2, 1 visible interactive elements; path: failure:avatar-drag-and-overlay-hit-tests; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/066-failure-avatar-drag-and-overlay-hit-tests.png
+- failure-resize-handle: compact/idle, viewport 240x280, dpr 2, 1 visible interactive elements; path: failure:resize-handle; screenshot: qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/067-failure-resize-handle.png
 
 ## P0 compact avatar left-click regression
 
-- Result: **failed/not observed**.
-- The click was dispatched with webContents.sendInputEvent; center hit: not recorded, closest #petAvatar: false.
-- Required mock sequence: not recorded; loading/success: not recorded → not recorded.
+- Result: **passed**.
+- The click was dispatched with webContents.sendInputEvent; center hit: #mascotImageFrame, closest #petAvatar: true.
+- Required mock sequence: capture → enhance → apply; loading/success: loading → success.
 - Avatar drag, resize-handle hit testing, and compact badge pointer behavior are recorded in qa/evidence/ui/summary.json.
 - Special resizeHandle 18x18 point audit: compact avatar/badge centers did not hit #resizeHandle; expanded #resizeHandle is display:none, so the closeButton/resizeHandle overlap is resolved.
 
@@ -42,16 +109,21 @@ To reproduce a listed defect, open the referenced screenshot and follow its clic
 
 ## Automation limitations (not product defects)
 
-- None.
+1. **avatar-drag-and-overlay-hit-tests**: avatar drag intercepted click flow: dragging=false, operationCalls=3; selector #petAvatar rect {"x":0,"y":0,"width":120,"height":60}; against #resizeHandle rect {"x":0,"y":0,"width":0,"height":0}; screenshot qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/066-failure-avatar-drag-and-overlay-hit-tests.png
+2. **resize-handle**: cannot drag hidden element #resizeHandle; selector workflow; screenshot qa/evidence/ui/run-1785775539351-75396-scale-1/screenshots/067-failure-resize-handle.png
 
 Trusted webContents.sendInputEvent mouseDown/mouseMove/mouseUp did not produce the renderer drag/resize movement in this run; use final Computer Use/real-desktop validation before classifying these paths as product failures.
 
 ## Scope notes
 
 - No real API key or network model request was used. Password-field evidence is length-only and rendered as a mask.
+- Prompt tiers: faithful, concise, professional, creative.
+- Right-click mode color semantics: enhance=#07c160, upward-communication=#3478f6, chat-polish=#f59a23, ppt-copy=#8b5cf6.
+- Review discard transaction: original preserved=true, revised cleared=true, apply/restore calls=0/0.
+- Mascot checks: cockapoo PNG 1254x1254, green-knight-pup PNG 1254x1254, classic-green-knight CSS semantic 60x60; PNG checks record only relative asset identifiers, and CSS uses DOM semantics.
 - No PowerShell UI Automation and no Codex/ChatGPT/Claude UI control were used.
 - The quit menu item is clicked but mocked so the QA process remains alive.
 - Double Alt renderer handoff is tested as loading event → captured payload → model → apply → terminal state, including cancel then retry. The Windows hook process is covered separately by the automated platform tests.
 
-- Evidence directory: qa/evidence/ui/run-1785768733328-65340-scale-1
+- Evidence directory: qa/evidence/ui/run-1785775539351-75396-scale-1
 - Summary JSON: qa/evidence/ui/summary.json
