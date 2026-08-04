@@ -16,6 +16,15 @@ test("error catalog preserves a stable model validation code through a generic w
   assert.doesNotMatch(promptErrorMessage(error), /操作失败：原文未改动，请重试/);
 });
 
+test("the combined legacy apply message is reduced to the underlying model cause", () => {
+  const error = new Error("操作失败，原始输入框未被覆盖，请检查设置后重试。（模型改写结果异常膨胀，已阻止覆盖原文。）");
+  error.code = "PROMPT_LIFT_ERROR";
+
+  assert.equal(inferPromptErrorCode(error), "MODEL_OUTPUT_TOO_LONG");
+  assert.match(promptErrorMessage(error), /模型结果过长/);
+  assert.doesNotMatch(promptErrorMessage(error), /原始输入框未被覆盖/);
+});
+
 test("each model validation failure explains one cause without collapsing into a generic message", () => {
   const cases = [
     ["MODEL_OUTPUT_FACT_LOSS", /事实锚点/],
