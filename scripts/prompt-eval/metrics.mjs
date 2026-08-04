@@ -16,6 +16,10 @@ export const DEFAULT_MIN_ABSOLUTE_GAIN = 1;
 // noise floor, but the default must not silently turn a 3% gain into a larger
 // requirement for low-valued scores.
 export const DEFAULT_MIN_RATE_ABSOLUTE_GAIN = 0;
+export const DEFAULT_MIN_RATING_DELTA = 20;
+export const DEFAULT_RATING_BASE = 1000;
+export const PAIRWISE_OUTCOMES = Object.freeze(['win', 'tie', 'loss']);
+export const PAIRWISE_DIMENSIONS = Object.freeze(['fidelity', 'scope', 'utility', 'brevity', 'modality']);
 
 const REQUIRED_PROTOCOL_FIELDS = Object.freeze([
   'protocol',
@@ -356,6 +360,7 @@ export function evaluateModelOutput(input = {}) {
       taskScore: input.taskScore,
       utility: input.utility,
     }),
+    pairwise: sanitizePairwise(input.pairwise),
     scoreBreakdown: aggregate.componentScores,
     metrics: {
       protocol,
@@ -376,6 +381,7 @@ export function evaluateModelOutput(input = {}) {
       report[group] = sanitizeMetricGroup(input[group]);
     }
   }
+  if (!report.pairwise) delete report.pairwise;
   return report;
 }
 
@@ -392,6 +398,10 @@ export function evaluateCase(input = {}) {
       report[group] = sanitizeMetricGroup(input[group]);
     }
   }
+  if (input.pairwise) {
+    const pairwise = sanitizePairwise(input.pairwise);
+    if (pairwise) report.pairwise = pairwise;
+  }
   return report;
 }
 
@@ -403,6 +413,107 @@ function sanitizeMetricGroup(group) {
     }
   }
   return safe;
+}
+
+function sanitizePairwise(pairwise) {
+  if (!pairwise || typeof pairwise !== 'object' || Array.isArray(pairwise)) return null;
+  const outcome = PAIRWISE_OUTCOMES.includes(pairwise.outcome) ? pairwise.outcome : null;
+  if (!outcome) return null;
+  const dimensions = {};
+  if (pairwise.dimensions && typeof pairwise.dimensions === 'object' && !Array.isArray(pairwise.dimensions)) {
+    for (const dimension of PAIRWISE_DIMENSIONS) {
+      if (PAIRWISE_OUTCOMES.includes(pairwise.dimensions[dimension])) {
+        dimensions[dimension] = pairwise.dimensions[dimension];
+      }
+    }
+  }
+  return { outcome, dimensions };
+}
+
+function wilsonInterval(successes, trials, z = 1.96) {
+  if (!Number.isFinite(successes) || !Number.isFinite(trials) || trials <= 0) return null;
+  const p = Math.max(0, Math.min(1, successes / trials));
+  const z2 = z * z;
+  const denominator = 1 + z2 / trials;
+  const centre = p + z2 / (2 * trials);
+  const margin = z * Math.sqrt((p * (1 - p) / trials) + (z2 / (4 * trials * trials)));
+  return {
+    lower: Math.max(0, (centre - margin) / denominator),
+    upper: Math.min(1, (centre + margin) / denominator),
+  };
+}
+
+/**
+ * Aggregate blind pairwise judgements. This is intentionally independent of
+ * the bounded hard-gate score: the Bradley-Terry log-odds rating has no upper
+ * ceiling, while the interval keeps small samples from being promoted on
+ * noise alone.
+ */
+export function aggregatePairwise(cases = []) {
+  const reports = Array.isArray(cases) ? cases : (Array.isArray(cases?.cases) ? cases.cases : []);
+  const outcomes = reports
+    .map((report) => sanitizePairwise(report?.pairwise))
+    .filter(Boolean);
+  const wins = outcomes.filter(({ outcome }) => outcome === 'win').length;
+  const ties = outcomes.filter(({ outcome }) => outcome === 'tie').length;
+  const losses = outcomes.filter(({ outcome }) => outcome === 'loss').length;
+  const comparisons = wins + ties + losses;
+  if (comparisons === 0) {
+    return {
+      comparisons: 0,
+      wins: 0,
+      ties: 0,
+      losses: 0,
+      superiorityRate: null,
+      ratingDelta: null,
+      qualityRating: null,
+      ratingLower95: null,
+      ratingUpper95: null,
+      dimensions: {},
+    };
+  }
+  const effectiveWins = wins + (ties * 0.5);
+  const superiorityRate = effectiveWins / comparisons;
+  // Laplace smoothing makes a finite, unbounded log-odds rating even when a
+  // finite test batch contains only wins or only losses.
+  const posteriorRate = (effectiveWins + 1) / (comparisons + 2);
+  const ratingDelta = Number((400 * Math.log10(posteriorRate / (1 - posteriorRate))).toFixed(4));
+  const interval = wilsonInterval(effectiveWins, comparisons);
+  const ratingAt = (rate) => {
+    if (!Number.isFinite(rate)) return null;
+    const bounded = Math.max(1e-9, Math.min(1 - 1e-9, rate));
+    return Number((400 * Math.log10(bounded / (1 - bounded))).toFixed(4));
+  };
+  const dimensions = Object.fromEntries(PAIRWISE_DIMENSIONS.map((dimension) => {
+    const values = outcomes
+      .map(({ dimensions: groups }) => groups?.[dimension])
+      .filter((value) => PAIRWISE_OUTCOMES.includes(value));
+    const dimensionWins = values.filter((value) => value === 'win').length;
+    const dimensionTies = values.filter((value) => value === 'tie').length;
+    const dimensionLosses = values.filter((value) => value === 'loss').length;
+    const dimensionComparisons = values.length;
+    return [dimension, {
+      comparisons: dimensionComparisons,
+      wins: dimensionWins,
+      ties: dimensionTies,
+      losses: dimensionLosses,
+      superiorityRate: dimensionComparisons === 0
+        ? null
+        : Number(((dimensionWins + dimensionTies * 0.5) / dimensionComparisons).toFixed(4)),
+    }];
+  }));
+  return {
+    comparisons,
+    wins,
+    ties,
+    losses,
+    superiorityRate: Number(superiorityRate.toFixed(4)),
+    ratingDelta,
+    qualityRating: DEFAULT_RATING_BASE + ratingDelta,
+    ratingLower95: interval ? ratingAt(interval.lower) : null,
+    ratingUpper95: interval ? ratingAt(interval.upper) : null,
+    dimensions,
+  };
 }
 
 function reportMetricPass(report, key) {
@@ -467,6 +578,7 @@ export function aggregateMetrics(cases = []) {
     semantic: aggregateScalarGroup(reports, 'semantic'),
     task: aggregateScalarGroup(reports, 'task'),
   };
+  const pairwise = aggregatePairwise(reports);
   const failureCounts = {};
   for (const report of reports) {
     for (const failure of report?.failures ?? []) {
@@ -480,6 +592,8 @@ export function aggregateMetrics(cases = []) {
     hardGatePassRate: count === 0 ? 0 : passCount / count,
     averageAggregateScore,
     qualityScore: averageQualityScore,
+    qualityRating: pairwise.qualityRating,
+    pairwise,
     semanticFidelity: Number(
       groupedMetrics.semantic.fidelity
         ?? groupedMetrics.semantic.semanticFidelity
@@ -621,6 +735,26 @@ export function evaluatePromotion(baseline, candidate, options = {}) {
       minAbsoluteGain: options.minAbsoluteGain,
     },
   );
+  const pairwise = candidate?.pairwise && Number(candidate.pairwise.comparisons) > 0
+    ? candidate.pairwise
+    : null;
+  const minRatingDelta = Number.isFinite(options.minRatingDelta)
+    ? options.minRatingDelta
+    : DEFAULT_MIN_RATING_DELTA;
+  const pairwiseComparison = pairwise
+    ? {
+      comparisons: Number(pairwise.comparisons),
+      wins: Number(pairwise.wins) || 0,
+      ties: Number(pairwise.ties) || 0,
+      losses: Number(pairwise.losses) || 0,
+      ratingDelta: Number(pairwise.ratingDelta),
+      ratingLower95: Number(pairwise.ratingLower95),
+      minRatingDelta,
+      ratingMeetsThreshold: Number(pairwise.ratingDelta) >= minRatingDelta,
+      confidenceLowerBoundPositive: Number(pairwise.ratingLower95) > 0,
+      passed: Number(pairwise.ratingDelta) >= minRatingDelta && Number(pairwise.ratingLower95) > 0,
+    }
+    : null;
   const hardComparison = compareMetric(
     baseline?.hardGatePassRate,
     candidate?.hardGatePassRate,
@@ -641,8 +775,12 @@ export function evaluatePromotion(baseline, candidate, options = {}) {
   const nonRegressionChecks = {};
   let qualityRegression = false;
   for (const [key, direction] of Object.entries(nonRegressionDirections)) {
-    const baseValue = Number(baseline?.[key]);
-    const candidateValue = Number(candidate?.[key]);
+    const baseValue = Number(key === 'anchorRecall'
+      ? (baseline?.anchorRecall ?? baseline?.averageAnchorRecall)
+      : baseline?.[key]);
+    const candidateValue = Number(key === 'anchorRecall'
+      ? (candidate?.anchorRecall ?? candidate?.averageAnchorRecall)
+      : candidate?.[key]);
     if (!Number.isFinite(baseValue) || !Number.isFinite(candidateValue)) continue;
     const regressed = direction === 'higher'
       ? candidateValue < baseValue
@@ -659,8 +797,16 @@ export function evaluatePromotion(baseline, candidate, options = {}) {
       reasons.push(`${key} regressed`);
     }
   }
-  if (!scoreComparison.meetsThreshold) {
+  if (!pairwiseComparison && !scoreComparison.meetsThreshold) {
     reasons.push('aggregate score did not improve by the required threshold');
+  }
+  if (pairwiseComparison && !pairwiseComparison.passed) {
+    if (!pairwiseComparison.ratingMeetsThreshold) {
+      reasons.push(`pairwise rating delta did not reach ${minRatingDelta}`);
+    }
+    if (!pairwiseComparison.confidenceLowerBoundPositive) {
+      reasons.push('pairwise 95% lower confidence bound is not positive');
+    }
   }
   if (hardGateRegression) {
     reasons.push('hard-gate performance regressed');
@@ -668,7 +814,9 @@ export function evaluatePromotion(baseline, candidate, options = {}) {
   const improvementRatio = scoreComparison.relativeImprovementPercent === null
     ? null
     : Number((scoreComparison.relativeImprovementPercent / 100).toFixed(6));
-  const promoted = scoreComparison.meetsThreshold && !hardGateRegression && !qualityRegression;
+  const promoted = (pairwiseComparison ? pairwiseComparison.passed : scoreComparison.meetsThreshold)
+    && !hardGateRegression
+    && !qualityRegression;
   return {
     promoted,
     eligibleForPromotion: promoted,
@@ -676,6 +824,7 @@ export function evaluatePromotion(baseline, candidate, options = {}) {
     improvementRatio,
     reasons,
     scoreComparison,
+    pairwiseComparison,
     hardGateComparison: hardComparison,
     hardGateRegression,
     nonRegressionChecks,
@@ -718,6 +867,14 @@ export function createSummary(reportsOrAggregate = [], options = {}) {
         threshold: Number.isFinite(decision.threshold) ? decision.threshold : DEFAULT_RELATIVE_IMPROVEMENT_PERCENT / 100,
         improvementRatio: Number.isFinite(decision.improvementRatio) ? decision.improvementRatio : null,
         reasons: Array.isArray(decision.reasons) ? decision.reasons.filter((value) => typeof value === 'string') : [],
+        pairwiseComparison: decision.pairwiseComparison ?? null,
+        hardGateRegression: Boolean(decision.hardGateRegression),
+        qualityRegression: Boolean(decision.qualityRegression),
+        consecutivePasses: Number.isFinite(decision.consecutivePasses) ? decision.consecutivePasses : undefined,
+        requiredConsecutivePasses: Number.isFinite(decision.requiredConsecutivePasses)
+          ? decision.requiredConsecutivePasses
+          : undefined,
+        roundPromoted: typeof decision.roundPromoted === 'boolean' ? decision.roundPromoted : undefined,
       } : undefined,
       privacy: {
         containsRawSource: false,
@@ -748,6 +905,10 @@ export function createSummary(reportsOrAggregate = [], options = {}) {
             ?? reportsOrAggregate.aggregateScore
             ?? reportsOrAggregate.averageAggregateScore,
         ),
+        qualityRating: Number.isFinite(reportsOrAggregate.qualityRating)
+          ? reportsOrAggregate.qualityRating
+          : null,
+        pairwise: reportsOrAggregate.pairwise ?? null,
         averageAnchorRecall: Number(reportsOrAggregate.averageAnchorRecall) || 0,
         averageLengthRatio: Number(reportsOrAggregate.averageLengthRatio) || 0,
         passRates: reportsOrAggregate.passRates ?? {},
@@ -762,6 +923,8 @@ export function createSummary(reportsOrAggregate = [], options = {}) {
     hardGatePassRate: aggregate.hardGatePassRate,
     averageAggregateScore: aggregate.averageAggregateScore,
     qualityScore: aggregate.qualityScore ?? aggregate.averageAggregateScore,
+    qualityRating: aggregate.qualityRating ?? null,
+    pairwise: aggregate.pairwise ?? null,
     averageAnchorRecall: aggregate.averageAnchorRecall,
     averageLengthRatio: aggregate.averageLengthRatio,
     passRates: aggregate.passRates,

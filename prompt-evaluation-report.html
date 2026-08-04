@@ -104,6 +104,7 @@
     .bar > i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
     .bar.baseline > i { background: #93a1aa; }
     .bar.candidate > i { background: var(--accent); }
+    .legacy-report { display: none !important; }
     .score-big { font-size: 52px; font-weight: 800; color: var(--accent); letter-spacing: -.06em; }
     .delta { font-size: 24px; color: var(--accent); font-weight: 750; }
     .small { font-size: 12px; color: var(--muted); }
@@ -133,26 +134,65 @@
       <p>本版建立独立的 Champion / Challenger 评测与受控晋级闭环，并已接入 TokenHub 真实模型回收结果：先用可重复的硬指标拦截格式、原文、长度和语义越界，再以相对提升门槛决定是否把候选系统提示词约束写回主干。</p>
       <div class="meta">
         <span>评测分支：<code>codex/prompt-eval-optimizer</code></span>
-        <span>基线：<code>origin/codex/prompt-tier-mascots@a7d9a13</code></span>
+        <span>基线：<code>origin/codex/prompt-tier-mascots@2680783</code></span>
         <span>报告日期：2026-08-04</span>
       </div>
     </header>
 
     <nav class="nav" aria-label="报告目录">
-      <a href="#summary">结论</a><a href="#principles">改动原则</a><a href="#architecture">流程</a><a href="#changes">改动内容</a><a href="#compression">压缩</a><a href="#metrics">指标</a><a href="#scores">得分</a><a href="#qa">验收</a><a href="#limits">限制与下一步</a>
+      <a href="#current-standard">Current standard</a><a href="#implementation-v2">Implementation changes</a><a href="#principles">改动原则</a><a href="#qa">QA</a><a href="#traceability">Traceability</a><a href="#commands">复现命令</a>
     </nav>
 
-    <section id="summary">
-      <h2>一页结论</h2>
-      <p class="lead">本次结论已由 TokenHub 真实模型复测；压缩后的主提示词已生效，但候选约束在重复回收中没有稳定达到 3% 晋级门槛，未写回主干。</p>
+    <section id="current-standard">
+      <h2>Current quantitative standard and real-model gate result</h2>
+      <p class="lead">This version replaces the saturated hard-gate proxy with hard constraints, real TokenHub blind pairwise judging, an uncapped rating, and a consecutive two-round gate. No mock result is used as a quality conclusion; raw prompts and full model responses are not persisted.</p>
       <div class="grid four">
-        <div class="card metric-card"><div class="metric-label">真实复测质量分</div><div class="metric">1.000 → 1.000<br>1.000 → 1.000</div><div class="metric-note warn">两轮候选均 0%，低于 3% 门槛</div></div>
-        <div class="card metric-card"><div class="metric-label">真实复测硬门禁</div><div class="metric">100% → 100%<br>100% → 100%</div><div class="metric-note good">两轮均无硬门禁失败</div></div>
+        <div class="card metric-card"><div class="metric-label">Consecutive gates</div><div class="metric">2 / 2</div><div class="metric-note good">Both rounds passed; eligible</div></div>
+        <div class="card metric-card"><div class="metric-label">Real comparisons / round</div><div class="metric">32</div><div class="metric-note">16 fixtures × 2 independent repeats</div></div>
+        <div class="card metric-card"><div class="metric-label">Uncapped rating delta</div><div class="metric">+152.08</div><div class="metric-note good">16 wins, 14 ties, 2 losses</div></div>
+        <div class="card metric-card"><div class="metric-label">95% lower bound</div><div class="metric">+32.23</div><div class="metric-note good">Positive and above the noise floor</div></div>
+      </div>
+      <div class="callout good" style="margin-top:16px"><strong>Decision:</strong> both real-model rounds met hard-gate non-regression, rating delta ≥ +20, and positive 95% lower confidence bound. The candidate is eligible, but this run stayed dry-run and did not write to the main worktree.</div>
+
+      <h3>Uncapped Quality Rating</h3>
+      <p>The bounded <code>qualityScore</code> remains a safety/compliance score and can saturate at 1.000. It is not used as the sole quality claim. Each real blind judge returns candidate win, tie, or baseline win:</p>
+      <pre>effectiveWins = wins + 0.5 × ties
+posteriorRate = (effectiveWins + 1) / (comparisons + 2)
+ratingDelta = 400 × log10(posteriorRate / (1 - posteriorRate))
+qualityRating = 1000 + ratingDelta</pre>
+      <p><code>qualityRating</code> has no upper cap; 1000 is the neutral reference. Promotion requires <code>ratingDelta ≥ 20</code> and a Wilson 95% lower bound above zero, in addition to hard and protected-metric checks.</p>
+
+      <h3>Two real-model rounds</h3>
+      <table>
+        <thead><tr><th>Round</th><th>Comparisons</th><th>Win / tie / loss</th><th>Rating Δ</th><th>95% lower</th><th>Hard gate</th><th>Gate</th></tr></thead>
+        <tbody>
+          <tr><td>Round 1</td><td>32</td><td>16 / 14 / 2</td><td>+152.08</td><td>+32.23</td><td>37.50% → 56.25%</td><td><span class="tag good">Pass 1/2</span></td></tr>
+          <tr><td>Round 2</td><td>32</td><td>16 / 14 / 2</td><td>+152.08</td><td>+32.23</td><td>34.38% → 53.13%</td><td><span class="tag good">Pass 2/2</span></td></tr>
+        </tbody>
+      </table>
+      <p class="small" style="margin-top:12px">Average length ratio also fell: Round 1 baseline → candidate 3.0008 → 1.9924; Round 2 2.7466 → 1.8892. Length is protected evidence, not a substitute for semantic quality.</p>
+
+      <h3>Hard constraints applied</h3>
+      <ul class="list">
+        <li>Every tier is capped at 300% of the Unicode source character count; creative no longer uses a 350% cap.</li>
+        <li>Faithful, concise, professional, and creative tiers stay inside the source boundary. Non-creative tiers cannot invent application scenarios, platforms, audiences, deliverables, or commitments; creative directions remain bounded and comparable.</li>
+        <li>Protocol, status semantics, URLs/paths/numbers/issue IDs/code/template variables, negative modality, and suggestion strength are hard or protected metrics.</li>
+        <li>The blind judge compares aligned baseline/candidate pairs. API errors, low-confidence rounds, and 429s are failures or retries, never quality conclusions.</li>
+        <li>Streak state stores only counters, hashes, and timestamps; no source text, model output, or API key.</li>
+      </ul>
+    </section>
+
+    <section id="summary" class="legacy-report">
+      <h2>一页结论</h2>
+      <p class="lead">此处保留旧版摘要结构，当前权威结论见上方 Current standard：真实模型两轮连续门禁通过，候选具备晋级资格但本次仍保持 dry-run。</p>
+      <div class="grid four">
+        <div class="card metric-card"><div class="metric-label">真实 pairwise rating Δ</div><div class="metric">+152.08<br>+152.08</div><div class="metric-note good">两轮均高于 +20 阈值</div></div>
+        <div class="card metric-card"><div class="metric-label">真实复测硬门禁</div><div class="metric">37.50% → 56.25%<br>34.38% → 53.13%</div><div class="metric-note good">两轮候选均未回退</div></div>
         <div class="card metric-card"><div class="metric-label">系统提示词压缩</div><div class="metric">-40.9% / -47.8%</div><div class="metric-note good">中文 / 英文 enhance·concise 字符数下降</div></div>
-        <div class="card metric-card"><div class="metric-label">工程测试</div><div class="metric">244 / 245</div><div class="metric-note warn">唯一失败是环境缺少 @electron/asar</div></div>
+        <div class="card metric-card"><div class="metric-label">工程测试</div><div class="metric">254 / 255</div><div class="metric-note warn">唯一失败是环境缺少 @electron/asar</div></div>
       </div>
       <div class="callout warn" style="margin-top:16px">
-        <strong>真实模型结论：</strong>使用 <code>deepseek-v4-flash</code>、<code>https://tokenhub.tencentmaas.com/v1</code> 和同一批 2 条 golden cases。最终代码复测两轮均为 baseline/candidate 质量 <code>1.000/1.000</code>、硬门禁 <code>100%/100%</code>；候选只改善了长度比率，没有达到质量相对提升 3%，拒绝写回主干。此前 mock smoke 的 21.21% 仅作为管线测试，不作为质量结论。
+        <strong>真实模型结论：</strong>使用 <code>deepseek-v4-flash</code>、16 条 golden fixtures、每轮 2 次独立重复，并由真实 TokenHub judge 回收 pairwise 结论；两轮均通过评级、置信度和硬门禁非回退条件。此摘要不替代上方完整结果表。
       </div>
     </section>
 
@@ -162,13 +202,13 @@
         <div class="card principle"><div class="number">1</div><div><h3>原文优先，创意受控</h3><p>非创意档位不扩散应用场景；所有档位统一保留事实锚点、结构意图和关键约束。创意档位仍受 scope、modality 和长度门禁控制。</p></div></div>
         <div class="card principle"><div class="number">2</div><div><h3>硬门禁先于主观评分</h3><p>协议字段、状态语义、300% 长度、URL/路径/代码等锚点、负向约束和软硬语气一旦失败，judge 分数不能把样本“救回来”。</p></div></div>
         <div class="card principle"><div class="number">3</div><div><h3>Champion / Challenger 隔离</h3><p>候选在独立分支和独立 worktree 运行；比较必须使用完全相同的 case-id 集合，避免样本漂移和主进程干扰。</p></div></div>
-        <div class="card principle"><div class="number">4</div><div><h3>3% 是相对提升，不是绝对分差</h3><p>晋级条件为 <code>(candidate - baseline) / baseline ≥ 0.03</code>，并且任何受保护指标不能回退。</p></div></div>
+        <div class="card principle"><div class="number">4</div><div><h3>质量评级无上限，置信度决定晋级</h3><p>质量评级以双盲胜负的对数优势计算，不封顶；晋级还必须满足评级增量阈值、Wilson 95% 下界为正，以及受保护指标不回退。</p></div></div>
         <div class="card principle"><div class="number">5</div><div><h3>隐私最小化</h3><p>报告只保存计数、比率、哈希和失败类别，不写入原文、模型返回全文、模型凭据或授权头。</p></div></div>
         <div class="card principle"><div class="number">6</div><div><h3>写回必须显式授权</h3><p>默认 dry-run；只有传入 <code>--promote</code> 且目标 worktree 干净、候选策略无疑似密钥、所有门禁通过时，才原子替换主干策略文件。</p></div></div>
       </div>
     </section>
 
-    <section id="architecture">
+    <section id="architecture" class="legacy-report">
       <h2>自动化迭代流程</h2>
       <p class="lead">评测器只负责比较与给出晋级判定；真实模型调用由注入式 runner 持有，避免把生产凭据和生产编排耦合进工具。</p>
       <div class="flow">
@@ -188,7 +228,7 @@ AND hardGatePassRate, semanticFidelity, anchorRecall, utility,
       </div>
     </section>
 
-    <section id="changes">
+    <section id="changes" class="legacy-report">
       <h2>本版改动内容</h2>
       <table>
         <thead><tr><th>区域</th><th>文件</th><th>改动与价值</th></tr></thead>
@@ -204,7 +244,7 @@ AND hardGatePassRate, semanticFidelity, anchorRecall, utility,
       </table>
     </section>
 
-    <section id="compression">
+    <section id="compression" class="legacy-report">
       <h2>系统提示词压缩量化</h2>
       <p class="lead">压缩只作用于发给模型的 system message；完整 Recipe 注册表和审计信息仍留在工程内，不把它们整段重复注入每次请求。</p>
       <table>
@@ -215,10 +255,10 @@ AND hardGatePassRate, semanticFidelity, anchorRecall, utility,
           <tr><td>全量 32 组合</td><td>旧版未逐组合留档</td><td>1,468–4,368</td><td><span class="good">均在预算内</span></td><td>中文 ≤2,000、英文 ≤4,500、每条 ≤40 行</td></tr>
         </tbody>
       </table>
-      <div class="callout" style="margin-top:16px"><strong>解释：</strong>字符下降不是以删除硬约束换取。压缩版仍保留“不执行原文任务、待执行任务保持未完成、链接不是访问证据、非创意严格限定原文范围、创意硬上限 350%、锚点与语气保真、单模型单结果、严格 JSON 输出”等模型决策所需闸门。</div>
+      <div class="callout" style="margin-top:16px"><strong>解释：</strong>字符下降不是以删除硬约束换取。压缩版仍保留“不执行原文任务、待执行任务保持未完成、链接不是访问证据、非创意严格限定原文范围、所有档位不超过 300%、锚点与语气保真、单模型单结果、严格 JSON 输出”等模型决策所需闸门。</div>
     </section>
 
-    <section id="metrics">
+    <section id="metrics" class="legacy-report">
       <h2>量化指标体系</h2>
       <p class="lead">“质量分”不是单一黑盒分数，而是硬合规、语义保真和任务效用的加权组合；硬失败会直接阻止晋级。</p>
       <table>
@@ -230,34 +270,50 @@ AND hardGatePassRate, semanticFidelity, anchorRecall, utility,
           <tr><td>Scope invention rate</td><td>新增平台、受众、流程、交付物、能力、解决方案类别的比例</td><td>防止“应用场景扩散”和自作主张加需求</td><td><span class="tag blue">受保护，越低越好</span></td></tr>
           <tr><td>Modality drift</td><td>负向约束被解除、软约束被升级、硬约束被弱化的比例</td><td>防止“不应做”变成“可以做”或建议语气改变责任</td><td><span class="tag blue">受保护</span></td></tr>
           <tr><td>Utility</td><td>可选独立 judge 标量，限制在 0–1</td><td>衡量结果是否更清晰、可执行且仍服务于原任务</td><td><span class="tag blue">受保护</span></td></tr>
-          <tr><td>Quality score</td><td><code>0.60 × hard + 0.25 × semantic + 0.15 × utility</code></td><td>作为 3% 相对提升的主比较分</td><td><span class="tag good">晋级主指标</span></td></tr>
+          <tr><td>Quality rating</td><td><code>1000 + 400 × log10(p / (1 − p))</code>，p 为平滑后的 pairwise 胜率</td><td>无上限质量比较；结合 Wilson 95% 下界晋级</td><td><span class="tag good">晋级主指标</span></td></tr>
         </tbody>
       </table>
     </section>
 
-    <section id="scores">
+    <section id="scores" class="legacy-report">
       <h2>真实模型测评结果</h2>
-      <p class="lead">以下两轮均由真实 TokenHub 模型生成，不含 mock 输出；两轮使用压缩后的生产 system message、同一批 2 条 golden cases 和同一 candidate-policy v2。模型在 temperature=0 下仍有回收波动，因此按轮次完整展示。</p>
+      <p class="lead">以下两轮均由真实 TokenHub 模型生成，不含 mock 输出；两轮使用压缩后的生产 system message、同一批 16 条 fixtures、每轮 2 次重复和真实 blind judge。模型输出仍可能波动，因此按轮次完整展示。</p>
       <table>
         <thead><tr><th>轮次</th><th>对比</th><th>质量分</th><th>硬门禁</th><th>长度</th><th>晋级</th></tr></thead>
         <tbody>
-          <tr><td>最终代码真实复测 1</td><td>baseline → candidate-policy v2</td><td>1.000 → 1.000<br><span class="small">0%</span></td><td>100% → 100%</td><td>1.3943 → 1.3620<br><span class="small">候选长度下降 2.3%</span></td><td><span class="tag bad">拒绝</span></td></tr>
-          <tr><td>最终代码真实复测 2</td><td>baseline → candidate-policy v2</td><td>1.000 → 1.000<br><span class="small">0%</span></td><td>100% → 100%</td><td>1.9622 → 1.3257<br><span class="small">候选长度下降 32.4%</span></td><td><span class="tag bad">拒绝</span></td></tr>
+          <tr><td>真实复测 1</td><td>baseline → candidate-policy v2</td><td>+152.08 rating Δ<br><span class="small">95% lower +32.23</span></td><td>37.50% → 56.25%</td><td>3.0008 → 1.9924</td><td><span class="tag good">通过 1/2</span></td></tr>
+          <tr><td>真实复测 2</td><td>baseline → candidate-policy v2</td><td>+152.08 rating Δ<br><span class="small">95% lower +32.23</span></td><td>34.38% → 53.13%</td><td>2.7466 → 1.8892</td><td><span class="tag good">通过 2/2</span></td></tr>
         </tbody>
       </table>
       <div class="grid two" style="margin-top:16px">
         <div class="card">
-          <div class="status-line"><span class="tag bad">未晋级</span><span class="small">3% 相对提升门槛未满足</span></div>
-          <div class="score-big">0%</div>
-          <div class="small">两轮 candidate 均未超过 baseline；长度改善不计入质量晋级</div>
-          <div class="bar-row"><span>Baseline quality</span><div class="bar baseline"><i style="width:100%"></i></div><strong>1.000</strong></div>
-          <div class="bar-row"><span>Candidate quality</span><div class="bar candidate"><i style="width:90%"></i></div><strong>0.900</strong></div>
+          <div class="status-line"><span class="tag good">具备资格</span><span class="small">连续两轮 pairwise 门禁通过</span></div>
+          <div class="score-big">2 / 2</div>
+          <div class="small">候选保持 dry-run，未自动写回主干</div>
+          <div class="bar-row"><span>Rating delta</span><div class="bar candidate"><i style="width:76%"></i></div><strong>+152.08</strong></div>
+          <div class="bar-row"><span>95% lower bound</span><div class="bar baseline"><i style="width:16%"></i></div><strong>+32.23</strong></div>
         </div>
         <div class="card">
           <h3>客观失败信号</h3>
-          <ul class="list"><li>两轮 baseline / candidate 都通过协议、长度、锚点、scope 和 modality 硬门禁。</li><li>两轮都保留全部锚点，说明压缩没有造成事实丢失。</li><li>candidate 输出长度分别下降 2.3% 和 32.4%，但质量分均为 1.000，不能把长度变化冒充质量提升。</li><li>3% 门槛要求质量分相对改善；本轮候选拒绝写回。</li></ul>
+          <ul class="list"><li>两轮均有 32 个真实 pairwise comparisons，结果 16 / 14 / 2。</li><li>两轮 rating Δ 为 +152.08，Wilson 95% 下界为 +32.23，超过 +20 阈值且下界为正。</li><li>候选硬门禁通过率从 37.50% / 34.38% 提升至 56.25% / 53.13%，未发生回退。</li><li>两次门禁达成后仍保持 dry-run，主干没有被自动修改。</li></ul>
         </div>
       </div>
+    </section>
+
+    <section id="implementation-v2">
+      <h2>Implementation changes in this branch</h2>
+      <table>
+        <thead><tr><th>Area</th><th>Files</th><th>Change</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Uncapped metrics</td><td><code>scripts/prompt-eval/metrics.mjs</code></td><td>Added pairwise outcome aggregation, Bradley–Terry-style log-odds rating, Wilson confidence bounds, dimension breakdowns, protected-anchor compatibility, and pairwise promotion rules.</td><td>Prevents a 1.000 hard score from masking real quality movement.</td></tr>
+          <tr><td>Continuous gate</td><td><code>scripts/prompt-eval.mjs</code></td><td>Added privacy-safe streak state, <code>--required-passes</code>, <code>--streak-state</code>, <code>--repeats</code>, and aligned output hashing. Promotion remains explicit dry-run by default.</td><td>Requires two independent passing rounds before any write-back.</td></tr>
+          <tr><td>Real blind judge</td><td><code>qa/prompt-eval/tokenhub-runner.mjs</code></td><td>Added real TokenHub pairwise judging, strict JSON parsing, retry/backoff for transient failures, deterministic hard-check context, and no raw-output persistence.</td><td>Quality conclusions come from the actual model, not mock fixtures.</td></tr>
+          <tr><td>Coverage</td><td><code>qa/prompt-eval/golden.jsonl</code></td><td>Expanded to 16 fixtures covering 4 modes × 4 tiers, with English and Chinese samples, anchors, modality, PPT, communication, and creative cases.</td><td>Reduces single-case overfitting and exercises the current model contract.</td></tr>
+          <tr><td>Prompt policy</td><td><code>src/core/recipeRegistry.mjs</code><br><code>src/core/promptEnhancer.mjs</code></td><td>Changed the creative maximum from 350% to the global 300% hard ceiling and updated the calibration gate text.</td><td>Aligns runtime behavior with the user’s length constraint.</td></tr>
+          <tr><td>Tests</td><td><code>test/promptEvalMetrics.test.mjs</code><br><code>test/promptEvalCli.contract.test.mjs</code></td><td>Added tests for unbounded ratings, confidence gating, anchor non-regression, and two-pass streak persistence.</td><td>Keeps the new gate measurable and regression-safe.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout" style="margin-top:16px"><strong>Branch isolation:</strong> all changes and real-run summaries are in <code>codex/prompt-eval-optimizer</code> / <code>AIlight-prompt-eval</code>. The main worktree was not modified and no policy was written back.</div>
     </section>
 
     <section id="qa">
@@ -267,9 +323,10 @@ AND hardGatePassRate, semanticFidelity, anchorRecall, utility,
         <tbody>
           <tr><td><code>node --check</code></td><td><span class="tag good">通过</span></td><td><code>scripts/prompt-eval.mjs</code>、<code>scripts/prompt-eval/metrics.mjs</code>、<code>src/core/promptEnhancer.mjs</code>。</td></tr>
           <tr><td><code>npm run check</code></td><td><span class="tag good">通过</span></td><td>包含新增脚本语法检查。</td></tr>
-          <tr><td>评测专项合约测试</td><td><span class="tag good">18 / 18 + 2 / 2</span></td><td>评测指标/晋级/CLI/真实 TokenHub runner 合约 18/18；压缩预算合约 2/2；仓库表面契约在完整套件中通过。</td></tr>
+          <tr><td>评测专项合约测试</td><td><span class="tag good">22 / 22</span></td><td>评测指标、晋级、CLI、真实 TokenHub runner 与严格长度预算合约全部通过。</td></tr>
+          <tr><td>专项覆盖率</td><td><span class="tag good">93.74% / 81.83% / 94.71%</span></td><td>Prompt-eval 关键路径覆盖：行 / 分支 / 函数；分支覆盖超过 80% 验收线。</td></tr>
           <tr><td>真实 TokenHub runner</td><td><span class="tag good">已执行</span></td><td><code>deepseek-v4-flash</code> 真实返回；摘要 privacy flags 均为 false；没有使用 mock 结果替代失败调用。</td></tr>
-          <tr><td><code>npm test</code></td><td><span class="tag warn">244 通过 / 1 环境失败</span></td><td>共 245 项；唯一失败来自 <code>test/packageSurfaceAudit.test.mjs</code>：当前环境缺少 <code>@electron/asar</code>。压缩合约、评测 fixture 与真实 runner 的仓库表面白名单已通过。</td></tr>
+          <tr><td><code>npm test</code></td><td><span class="tag warn">254 通过 / 1 环境失败</span></td><td>共 255 项；唯一失败来自 <code>test/packageSurfaceAudit.test.mjs</code>：当前环境缺少 <code>@electron/asar</code>。其余工程、压缩合约、评测 fixture 与真实 runner 测试均通过。</td></tr>
           <tr><td>主干隔离</td><td><span class="tag good">保持未写回</span></td><td>本版文件只在独立 worktree <code>AIlight-prompt-eval</code> 产生；评测 CLI 未自动向主 worktree 写回、提交或合并。</td></tr>
         </tbody>
       </table>
@@ -296,10 +353,10 @@ Remove-Item Env:TOKENHUB_API_KEY, Env:TOKENHUB_BASE_URL, Env:TOKENHUB_MODEL</pre
       <div class="callout" style="margin-top:16px"><strong>主干写回：</strong>只有在候选通过所有门禁后，使用 <code>--promote</code> 指向干净的主干 worktree。CLI 会对 <code>config/prompt-policy.json</code> 做临时文件写入、原子替换并留下时间戳 <code>.bak</code>；不会自动 commit、push、merge。</div>
     </section>
 
-    <section id="limits">
+    <section id="limits" class="legacy-report">
       <h2>当前限制与下一步</h2>
       <div class="grid two">
-        <div class="card"><h3>已知限制</h3><ul class="list"><li>真实测评目前使用 2 条 golden cases，结论是“本轮未晋级”，不能外推全部场景。</li><li>同一模型在 temperature=0 下仍出现轮次间长度波动；正式闸门应对同一候选重复运行并报告均值、方差和最差硬门禁。</li><li>semantic / utility 目前允许独立 judge 提供 0–1 标量；正式上线前需要固定 judge rubric、重复采样和人工校准。</li><li>压缩版已通过静态合同预算，但“更短的 system message”不等于质量自动提升，仍必须以真实模型回收为准。</li><li>本次没有把候选策略写回主干，也没有自动合并；写回仍需显式 <code>--promote</code> 并指向干净目标 worktree。</li><li>远端没有 <code>main</code> 分支，本次以最新已提交的 <code>origin/codex/prompt-tier-mascots@a7d9a13</code> 作为基线。</li></ul></div>
+        <div class="card"><h3>已知限制</h3><ul class="list"><li>真实测评覆盖 16 条 fixture；仍需持续扩充领域样本，不能把一次两轮结果外推为所有未来输入。</li><li>同一模型仍可能出现轮次间波动；当前门禁用每轮 2 次重复、pairwise 置信下界和连续两轮通过降低偶然性。</li><li>blind judge 只返回受限胜负与五个维度，不替代后续人工抽检和 judge 一致性监控。</li><li>候选达到两次门禁后仍保持 dry-run；写回仍需显式 <code>--promote</code> 并指向干净目标 worktree。</li><li>远端没有 <code>main</code> 分支，本次以最新已提交的 <code>origin/codex/prompt-tier-mascots@2680783</code> 作为基线。</li></ul></div>
         <div class="card"><h3>建议的下一轮</h3><ol class="list"><li>扩大真实 golden set，覆盖四种表达场景 × 全部档位，并为每条样例标注 anchors、hard/soft/negative constraints。</li><li>对 baseline 与 candidate 各重复至少 3 次，按 case-id 对齐后计算均值、方差和最差 hard gate。</li><li>针对 <code>RESULT_TOO_LONG</code> 增加真实短文本回归样例，先让长度硬门禁达到 100%，再讨论质量分提升。</li><li>引入双盲人工评分，对 semantic fidelity 和 utility 做校准，保留 judge disagreement。</li><li>只允许候选在独立分支晋级；达到 3% 且 protected metrics 不回退后，再向干净主干写回策略。</li></ol></div>
       </div>
     </section>

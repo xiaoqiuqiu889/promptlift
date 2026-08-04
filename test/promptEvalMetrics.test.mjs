@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   aggregateMetrics,
+  aggregatePairwise,
   compareEvaluations,
   compareMetric,
   createSummary,
@@ -241,4 +242,51 @@ test('promotion rejects semantic or scope regressions despite higher aggregate q
   assert.equal(decision.promoted, false);
   assert.ok(decision.reasons.some((reason) => /semanticFidelity/u.test(reason)));
   assert.ok(decision.reasons.some((reason) => /scopeInventionRate/u.test(reason)));
+});
+
+test('pairwise quality rating is unbounded and separate from the capped hard score', () => {
+  const wins = Array.from({ length: 12 }, () => ({ pairwise: {
+    outcome: 'win',
+    dimensions: { fidelity: 'win', scope: 'win', utility: 'win', brevity: 'win', modality: 'win' },
+  } }));
+  const aggregate = aggregatePairwise(wins);
+  assert.equal(aggregate.comparisons, 12);
+  assert.ok(aggregate.qualityRating > 1000);
+  assert.ok(aggregate.ratingDelta > 0);
+  assert.ok(aggregate.ratingUpper95 > aggregate.ratingDelta);
+  assert.equal(aggregate.qualityRating <= 100, false);
+});
+
+test('pairwise promotion requires both a rating margin and positive confidence', () => {
+  const pairwise = aggregatePairwise([
+    ...Array.from({ length: 14 }, () => ({ pairwise: { outcome: 'win' } })),
+    ...Array.from({ length: 2 }, () => ({ pairwise: { outcome: 'loss' } })),
+  ]);
+  const decision = evaluatePromotion({
+    qualityScore: 1,
+    hardGatePassRate: 1,
+    averageAnchorRecall: 1,
+  }, {
+    qualityScore: 1,
+    hardGatePassRate: 1,
+    averageAnchorRecall: 1,
+    pairwise,
+  }, { minRatingDelta: 20 });
+  assert.equal(decision.pairwiseComparison.ratingMeetsThreshold, true);
+  assert.equal(decision.pairwiseComparison.confidenceLowerBoundPositive, true);
+  assert.equal(decision.promoted, true);
+});
+
+test('anchor non-regression reads the aggregate averageAnchorRecall field', () => {
+  const decision = evaluatePromotion({
+    qualityScore: 1,
+    hardGatePassRate: 1,
+    averageAnchorRecall: 1,
+  }, {
+    qualityScore: 1,
+    hardGatePassRate: 1,
+    averageAnchorRecall: 0.9,
+  }, { threshold: 0 });
+  assert.equal(decision.qualityRegression, true);
+  assert.ok(decision.reasons.some((reason) => /anchorRecall/u.test(reason)));
 });

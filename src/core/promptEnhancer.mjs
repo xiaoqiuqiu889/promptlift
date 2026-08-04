@@ -130,11 +130,9 @@ export function maxAllowedResultLength(source, style = MODEL_STYLES.concise) {
     ?? MODEL_STYLE_MAX_EXPANSION_RATIOS[MODEL_STYLES.concise];
   const promotedRatio = getPromotedMaxExpansionRatio(resolvedStyle);
   const ratio = Math.min(baseRatio, promotedRatio ?? baseRatio);
-  // The legacy floor remains for the unpromoted policy. A promoted ratio
-  // becomes a strict budget for every tier so short prompts cannot bypass it.
-  return resolvedStyle === MODEL_STYLES.creative || promotedRatio !== null
-    ? Math.max(1, Math.floor(textLength * ratio))
-    : Math.max(1_200, Math.floor(textLength * ratio));
+  // Every tier uses the same strict 300% ceiling. Short prompts cannot bypass
+  // the policy through the legacy 1,200-character floor.
+  return Math.max(1, Math.floor(textLength * ratio));
 }
 
 const CHINESE_CHARACTERS = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/gu;
@@ -1148,8 +1146,8 @@ export function buildModelMessages(prompt, language, options = {}) {
     : '';
   const calibrationRepairGate = options.repairMetaPrompt === true
     ? language === 'zh'
-      ? '\n校准闸门：再次执行同一档位政策。所有档位都必须移除 sourceText 未明确支持的产品、平台、工具、诊断前提、证据来源或能力。非创意档位不得增加应用场景；创意结果不得超过原文长度的 350%。保留所有不可变锚点、明确否定以及建议与可能性的语义强度。clarificationText 仍只用于消歧，不得并入正文或扩大范围。只返回当前配置模型生成的一个最终结果，不返回候选或解释。'
-      : '\nCalibration gate: apply the same tier policy again. All tiers must remove any product, platform, tool, diagnostic premise, evidence source, or capability not literally grounded in sourceText. Non-creative tiers must not add a new application scenario; creative output must remain at or below 350% of the source length. Preserve every immutable anchor, explicit negative, and suggestion/possibility strength. clarificationText remains disambiguation-only and must not be merged into the source or expand scope. Return one final result from the configured model, not candidates or explanations.'
+      ? '\n校准闸门：再次执行同一档位政策。所有档位都必须移除 sourceText 未明确支持的产品、平台、工具、诊断前提、证据来源或能力。非创意档位不得增加应用场景；任何档位结果都不得超过原文长度的 300%。保留所有不可变锚点、明确否定以及建议与可能性的语义强度。clarificationText 仍只用于消歧，不得并入正文或扩大范围。只返回当前配置模型生成的一个最终结果，不返回候选或解释。'
+      : '\nCalibration gate: apply the same tier policy again. All tiers must remove any product, platform, tool, diagnostic premise, evidence source, or capability not literally grounded in sourceText. Non-creative tiers must not add a new application scenario; every style must remain at or below 300% of the source length. Preserve every immutable anchor, explicit negative, and suggestion/possibility strength. clarificationText remains disambiguation-only and must not be merged into the source or expand scope. Return one final result from the configured model, not candidates or explanations.'
     : '';
   const requestedMode = options.mode ?? PROMPT_MODES.enhance;
   const requestedStyle = resolveModelStyle(options.style) ?? MODEL_STYLES.concise;

@@ -65,7 +65,7 @@ test('recipe protocol is versioned and exposes conservative style policies', () 
     faithful: 1.25,
     concise: 1.5,
     professional: 2.25,
-    creative: 3.5,
+    creative: 3,
   });
   for (const style of Object.values(MODEL_STYLES)) {
     const policy = recipe.styleContracts.en[style];
@@ -79,7 +79,7 @@ test('recipe protocol is versioned and exposes conservative style policies', () 
   assert.equal(recipe.styleContracts.en.creative.allowNewScenarios, true);
 });
 
-test('model instruction states the non-creative scope gate and creative 350 percent ceiling', () => {
+test('model instruction states the non-creative scope gate and creative 300 percent ceiling', () => {
   const strictInstruction = buildModelInstruction(
     'en',
     MODEL_STYLES.professional,
@@ -92,7 +92,7 @@ test('model instruction states the non-creative scope gate and creative 350 perc
   );
   assert.match(strictInstruction, /non-creative|faithful|concise|professional/i);
   assert.match(strictInstruction, /must not add.*application|new application scenarios/i);
-  assert.match(creativeInstruction, /350%|3\.5x|3\.5 times/i);
+  assert.match(creativeInstruction, /300%|3x|3 times/i);
   assert.match(creativeInstruction, /one final result|single final result/i);
 });
 
@@ -122,7 +122,7 @@ test('semantic strength cannot escalate a suggestion into a requirement', async 
   );
 });
 
-test('creative output is accepted at the exact 350 percent ceiling', async () => {
+test('creative output is accepted at the exact 300 percent ceiling', async () => {
   const source = 'Improve the login request with clear steps and an output format.';
   const maxLength = maxAllowedResultLength(source, MODEL_STYLES.creative);
   const result = 'Use the original request and one optional creative direction. '
@@ -134,10 +134,20 @@ test('creative output is accepted at the exact 350 percent ceiling', async () =>
     result,
   }));
   assert.equal(actual, result);
-  assert.equal(actual.length <= Math.floor(source.length * 3.5), true);
+  assert.equal(actual.length <= Math.floor(source.length * 3), true);
 });
 
-test('creative output over 350 percent is rejected before replacement', async () => {
+test('every tier uses a strict source-relative length budget without a short-input floor', () => {
+  const source = 'Keep this source request intact.';
+  for (const style of Object.values(MODEL_STYLES)) {
+    const limit = maxAllowedResultLength(source, style);
+    assert.equal(limit, Math.floor(source.length * MODEL_STYLE_MAX_EXPANSION_RATIOS[style]));
+    assert.equal(limit <= Math.floor(source.length * 3), true);
+    assert.equal(limit < 1_200, true);
+  }
+});
+
+test('creative output over 300 percent is rejected before replacement', async () => {
   const source = 'Improve the login request with clear steps and an output format.';
   const result = 'Use the original request and one optional creative direction. '
     .repeat(Math.ceil((maxAllowedResultLength(source, MODEL_STYLES.creative) + 1) / 58))

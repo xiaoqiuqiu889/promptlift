@@ -31,6 +31,10 @@ function usage() {
     '  --candidate-policy <path>  Candidate policy JSON used by the runner and promotion.',
     '  --output <path>            Privacy-safe JSON summary path.',
     '  --threshold <ratio>        Relative promotion threshold; default 0.03.',
+    '  --min-rating-delta <n>     Minimum unbounded pairwise rating delta; default 20.',
+    '  --streak-state <path>      Privacy-safe state file for consecutive gate passes.',
+    '  --required-passes <n>      Consecutive passes required; default 2 with --streak-state.',
+    '  --repeats <n>              Independent real-model repeats per fixture; default 1.',
     '  --promote                  Enable policy write-back after the gate passes.',
     '  --target-root <path>       Clean main-worktree root for --promote.',
     '  --dry-run                  Explicitly retain dry-run behavior (the default).',
@@ -94,6 +98,7 @@ function evaluateRows(rows) {
     hard: row.hard,
     semantic: row.semantic,
     task: row.task,
+    pairwise: row.pairwise,
     caseId: row.id ?? `case-${index + 1}`,
   }));
 }
@@ -118,13 +123,22 @@ async function loadPolicyText(policyPath) {
   return readFile(policyPath, 'utf8');
 }
 
-async function runInjectedRunner(datasetPath, runnerPath, variant, policyPath) {
-  const fixtures = await readJsonLines(datasetPath);
+async function loadRunner(runnerPath) {
   const runnerUrl = pathToFileURL(path.resolve(runnerPath)).href;
   const runner = await import(runnerUrl);
   if (typeof runner.runCase !== 'function') {
     throw new Error(`Runner must export runCase({ fixture, variant, policyText }): ${runnerPath}`);
   }
+  return runner;
+}
+
+async function runInjectedRunner(datasetPath, runnerPath, variant, policyPath, injectedRunner, repeats = 1) {
+  const sourceFixtures = await readJsonLines(datasetPath);
+  const fixtures = sourceFixtures.flatMap((fixture) => Array.from({ length: repeats }, (_, repeat) => ({
+    ...fixture,
+    id: repeats === 1 ? fixture.id : `${fixture.id ?? 'case'}#r${repeat + 1}`,
+  })));
+  const runner = injectedRunner ?? await loadRunner(runnerPath);
   const policyText = await loadPolicyText(policyPath);
   const rows = [];
   for (const fixture of fixtures) {
@@ -137,8 +151,53 @@ async function runInjectedRunner(datasetPath, runnerPath, variant, policyPath) {
   return rows;
 }
 
+async function attachPairwiseJudgements({ fixtures, baselineRows, candidateRows, runner }) {
+  if (typeof runner.judgePair !== 'function') {
+    throw new Error('Real evaluation runner must export judgePair({ fixture, baselineResponse, candidateResponse }).');
+  }
+  const byId = new Map(fixtures.map((fixture, index) => [String(fixture.id ?? `case-${index + 1}`), fixture]));
+  return candidateRows.map(async (candidateRow, index) => {
+    const id = String(candidateRow.id ?? `case-${index + 1}`);
+    const baselineRow = baselineRows.find((row) => String(row.id ?? '') === id);
+    const fixture = byId.get(id) ?? candidateRow;
+    const judgement = await runner.judgePair({
+      fixture,
+      baselineResponse: responseForRow(baselineRow),
+      candidateResponse: responseForRow(candidateRow),
+    });
+    return { ...candidateRow, pairwise: judgement };
+  });
+}
+
 function stableHash(value) {
   return createHash('sha256').update(String(value), 'utf8').digest('hex');
+}
+
+async function readStreakState(statePath) {
+  if (!statePath) return { consecutivePasses: 0 };
+  try {
+    const parsed = JSON.parse(await readFile(path.resolve(statePath), 'utf8'));
+    return {
+      consecutivePasses: Number.isInteger(parsed?.consecutivePasses) && parsed.consecutivePasses >= 0
+        ? parsed.consecutivePasses
+        : 0,
+    };
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { consecutivePasses: 0 };
+    throw new Error(`Invalid streak state: ${error.message}`);
+  }
+}
+
+async function writeStreakState(statePath, state) {
+  if (!statePath) return;
+  await atomicWrite(path.resolve(statePath), `${JSON.stringify({
+    schemaVersion: '1.0',
+    consecutivePasses: state.consecutivePasses,
+    lastRoundPassed: state.lastRoundPassed,
+    lastDecisionPromoted: state.lastDecisionPromoted,
+    caseSetHash: state.caseSetHash,
+    updatedAt: new Date().toISOString(),
+  }, null, 2)}\n`);
 }
 
 function safeErrorMessage(error) {
@@ -242,13 +301,60 @@ async function main() {
   }
   const threshold = values.threshold === undefined ? 0.03 : Number(values.threshold);
   if (!Number.isFinite(threshold) || threshold < 0) throw new Error('--threshold must be a non-negative ratio.');
+  const minRatingDelta = values['min-rating-delta'] === undefined
+    ? undefined
+    : Number(values['min-rating-delta']);
+  if (minRatingDelta !== undefined && (!Number.isFinite(minRatingDelta) || minRatingDelta < 0)) {
+    throw new Error('--min-rating-delta must be a non-negative number.');
+  }
+  const requiredPasses = values['required-passes'] === undefined
+    ? (values['streak-state'] ? 2 : 1)
+    : Number(values['required-passes']);
+  if (!Number.isInteger(requiredPasses) || requiredPasses < 1) {
+    throw new Error('--required-passes must be a positive integer.');
+  }
+  if (requiredPasses > 1 && !values['streak-state']) {
+    throw new Error('--required-passes greater than one requires --streak-state.');
+  }
+  const repeats = values.repeats === undefined ? 1 : Number(values.repeats);
+  if (!Number.isInteger(repeats) || repeats < 1 || repeats > 16) {
+    throw new Error('--repeats must be an integer from 1 to 16.');
+  }
 
   let baselineRows;
   let candidateRows;
+  let runner;
+  let fixtures;
   if (values.runner || values.dataset) {
     if (!values.runner || !values.dataset) throw new Error('--runner and --dataset must be provided together.');
-    baselineRows = await runInjectedRunner(values.dataset, values.runner, 'baseline', values['baseline-policy']);
-    candidateRows = await runInjectedRunner(values.dataset, values.runner, 'candidate', values['candidate-policy']);
+    runner = await loadRunner(values.runner);
+    const sourceFixtures = await readJsonLines(values.dataset);
+    fixtures = sourceFixtures.flatMap((fixture) => Array.from({ length: repeats }, (_, repeat) => ({
+      ...fixture,
+      id: repeats === 1 ? fixture.id : `${fixture.id ?? 'case'}#r${repeat + 1}`,
+    })));
+    baselineRows = await runInjectedRunner(
+      values.dataset,
+      values.runner,
+      'baseline',
+      values['baseline-policy'],
+      runner,
+      repeats,
+    );
+    candidateRows = await runInjectedRunner(
+      values.dataset,
+      values.runner,
+      'candidate',
+      values['candidate-policy'],
+      runner,
+      repeats,
+    );
+    candidateRows = await Promise.all(await attachPairwiseJudgements({
+      fixtures,
+      baselineRows,
+      candidateRows,
+      runner,
+    }));
   } else {
     if (!values.baseline || !values.candidate) throw new Error('--baseline and --candidate are required.');
     baselineRows = await readJsonLines(values.baseline);
@@ -262,6 +368,31 @@ async function main() {
     baseline: baselineAggregate,
     candidate: candidateAggregate,
     threshold,
+    minRatingDelta,
+  });
+  const roundPromoted = Boolean(decision.promoted);
+  const previousState = await readStreakState(values['streak-state']);
+  const consecutivePasses = roundPromoted ? previousState.consecutivePasses + 1 : 0;
+  decision.roundPromoted = roundPromoted;
+  decision.consecutivePasses = consecutivePasses;
+  decision.requiredConsecutivePasses = requiredPasses;
+  decision.promoted = roundPromoted && consecutivePasses >= requiredPasses;
+  decision.eligibleForPromotion = decision.promoted;
+  if (roundPromoted && !decision.promoted) {
+    decision.reasons = [...decision.reasons, `consecutive pass streak is ${consecutivePasses}/${requiredPasses}`];
+  }
+  if (!roundPromoted) {
+    decision.reasons = [...decision.reasons, 'current round did not pass the promotion gate'];
+  }
+  const caseSetHash = stableHash(JSON.stringify({
+    baseline: baselineRows,
+    candidate: candidateRows,
+  }));
+  await writeStreakState(values['streak-state'], {
+    consecutivePasses,
+    lastRoundPassed: roundPromoted,
+    lastDecisionPromoted: decision.promoted,
+    caseSetHash,
   });
   const summary = createSummary({
     runId: `prompt-eval-${Date.now()}`,
@@ -272,8 +403,11 @@ async function main() {
   summary.inputs = {
     baselineCases: baselineRows.length,
     candidateCases: candidateRows.length,
-    baselineHash: stableHash(baselineRows.map((row) => row.id ?? '').join('\n')),
-    candidateHash: stableHash(candidateRows.map((row) => row.id ?? '').join('\n')),
+    baselineHash: stableHash(JSON.stringify(baselineRows)),
+    candidateHash: stableHash(JSON.stringify(candidateRows)),
+    caseSetHash,
+    requiredConsecutivePasses: requiredPasses,
+    repeats,
   };
   summary.promotion = {
     ...summary.decision,

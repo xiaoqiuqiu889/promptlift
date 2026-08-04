@@ -160,3 +160,49 @@ test('the real TokenHub runner takes credentials only from the environment', asy
   assert.doesNotMatch(runner, /sk-[a-z0-9]{8,}/iu);
   assert.doesNotMatch(runner, /authorization:\s*['"]Bearer\s/iu);
 });
+
+test('streak state requires two independent pairwise gate passes before promotion', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'prompt-lift-eval-streak-'));
+  try {
+    const baselinePath = path.join(root, 'baseline.jsonl');
+    const candidatePath = path.join(root, 'candidate.jsonl');
+    const statePath = path.join(root, 'streak.json');
+    const reportOne = path.join(root, 'report-one.json');
+    const reportTwo = path.join(root, 'report-two.json');
+    const rows = Array.from({ length: 16 }, (_, index) => ({
+      id: `case-${String(index + 1).padStart(3, '0')}`,
+      sourceText: SOURCE,
+      response: envelope('Preserve https://example.test/spec and make this request clear.'),
+      mode: 'enhance',
+      language: 'en',
+    }));
+    const candidateRows = rows.map((row) => ({
+      ...row,
+      pairwise: { outcome: 'win' },
+    }));
+    await writeFile(baselinePath, `${rows.map((row) => JSON.stringify(row)).join('\n')}\n`, 'utf8');
+    await writeFile(candidatePath, `${candidateRows.map((row) => JSON.stringify(row)).join('\n')}\n`, 'utf8');
+
+    const args = [
+      CLI_PATH,
+      '--baseline', baselinePath,
+      '--candidate', candidatePath,
+      '--streak-state', statePath,
+      '--output', reportOne,
+    ];
+    await execFileAsync(process.execPath, args, { windowsHide: true });
+    const first = JSON.parse(await readFile(reportOne, 'utf8'));
+    assert.equal(first.promotion.promoted, false);
+    assert.equal(first.promotion.roundPromoted, true);
+    assert.equal(first.promotion.consecutivePasses, 1);
+
+    await execFileAsync(process.execPath, [...args.slice(0, -2), '--output', reportTwo], { windowsHide: true });
+    const second = JSON.parse(await readFile(reportTwo, 'utf8'));
+    assert.equal(second.promotion.promoted, true);
+    assert.equal(second.promotion.consecutivePasses, 2);
+    const state = JSON.parse(await readFile(statePath, 'utf8'));
+    assert.equal(state.consecutivePasses, 2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

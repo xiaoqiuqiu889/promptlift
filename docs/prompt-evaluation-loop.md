@@ -8,12 +8,21 @@ The deterministic gate in `scripts/prompt-eval/metrics.mjs` checks:
 
 - exact JSON protocol, mode, language, status, and field set;
 - `ok`, `unchanged`, and `needs_input` semantics;
-- a hard three-times source-length ceiling for every tier;
+- a hard three-times source-length ceiling for every tier, including creative;
 - URLs, paths, issue IDs, e-mail addresses, flags, code, and template anchors;
 - introduced platform, audience, workflow, deliverable, capability, and solution categories;
 - negative constraints and soft/hard modality drift.
 
-Each case produces a privacy-safe report. Optional independent judge values can be supplied as scalar fields under `semantic` and `task`. The quality score combines hard compliance (60%), semantic fidelity (25%), and task utility (15%). A judge never overrides a hard-gate failure.
+Each case produces a privacy-safe report. The bounded `qualityScore` remains a compliance signal only. Real pairwise judging is aggregated separately as an uncapped rating:
+
+```text
+effectiveWins = wins + 0.5 × ties
+posteriorRate = (effectiveWins + 1) / (comparisons + 2)
+ratingDelta = 400 × log10(posteriorRate / (1 - posteriorRate))
+qualityRating = 1000 + ratingDelta
+```
+
+Promotion requires `ratingDelta >= 20`, a Wilson 95% lower bound above zero, hard-gate non-regression, and protected-metric non-regression. A judge never overrides a hard-gate failure.
 
 ## Offline comparison
 
@@ -28,7 +37,7 @@ node scripts/prompt-eval.mjs `
 
 The default is dry-run. The summary contains aggregate counts, rates, hashes, and the promotion decision only. It does not contain source or result text.
 
-The default promotion threshold is a **3% relative improvement** in the quality score:
+For legacy offline JSONL comparisons without pairwise judgements, the default remains a **3% relative improvement** in the bounded quality score:
 
 ```text
 (candidateQuality - baselineQuality) / baselineQuality >= 0.03
@@ -41,6 +50,23 @@ The candidate is rejected if any of these regress:
 - task utility;
 - scope invention rate;
 - repair rate or length-violation rate.
+
+For real runner evaluations, use a privacy-safe streak file and require two
+independent passing rounds:
+
+```powershell
+node scripts/prompt-eval.mjs `
+  --dataset .\qa\prompt-eval\golden.jsonl `
+  --runner .\qa\prompt-eval\tokenhub-runner.mjs `
+  --baseline-policy .\config\prompt-policy.json `
+  --candidate-policy .\qa\prompt-eval\candidate-policy-v2.json `
+  --repeats 2 `
+  --streak-state .\qa\prompt-eval\runs\two-pass.streak.json `
+  --required-passes 2
+```
+
+The streak file stores only the pass count, outcome flags, a case-set hash,
+and a timestamp. It never stores source text, model output, or credentials.
 
 ## Connecting a real model
 
@@ -71,6 +97,12 @@ node scripts/prompt-eval.mjs `
 ```
 
 The runner must return one result per fixture. The CLI compares the same fixture IDs and rejects mismatched sets.
+
+For real quality evaluation the runner also exports `judgePair({ fixture,
+baselineResponse, candidateResponse })`. It calls the real model as a blind
+evaluator and returns only fixed `win` / `tie` / `loss` dimensions; raw inputs,
+outputs, and free-form rationale are never persisted. `--repeats` creates
+independent real requests per fixture.
 
 The repository includes a real OpenAI-compatible TokenHub runner at
 `qa/prompt-eval/tokenhub-runner.mjs`. It reuses Prompt Lift's production
@@ -110,10 +142,11 @@ node scripts/prompt-eval.mjs `
 
 Promotion requires:
 
-1. the 3% relative quality improvement;
+1. the pairwise rating delta and confidence gate (or the legacy 3% score gate for offline reports);
 2. no hard or protected-quality regression;
 3. a readable candidate policy with no secret-like value;
-4. a clean Git worktree at `--target-root`.
+4. a clean Git worktree at `--target-root`;
+5. two consecutive passing rounds when `--required-passes 2` is used.
 
 The policy is written atomically to `config/prompt-policy.json`. An existing policy is renamed to a timestamped `.bak` before replacement. The command does not commit, push, merge, or modify a dirty worktree. Review and commit the resulting mainline change separately.
 
@@ -125,8 +158,10 @@ Use the following release rule:
 
 ```text
 candidate passes all hard gates
-AND quality score improves by at least 3% relative
+AND pairwise rating delta >= 20
+AND pairwise Wilson 95% lower bound > 0
 AND no protected metric regresses
+AND two consecutive rounds pass
 → policy may be promoted
 ```
 
