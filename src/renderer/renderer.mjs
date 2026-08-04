@@ -242,6 +242,8 @@ const hubModelStateLabel = document.querySelector("#hubModelStateLabel");
 const hubModelCheckLabel = document.querySelector("#hubModelCheckLabel");
 const hubMascotValue = document.querySelector("#hubMascotValue");
 const hubStartupValue = document.querySelector("#hubStartupValue");
+const hubActionMascotImage = document.querySelector("#hubActionMascotImage");
+const hubActionMascotFallback = document.querySelector("#hubActionMascotFallback");
 const profileMascotImage = document.querySelector("#profileMascotImage");
 const profileMascotFallback = document.querySelector("#profileMascotFallback");
 const helpPanel = document.querySelector("#helpPanel");
@@ -414,12 +416,15 @@ function setStatus(phase, message = messages[phase]) {
     : (MODE_PRESENTATION[state.mode] ?? MODE_PRESENTATION.enhance).hint;
   updateHubOperationState();
   clearTimeout(compactFeedbackTimer);
+  compactFeedback.dataset.phase = phase;
   compactFeedback.hidden = phase === "idle";
   compactCancelButton.hidden = phase !== "loading" || state.applying;
   compactFeedbackText.textContent = compactFeedbackMessage(phase, message);
+  updateCompactScale();
   if (phase === "success" || phase === "error") {
     compactFeedbackTimer = setTimeout(() => {
       compactFeedback.hidden = true;
+      updateCompactScale();
     }, phase === "success" ? 3_000 : 5_000);
   }
 }
@@ -449,10 +454,42 @@ function updateExpressionSummary() {
 }
 
 function updateCompactScale() {
-  const widthScale = window.innerWidth / DEFAULT_COMPACT_WIDTH;
-  const heightScale = window.innerHeight / DEFAULT_COMPACT_HEIGHT;
-  const scale = Math.min(3.5, Math.max(0.75, Math.min(widthScale, heightScale)));
+  const horizontalPadding = Math.min(28, Math.max(12, window.innerWidth * 0.04));
+  const verticalPadding = Math.min(22, Math.max(8, window.innerHeight * 0.035));
+  const feedbackReserve = compactFeedback.hidden
+    ? 0
+    : Math.min(48, Math.max(30, window.innerHeight * 0.1));
+  const availableWidth = Math.max(48, window.innerWidth - (horizontalPadding * 2));
+  const availableHeight = Math.max(
+    48,
+    window.innerHeight - (verticalPadding * 2) - feedbackReserve,
+  );
+  const visualSize = Math.min(
+    320,
+    Math.max(48, Math.min(availableWidth * 0.62, availableHeight * 0.82)),
+  );
+  const feedbackScale = compactFeedback.dataset.phase === "success" ? 1.04 : 1.28;
+  const feedbackWidth = Math.min(
+    Math.min(420, availableWidth),
+    Math.max(58, visualSize * feedbackScale),
+  );
+  const clusterHeight = visualSize + (compactFeedback.hidden ? 0 : 32);
+  const clusterTop = Math.max(
+    verticalPadding,
+    (window.innerHeight - clusterHeight) / 2,
+  );
+  const centerY = Math.min(
+    window.innerHeight - verticalPadding - (visualSize / 2),
+    clusterTop + (visualSize / 2),
+  );
+  const scale = visualSize / 64;
   root.style.setProperty("--pet-scale", String(scale));
+  root.style.setProperty("--pet-visual-size", `${visualSize}px`);
+  root.style.setProperty("--pet-feedback-width", `${feedbackWidth}px`);
+  root.style.setProperty("--pet-center-y", `${centerY}px`);
+  root.style.setProperty("--pet-feedback-gap", `${Math.min(5, Math.max(2, visualSize * 0.018))}px`);
+  root.style.setProperty("--pet-menu-x", `${visualSize * 0.34}px`);
+  root.style.setProperty("--pet-menu-y", `${visualSize * 0.34}px`);
 }
 
 function restoreCompactBounds() {
@@ -501,6 +538,7 @@ function updateStyleLabel() {
     }
     const selected = button.dataset.style === state.style;
     button.classList.toggle("is-active", selected);
+    button.classList.toggle("selected", selected);
     button.setAttribute("aria-pressed", String(selected));
   });
   updateHubPresentation();
@@ -536,6 +574,7 @@ function renderSystemPromptPanel() {
     }
     button.setAttribute("aria-selected", String(selected));
     button.classList.toggle("is-active", selected);
+    button.classList.toggle("selected", selected);
   });
   const entry = findSystemPromptEntry();
   if (systemPromptSelectionLabel) {
@@ -789,6 +828,8 @@ function setMascot(mascot, { persist = true } = {}) {
   const usesCssSprite = presentation.kind === "css";
   mascotImageFrame.hidden = usesCssSprite;
   mascotSprite.hidden = !usesCssSprite;
+  hubActionMascotImage.hidden = usesCssSprite;
+  hubActionMascotFallback.hidden = !usesCssSprite;
   profileMascotImage.hidden = usesCssSprite;
   profileMascotFallback.hidden = !usesCssSprite;
   if (!usesCssSprite && mascotImage.getAttribute("src") !== presentation.asset) {
@@ -797,9 +838,13 @@ function setMascot(mascot, { persist = true } = {}) {
   if (!usesCssSprite && profileMascotImage.getAttribute("src") !== presentation.asset) {
     profileMascotImage.setAttribute("src", presentation.asset);
   }
+  if (!usesCssSprite && hubActionMascotImage.getAttribute("src") !== presentation.asset) {
+    hubActionMascotImage.setAttribute("src", presentation.asset);
+  }
   document.querySelectorAll(".mascot-option").forEach((button) => {
     const selected = button.dataset.mascot === normalized;
     button.classList.toggle("is-active", selected);
+    button.classList.toggle("selected", selected);
     button.setAttribute("aria-pressed", String(selected));
   });
   if (persist) {
@@ -842,6 +887,7 @@ function updateHubPresentation() {
   document.querySelectorAll("[data-hub-mode]").forEach((button) => {
     const selected = button.dataset.hubMode === state.mode;
     button.classList.toggle("is-active", selected);
+    button.classList.toggle("selected", selected);
     button.setAttribute("aria-pressed", String(selected));
   });
   updateHubOperationState();
@@ -1178,6 +1224,7 @@ function showHub(hub = state.hub) {
   document.querySelectorAll("[data-hub-target]").forEach((tab) => {
     const selected = tab.dataset.hubTarget === normalizedHub;
     tab.classList.toggle("is-active", selected);
+    tab.classList.toggle("selected", selected);
     tab.setAttribute("aria-selected", String(selected));
     tab.tabIndex = selected ? 0 : -1;
   });

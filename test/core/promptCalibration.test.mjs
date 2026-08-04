@@ -59,7 +59,7 @@ function modelOptions({ mode, style, result, status = 'ok', onCall }) {
 }
 
 test('recipe protocol is versioned and exposes conservative style policies', () => {
-  assert.equal(RECIPE_SCHEMA_VERSION, '1.3');
+  assert.equal(RECIPE_SCHEMA_VERSION, '1.4');
   const recipe = getRecipe(PROMPT_MODES.enhance);
   assert.deepEqual(MODEL_STYLE_MAX_EXPANSION_RATIOS, {
     faithful: 1.25,

@@ -428,6 +428,62 @@ const UNSOLICITED_PERMISSION_SEEKING_PATTERNS = Object.freeze([
   /(?:如需|如果需要).{0,16}(?:我|我们).{0,24}(?:继续|进一步|协助|处理|执行|修改|开发|优化|完善|推进)/iu,
   /(?:would you like me to|should i|shall i|do you want me to|let me know if you(?:'d| would) like me to).{0,100}/iu,
 ]);
+const PENDING_TASK_PATTERNS = Object.freeze([
+  /(?:请|帮我|麻烦|需要|要求|目标是|任务是|你).{0,48}(?:审计|检查|查看|读取|访问|分析|评估|调研|研究|诊断|优化|开发|实现|修复|生成|撰写|整理|输出|给出|制作|设计)/iu,
+  /(?:please|need you to|task is to|objective is to).{0,80}(?:audit|inspect|review|read|visit|analy[sz]e|evaluate|research|diagnose|optimi[sz]e|develop|implement|fix|generate|write|organize|produce|design)/iu,
+]);
+const EXECUTION_CLAIM_PATTERNS = Object.freeze([
+  /(?:已|已经|现已|刚刚)(?:对)?[\s\S]{0,220}(?:完成|进行了?|开展了?)(?:初步|全面|整体)?(?:审计|检查|查看|读取|访问|分析|评估|调研|研究|诊断)/iu,
+  /(?:经|通过)(?:初步|全面|整体)?(?:审计|检查|查看|读取|访问|分析|评估|调研|研究|诊断).{0,60}(?:发现|显示|表明|确认|可见)/iu,
+  /(?:审计|检查|分析|评估)(?:结果)?(?:显示|发现|表明|确认).{0,100}/iu,
+  /【?(?:现状|证据|发现|结论)】?\s*[:：][\s\S]{0,280}(?:存在|缺少|尚未|未明确|有差距|处于)/iu,
+  /(?:have|has|was|were)\s+(?:already\s+)?(?:completed|audited|inspected|reviewed|read|visited|analy[sz]ed|evaluated)/iu,
+  /(?:our|the|this)\s+(?:audit|inspection|review|analysis|evaluation)\s+(?:found|shows?|indicates?|confirmed)/iu,
+]);
+const NON_BLOCKING_CLARIFICATION_PATTERNS = Object.freeze([
+  /(?:需决策事项|待确认事项|需要确认|需进一步确认|请确认|请补充|请明确|需要补充)/iu,
+  /(?:decision needed|to confirm|needs? confirmation|please confirm|please clarify|please provide|need more information)/iu,
+]);
+
+function matchesAny(patterns, value) {
+  return patterns.some((pattern) => pattern.test(value));
+}
+
+function assertFactStatePreserved(result, source, language) {
+  const sourceContainsPendingTask = matchesAny(PENDING_TASK_PATTERNS, source);
+  const sourceContainsExecutionClaim = matchesAny(EXECUTION_CLAIM_PATTERNS, source);
+  const resultContainsExecutionClaim = matchesAny(EXECUTION_CLAIM_PATTERNS, result);
+  if (!sourceContainsPendingTask || sourceContainsExecutionClaim || !resultContainsExecutionClaim) {
+    return;
+  }
+
+  throw createEnhancementError(
+    'MODEL_OUTPUT_FALSE_EXECUTION_CLAIM',
+    language,
+    '模型把尚待执行的任务改写成了已经完成的事实，或虚构了尚未取得的检查证据，已阻止覆盖原文。',
+    'The model changed a pending task into a completed fact or invented evidence that had not been obtained.',
+    { policy: 'preserve-task-state-and-evidence' },
+  );
+}
+
+function assertNoUnnecessaryClarification(result, source, language, mode) {
+  if (mode !== PROMPT_MODES.enhance || !matchesAny(PENDING_TASK_PATTERNS, source)) {
+    return;
+  }
+  const introducedClarification = matchesAny(NON_BLOCKING_CLARIFICATION_PATTERNS, result)
+    && !matchesAny(NON_BLOCKING_CLARIFICATION_PATTERNS, source);
+  if (!introducedClarification) {
+    return;
+  }
+
+  throw createEnhancementError(
+    'MODEL_OUTPUT_UNNECESSARY_CLARIFICATION',
+    language,
+    '任务对象和交付物已经明确，模型仍追加了非阻塞的待确认项或决策问题，已阻止覆盖原文。',
+    'The task object and deliverable were clear, but the model added non-blocking clarification or decision questions.',
+    { policy: 'clarify-only-material-blockers' },
+  );
+}
 
 function assertSemanticStrength(result, source, language, style) {
   const sourceIsSoft = SOFT_MODALITY_PATTERN.test(source);
@@ -510,6 +566,8 @@ function assertDirectRewriteResult(result, source, language, mode, style) {
 
   assertStrictScope(result, source, language, style);
   assertSupportedProductContext(result, source, language, mode, style);
+  assertFactStatePreserved(result, source, language);
+  assertNoUnnecessaryClarification(result, source, language, mode);
   assertSemanticStrength(result, source, language, style);
   assertNoUnsolicitedPermissionSeeking(result, source, language, mode);
 }
@@ -772,6 +830,9 @@ export function buildModelInstruction(
     'The user payload provides sourceCharacterCount and maxResultCharacters; treat maxResultCharacters as a hard output budget and count characters before returning.',
     'All tiers: never invent a product, platform, tool, diagnostic premise, evidence source, or capability that is not literally grounded in sourceText; creative additions may be abstract optional directions only.',
     'Preserve immutable anchors and commitment strength: suggestions remain suggestions, possibilities remain possibilities, and explicit negatives remain explicit negatives.',
+    'Fact-state gate: a pending task must remain pending. A URL, repository link, file path, screenshot reference, or named object is a factual anchor and an object to inspect; it is not evidence that you accessed, read, audited, tested, or completed anything.',
+    'You must not claim that work was completed, audited, inspected, read, visited, tested, or verified unless sourceText explicitly states that completion. Never invent findings, evidence, repository state, code state, UI state, or test results.',
+    'Clarification gate: when the task object and deliverable are clear, do not append decision questions, confirmation requests, or a “needs confirmation” section. Ask only for information whose absence materially blocks the requested output.',
     'Return one final result only. Do not compare models, list model candidates, or return alternative drafts.',
     ...(selectedStyle === MODEL_STYLES.creative
       ? ['Creative directions must remain bounded, comparable, and subordinate to the source goal; they are not new requirements or factual claims.']
@@ -786,6 +847,9 @@ export function buildModelInstruction(
     '用户载荷会提供 sourceCharacterCount 和 maxResultCharacters；maxResultCharacters 是硬性输出预算，返回前必须按字符数检查。',
     '所有档位都不得虚构 sourceText 未明确支持的产品、平台、工具、诊断前提、证据来源或能力；创意内容也只能是抽象的可选方向。',
     '保留不可变事实锚点和承诺强度：建议仍是建议，可能性仍是可能性，明确否定仍须明确保留。',
+    '事实状态闸门：待执行任务必须保持未完成状态。URL、仓库链接、文件路径、截图引用或对象名称只是事实锚点和待检查对象，不代表模型已经访问、读取、审计、测试或完成了任务，也不是检查结论的证据。',
+    '不得声称已完成、已审计、已检查、已读取、已访问、已测试或已验证，除非 sourceText 明确说明对应动作已经完成；不得虚构发现、证据、仓库状态、代码状态、界面状态或测试结果。',
+    '澄清闸门：任务对象和交付物已经明确时，不得追加需决策事项、确认请求或“待确认”章节；只有缺失信息会实质阻塞请求结果时才可提出一个最小澄清问题。',
     '只返回一个最终结果；不得比较模型、列出模型候选或提供多个备选稿。',
     ...(selectedStyle === MODEL_STYLES.creative
       ? ['创意方向必须受约束、可比较并服从原任务目标；不得将其写成新要求或事实结论。']
@@ -842,6 +906,7 @@ export function buildModelInstruction(
       'clarificationText 是可选的用户补充信息，只用于消解 sourceText 中的指代或歧义；它不是待改写正文、不是新任务，也不授权增加场景、要求、事实或承诺。补充信息只用于消解歧义，不得在 result 中复述其标签或无关内容。',
       '转换动作：立即把 sourceText 转换为当前 Recipe 要求的最终文本；不要再给目标助手布置“改写、优化或润色 sourceText”的二次任务。',
       '直接性自检：输出前在内部把 result 单独拿出来检查。它必须无需看到 SOURCE_MATERIAL_JSON、原文标签或本协议即可直接使用；若不能，先改正 result。不要输出这段检查过程。',
+      '事实状态闸门：待执行任务必须保持未完成。链接、仓库、路径、截图和对象名称只证明用户提供了检查对象，不证明你已访问或获得证据；不得把请求改写成“已完成审计/检查/读取/访问”或虚构发现。',
       `Recipe ${recipe.id}@${recipe.version}`,
       `Recipe 目标：${recipe.goal[recipeLanguage]}`,
       ...recipe.hardConstraints[recipeLanguage].map((item) => `Recipe 硬约束：${item}`),
@@ -907,6 +972,7 @@ export function buildModelInstruction(
     'clarificationText is optional user context only for resolving references or ambiguity in sourceText. It is not rewrite material, a new task, or permission to add scenarios, requirements, facts, or commitments. Do not repeat its label or irrelevant content in result.',
     'Transformation action: immediately transform sourceText into the final text required by the current Recipe; do not assign the target assistant a second-order task to rewrite, optimize, or polish sourceText.',
     'Directness check: before returning, silently inspect result by itself. It must be usable without SOURCE_MATERIAL_JSON, a source label, or this protocol; if it is not, correct result first. Do not output the check.',
+    'Fact-state gate: a pending task must remain pending. A link, repository, path, screenshot, or named object only establishes what the target assistant should inspect; it does not prove access or evidence. You must not claim completed, audited, inspected, read, or visited work or invent findings.',
     `Recipe ${recipe.id}@${recipe.version}`,
     `Recipe goal: ${recipe.goal[recipeLanguage]}`,
     ...recipe.hardConstraints[recipeLanguage].map((item) => `Recipe hard constraint: ${item}`),
@@ -952,8 +1018,8 @@ export function buildModelMessages(prompt, language, options = {}) {
 
   const repairInstruction = options.repairMetaPrompt === true
     ? language === 'zh'
-      ? '\n纠错闸门：上一次输出违反了安全改写协议，可能不是单个合法 JSON、返回了二次改写任务或系统约束、引入了原文没有的产品与诊断前提，或在任务已经明确时追加了“是否需要继续”等征询许可。本次必须只返回协议规定的一个合法 JSON 对象，不要使用 Markdown 代码块，也不要在 JSON 前后添加任何文字。立即完成改写，仅把可直接发送给目标助手的最终用户请求放入 JSON 的 result。result 禁止以“请将以下内容改写/优化/润色”或同义包装开头，禁止解释改写方法，禁止复述原文、规则或协议；任务已明确时必须直接要求执行，不得追加“是否需要、是否继续、要不要开始”等追问。产品名、功能名、模式名、界面文案和指代必须按原文保留；仅在原文明确时指定产品或平台，不得补造插件、版本、权限、模板、参数、约束或验收事实。输出前自行检查：去掉 JSON 外壳后，result 本身必须能直接执行且没有扩大范围；若不能，先在内部改正再返回。'
-      : '\nCorrection gate: the previous output violated the safe rewrite protocol: it may not have been one valid JSON object, may have returned a meta-rewrite task or system constraints, may have introduced a product, platform, or diagnostic premise absent from the source, or may have appended unsolicited permission seeking after an already-clear task. This time output exactly one valid protocol JSON object, without a Markdown fence or any text before or after it. Complete the rewrite now and place only the final user request that can be sent directly to the target assistant in the JSON result. The result must not begin with “rewrite/optimize/polish the following” or equivalent framing; do not explain the rewrite or repeat the source, rules, or protocol. When the task is clear, request direct execution and do not append “should I proceed,” “would you like me to continue,” or similar permission questions. Preserve product names, feature names, mode labels, UI copy, and references exactly as grounded by the source; name products or platforms only when the source does, and do not invent plug-ins, versions, permissions, templates, parameters, constraints, or acceptance facts. Before returning, check silently that the result itself is directly executable and does not expand scope; if not, correct it first.'
+      ? '\n纠错闸门：上一次输出违反了安全改写协议，可能不是单个合法 JSON、返回了二次改写任务或系统约束、引入了原文没有的产品与诊断前提、把待执行任务写成了“已完成审计/检查”的伪造事实，或在任务已经明确时追加了确认问题。本次必须只返回协议规定的一个合法 JSON 对象，不要使用 Markdown 代码块，也不要在 JSON 前后添加任何文字。立即完成改写，仅把可直接发送给目标助手的最终用户请求放入 JSON 的 result。事实状态必须与 sourceText 一致：待执行仍是待执行；链接、仓库和路径只是事实锚点与检查对象，不是已访问、已读取或已取得发现的证据。不得伪造完成状态、仓库事实、代码发现、界面发现或测试结论。result 禁止以“请将以下内容改写/优化/润色”或同义包装开头，禁止解释改写方法，禁止复述原文、规则或协议；任务对象与交付物明确时必须直接要求执行，不得追加“是否需要、是否继续、要不要开始、需决策事项、请确认”等追问或章节。产品名、功能名、模式名、界面文案和指代必须按原文保留；仅在原文明确时指定产品或平台，不得补造插件、版本、权限、模板、参数、约束或验收事实。输出前自行检查：去掉 JSON 外壳后，result 本身必须能直接执行、没有扩大范围且没有把未完成写成已完成；若不能，先在内部改正再返回。'
+      : '\nCorrection gate: the previous output violated the safe rewrite protocol: it may not have been one valid JSON object, may have returned a meta-rewrite task or system constraints, may have introduced a product, platform, or diagnostic premise absent from the source, may have turned a pending task into a fabricated “completed audit/inspection,” or may have appended unnecessary confirmation questions. This time output exactly one valid protocol JSON object, without a Markdown fence or any text before or after it. Complete the rewrite now and place only the final user request that can be sent directly to the target assistant in the JSON result. Preserve the fact state from sourceText: pending work remains pending; links, repositories, and paths are factual anchors and inspection objects, not evidence of access, reading, findings, or completion. Never fabricate completion state, repository facts, code findings, UI findings, or test results. The result must not begin with “rewrite/optimize/polish the following” or equivalent framing; do not explain the rewrite or repeat the source, rules, or protocol. When the task object and deliverable are clear, request direct execution and do not append “should I proceed,” “would you like me to continue,” “decision needed,” “please confirm,” or similar questions or sections. Preserve product names, feature names, mode labels, UI copy, and references exactly as grounded by the source; name products or platforms only when the source does, and do not invent plug-ins, versions, permissions, templates, parameters, constraints, or acceptance facts. Before returning, check silently that the result itself is directly executable, does not expand scope, and does not turn pending work into completed work; if not, correct it first.'
     : '';
   const calibrationRepairGate = options.repairMetaPrompt === true
     ? language === 'zh'
@@ -1172,6 +1238,8 @@ async function enhanceWithOpenAICompatible(prompt, options, language) {
         || error?.code === 'MODEL_OUTPUT_MULTIPLE_CANDIDATES'
         || error?.code === 'MODEL_OUTPUT_SEMANTIC_ESCALATION'
         || error?.code === 'MODEL_OUTPUT_PERMISSION_SEEKING'
+        || error?.code === 'MODEL_OUTPUT_FALSE_EXECUTION_CLAIM'
+        || error?.code === 'MODEL_OUTPUT_UNNECESSARY_CLARIFICATION'
         || error?.code === 'MODEL_OUTPUT_TOO_LONG'
         || error?.code === 'INVALID_MODEL_OUTPUT';
       if (options.probe === true || !repairableOutputError) {

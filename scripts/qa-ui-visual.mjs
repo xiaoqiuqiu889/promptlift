@@ -553,6 +553,86 @@ function geometryAudit() {
       }
     }
   }
+  const compactClusterMetrics = [];
+  if (document.querySelector(".pet-shell")?.dataset.view === "compact") {
+    const mascot = document.querySelector("#mascotIdleRig");
+    const feedback = document.querySelector("#compactFeedback");
+    const mascotRect = isVisible(mascot) ? rectOf(mascot) : null;
+    const handleRect = isVisible(resizeHandle) ? rectOf(resizeHandle) : null;
+    const feedbackRect = isVisible(feedback) ? rectOf(feedback) : null;
+    if (mascotRect && handleRect) {
+      const menuDistance = Math.hypot(
+        (handleRect.x + (handleRect.width / 2)) - (mascotRect.x + (mascotRect.width / 2)),
+        (handleRect.y + (handleRect.height / 2)) - (mascotRect.y + (mascotRect.height / 2)),
+      );
+      const normalizedMenuDistance = menuDistance / Math.max(mascotRect.width, mascotRect.height);
+      compactClusterMetrics.push({
+        type: "compact-menu-to-mascot-distance",
+        value: round(normalizedMenuDistance),
+        maximum: 0.62,
+      });
+      if (normalizedMenuDistance > 0.62) {
+        failures.push({
+          type: "compact-menu-to-mascot-distance",
+          selector: "#resizeHandle",
+          rect: handleRect,
+          againstSelector: "#mascotIdleRig",
+          againstRect: mascotRect,
+        });
+      }
+    }
+    if (mascotRect && feedbackRect) {
+      const feedbackGap = feedbackRect.y - mascotRect.bottom;
+      const maximumGap = Math.max(8, mascotRect.height * 0.045);
+      compactClusterMetrics.push({
+        type: "compact-feedback-to-mascot-distance",
+        value: round(feedbackGap),
+        maximum: round(maximumGap),
+      });
+      if (feedbackGap > maximumGap || feedbackGap < -2) {
+        failures.push({
+          type: "compact-feedback-to-mascot-distance",
+          selector: "#compactFeedback",
+          rect: feedbackRect,
+          againstSelector: "#mascotIdleRig",
+          againstRect: mascotRect,
+        });
+      }
+      const feedbackWidthRatio = feedbackRect.width / mascotRect.width;
+      compactClusterMetrics.push({
+        type: "compact-feedback-width-ratio",
+        value: round(feedbackWidthRatio),
+        minimum: 0.95,
+        maximum: 1.38,
+      });
+      if (feedbackWidthRatio < 0.95 || feedbackWidthRatio > 1.38) {
+        failures.push({
+          type: "compact-feedback-width-ratio",
+          selector: "#compactFeedback",
+          rect: feedbackRect,
+          againstSelector: "#mascotIdleRig",
+          againstRect: mascotRect,
+        });
+      }
+    }
+    if (mascotRect) {
+      const mascotFillRatio = area(mascotRect) / Math.max(1, viewport.width * viewport.height);
+      compactClusterMetrics.push({
+        type: "compact-mascot-fill-ratio",
+        value: round(mascotFillRatio),
+        minimum: 0.08,
+      });
+      if (mascotFillRatio < 0.08) {
+        failures.push({
+          type: "compact-mascot-fill-ratio",
+          selector: "#mascotIdleRig",
+          rect: mascotRect,
+          againstSelector: "viewport",
+          againstRect: viewport,
+        });
+      }
+    }
+  }
   return {
     state: {
       phase: document.querySelector(".pet-shell")?.dataset.state || "unknown",
@@ -565,6 +645,7 @@ function geometryAudit() {
     interactiveElementCount: interactiveElements.length,
     interactive: interactiveElements.map(({ element, ...item }) => item),
     resizeHandleHitTests,
+    compactClusterMetrics,
     failures,
   };
 }

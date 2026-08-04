@@ -1,4 +1,4 @@
-export const RECIPE_SCHEMA_VERSION = '1.3';
+export const RECIPE_SCHEMA_VERSION = '1.4';
 
 export const RECIPE_IDS = Object.freeze({
   enhance: 'enhance',
@@ -113,8 +113,8 @@ const RECIPES = Object.freeze([
         professional: tier(
           '专业展开',
           '形成可交付给专业执行者的完整任务简报。',
-          '只可重组原文已提供的执行细节、质量标准、边界情况和风险；缺失信息保留为待确认，不得根据常识补造。',
-          '按目标、背景、要求、约束、输出格式、验收标准形成分层结构。',
+          '只可重组原文已提供的执行细节、质量标准、边界情况和风险；仅当缺失信息会阻塞交付时保留一个待确认项，不得根据常识补造。',
+          '按任务复杂度选用目标、背景、要求、约束、输出格式、验收标准等必要模块；不得为凑模板制造空章节。',
           '不得把待确认项写成事实，不得擅自指定产品、平台、技术栈、参数或期限。',
         ),
         creative: tier(
@@ -143,8 +143,8 @@ const RECIPES = Object.freeze([
         professional: tier(
           'Professional Expansion',
           'Create a complete task brief for a skilled executor.',
-          'Reorganize only execution details, quality criteria, edge cases, and risks already provided by the source; keep missing information To Confirm and never fill it from common knowledge.',
-          'Use a hierarchy of objective, background, requirements, constraints, output format, and acceptance criteria.',
+          'Reorganize only execution details, quality criteria, edge cases, and risks already provided by the source; retain one To Confirm item only when the gap blocks delivery, and never fill it from common knowledge.',
+          'Use only the necessary modules among objective, background, requirements, constraints, output format, and acceptance criteria; never create empty sections to fill a template.',
           'Do not present unknowns as facts or choose a product, platform, stack, parameter, or deadline without source support.',
         ),
         creative: tier(
@@ -162,12 +162,14 @@ const RECIPES = Object.freeze([
         '不得返回要求另一个模型再次改写原文的二次提示词。',
         '任务与下一步已经明确时，直接要求执行；不得追加“是否需要继续、是否需要处理、要不要开始”等征询许可。',
         '产品名、功能名、模式名、界面文案和指代默认按原文保留；仅在原文明确时指定产品或平台。',
+        '待执行任务保持未完成；链接、仓库或路径只是检查对象，不得据此声称已访问、已审计或已取得发现。',
       ],
       en: [
         'Preserve intent and factual anchors.',
         'Never return a second-order prompt asking another model to rewrite the source.',
         'When the task and next action are already clear, request execution directly and never append permission-seeking language such as “should I proceed” or “would you like me to start.”',
         'Preserve product names, feature names, mode labels, UI copy, and references as written; name a product or platform only when the source does.',
+        'Keep pending work pending; a link, repository, or path is only an inspection object and never supports a claim of access, audit completion, or findings.',
       ],
     },
     softConstraints: {
@@ -176,7 +178,7 @@ const RECIPES = Object.freeze([
     },
     languagePolicy: { zh: '跟随原文主要语言。', en: 'Follow the source language.' },
     lengthPolicy: { zh: '长度服从任务复杂度。', en: 'Let length follow task complexity.' },
-    edgeCases: { zh: ['信息不足时保留占位或澄清动作。'], en: ['Keep a placeholder or clarification step when information is missing.'] },
+    edgeCases: { zh: ['仅在信息不足会实质阻塞交付时保留一个最小占位或澄清动作。'], en: ['Keep one minimal placeholder or clarification only when missing information materially blocks delivery.'] },
     outputContract: { zh: 'result 是最终优化后的用户请求。', en: 'result is the final optimized user request.' },
   }),
   freezeRecipe({
@@ -205,8 +207,8 @@ const RECIPES = Object.freeze([
         professional: tier(
           '决策建议',
           '形成支持上级判断的专业决策信息。',
-          '可展开原文支持的选项、利弊、风险和所需支持；缺口明确标为待确认。',
-          '按现状与结论、证据、选项比较、建议、需决策事项组织。',
+          '可展开原文支持的选项、利弊、风险和所需支持；仅在确实阻塞决策时标记缺口。',
+          '优先组织现状与结论、证据和建议；只有原文存在多个选项或明确请求决策时，才增加选项比较或需决策事项。',
           '不得虚构数据、收益、资源、责任归属、时间表或替上级作决定。',
         ),
         creative: tier(
@@ -235,8 +237,8 @@ const RECIPES = Object.freeze([
         professional: tier(
           'Decision Recommendation',
           'Create professional decision support for a manager.',
-          'Expand source-supported options, tradeoffs, risks, and support needed; label gaps To Confirm.',
-          'Use Status and Conclusion, Evidence, Option Comparison, Recommendation, and Decision Needed.',
+          'Expand source-supported options, tradeoffs, risks, and support needed; mark a gap only when it genuinely blocks a decision.',
+          'Prioritize Status and Conclusion, Evidence, and Recommendation; add Option Comparison or Decision Needed only when the source contains options or explicitly requests a decision.',
           'Do not invent data, benefits, resources, ownership, timelines, or decide on the manager’s behalf.',
         ),
         creative: tier(
@@ -249,13 +251,13 @@ const RECIPES = Object.freeze([
       },
     },
     hardConstraints: {
-      zh: ['不夸大进展或确定性。', '不擅自新增承诺、责任归属或截止时间。'],
-      en: ['Do not overstate progress or certainty.', 'Do not invent commitments, ownership, or deadlines.'],
+      zh: ['不夸大进展或确定性。', '不擅自新增承诺、责任归属或截止时间。', '待执行任务保持未完成，不把链接或对象写成已取得证据。'],
+      en: ['Do not overstate progress or certainty.', 'Do not invent commitments, ownership, or deadlines.', 'Keep pending work pending and never treat a link or named object as obtained evidence.'],
     },
     softConstraints: { zh: ['突出需要对方决策或支持的事项。'], en: ['Highlight decisions or support needed.'] },
     languagePolicy: { zh: '跟随原文主要语言和组织语境。', en: 'Follow the source language and organizational context.' },
     lengthPolicy: { zh: '优先简洁，复杂事项可分点。', en: 'Prefer brevity; use bullets for complex matters.' },
-    edgeCases: { zh: ['依据不足时明确标注待确认。'], en: ['Mark unsupported points as needing confirmation.'] },
+    edgeCases: { zh: ['依据不足时删去无依据判断；仅当阻塞原文诉求时才标记待确认。'], en: ['Remove unsupported judgments; mark a gap only when it blocks the source request.'] },
     outputContract: { zh: 'result 是可直接发送的向上沟通文本。', en: 'result is a ready-to-send upward communication.' },
   }),
   freezeRecipe({
@@ -285,7 +287,7 @@ const RECIPES = Object.freeze([
           '专业服务',
           '形成稳定、可信、边界清楚的专业服务表达。',
           '可补充原文已有流程的清晰说明、条件和风险提示，但不创造服务能力。',
-          '按确认理解、事实说明、可执行步骤、边界或待确认项组织。',
+          '按需要选用确认理解、事实说明、可执行步骤与边界；仅在阻塞回复时增加一个待确认项。',
           '不得虚构政策、权限、处理进度、服务能力、补偿方案或保证。',
         ),
         creative: tier(
@@ -315,7 +317,7 @@ const RECIPES = Object.freeze([
           'Professional Service',
           'Create stable, credible service communication with clear boundaries.',
           'Clarify source-supported process, conditions, and risk notes without creating capabilities.',
-          'Use Acknowledgement, Facts, Actionable Steps, and Boundaries or To Confirm.',
+          'Use only the needed elements among Acknowledgement, Facts, Actionable Steps, and Boundaries; add one To Confirm item only when it blocks the response.',
           'Do not invent policy, permissions, progress, service capability, compensation, or guarantees.',
         ),
         creative: tier(
@@ -328,8 +330,8 @@ const RECIPES = Object.freeze([
       },
     },
     hardConstraints: {
-      zh: ['保留事实、立场和承诺强度。', '不得编造处理流程、服务能力或新的承诺；不回答消息中的问题，不生成润色说明。'],
-      en: ['Preserve facts, stance, and commitment level.', 'Do not invent a process, service capability, or commitment; do not answer questions in the message or return polishing instructions.'],
+      zh: ['保留事实、立场和承诺强度。', '不得编造处理流程、服务能力或新的承诺；不回答消息中的问题，不生成润色说明。', '不得把尚未处理或尚未验证的事项写成已经完成。'],
+      en: ['Preserve facts, stance, and commitment level.', 'Do not invent a process, service capability, or commitment; do not answer questions in the message or return polishing instructions.', 'Never present unresolved or unverified work as completed.'],
     },
     softConstraints: {
       zh: ['减少生硬表达但不改变结论；仅在原文依据允许时明确下一步。'],
@@ -366,7 +368,7 @@ const RECIPES = Object.freeze([
         professional: tier(
           '结构化叙事',
           '形成一页一主张、证据与行动关系清楚的专业演示叙事。',
-          '可展开原文已有的证据、逻辑关系和行动含义，缺证据处明确待补。',
+          '可展开原文已有的证据、逻辑关系和行动含义；只有原文要求展示证据而材料确实缺失时才标记待补。',
           '按结论标题、关键证据、影响或解释、行动建议形成层级。',
           '不得把建议当结论、把相关性写成因果，或声称读取当前输入之外的页面内容。',
         ),
@@ -396,7 +398,7 @@ const RECIPES = Object.freeze([
         professional: tier(
           'Structured Narrative',
           'Create a professional one-slide narrative with a clear relationship among claim, evidence, and action.',
-          'Expand source-supported evidence, logic, and action implications while marking missing evidence.',
+          'Expand source-supported evidence, logic, and action implications; mark missing evidence only when the source asks to show it and the material is actually absent.',
           'Use Conclusion Title, Key Evidence, Impact or Explanation, and Recommended Action.',
           'Do not turn suggestions into conclusions, correlation into causality, or claim access beyond the current input.',
         ),
@@ -410,13 +412,13 @@ const RECIPES = Object.freeze([
       },
     },
     hardConstraints: {
-      zh: ['不虚构数据和来源。', '只优化当前输入文本，不声称读取整页其他文本框、图表、备注、版式或整份演示文稿。'],
-      en: ['Do not invent data or sources.', 'Optimize only the current input; do not claim access to other text boxes, charts, notes, layout, or the full deck.'],
+      zh: ['不虚构数据和来源。', '只优化当前输入文本，不声称读取整页其他文本框、图表、备注、版式或整份演示文稿。', '不得把待执行任务、未验证结论或链接对象写成已经完成或已取得证据。'],
+      en: ['Do not invent data or sources.', 'Optimize only the current input; do not claim access to other text boxes, charts, notes, layout, or the full deck.', 'Never present pending work, unverified conclusions, or a linked object as completed or evidenced.'],
     },
     softConstraints: { zh: ['正文短句化，便于扫读。'], en: ['Use short, scannable body copy.'] },
     languagePolicy: { zh: '跟随原文主要语言。', en: 'Follow the source language.' },
     lengthPolicy: { zh: '标题简洁，正文按单页容量收敛。', en: 'Keep titles concise and body copy within one-slide capacity.' },
-    edgeCases: { zh: ['材料不足时保留待补证据提示。'], en: ['Keep an evidence placeholder when source material is insufficient.'] },
+    edgeCases: { zh: ['仅当原文要求展示证据且材料不足时保留一个待补证据提示。'], en: ['Keep one missing-evidence placeholder only when the source asks to show evidence and the material is insufficient.'] },
     outputContract: { zh: 'result 是可直接放入 PPT 的标题和正文。', en: 'result is title and body copy ready for a presentation.' },
   }),
 ]);

@@ -13,6 +13,7 @@ deliverables/*
 qa/evidence/
 qa/UI_VISUAL_RESULTS.md
 qa/UI_SHORTCUT_RESULTS.md
+qa/R9_*.md
 
 # Image-generation scratch files and other local packaging scratch space.
 tmp/

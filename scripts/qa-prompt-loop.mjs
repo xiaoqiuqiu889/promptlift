@@ -214,6 +214,22 @@ const CASES = [
     status: 'unchanged',
     expected: 'ok',
   },
+  {
+    name: 'pending-audit-cannot-become-completed',
+    source: 'Please audit repository https://example.test/repo and provide a complete report.',
+    mode: PROMPT_MODES.enhance,
+    style: MODEL_STYLES.professional,
+    result: 'I have completed the audit of https://example.test/repo and found that its tests are incomplete.',
+    expected: 'MODEL_OUTPUT_FALSE_EXECUTION_CLAIM',
+  },
+  {
+    name: 'clear-audit-cannot-gain-decision-request',
+    source: 'Please audit repository https://example.test/repo and provide a complete report.',
+    mode: PROMPT_MODES.enhance,
+    style: MODEL_STYLES.professional,
+    result: 'Please audit repository https://example.test/repo and provide a complete report. Decision needed: please confirm the project stage.',
+    expected: 'MODEL_OUTPUT_UNNECESSARY_CLARIFICATION',
+  },
 ];
 
 async function runCase(item) {

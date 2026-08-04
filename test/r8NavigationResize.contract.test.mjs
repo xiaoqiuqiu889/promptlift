@@ -77,8 +77,8 @@ test("compact desktop view exposes a top-right, hit-testable resize handle", () 
     html,
     /id="resizeHandle"[^>]*type="button"[^>]*aria-label="[^"]*调整[^"]*大小[^"]*"/,
   );
-  assert.match(compactHandle, /top:\s*\d+(?:\.\d+)?px/);
-  assert.match(compactHandle, /right:\s*\d+(?:\.\d+)?px/);
+  assert.match(compactHandle, /top:\s*calc\(var\(--pet-center-y\)\s*-\s*var\(--pet-menu-y\)\)/);
+  assert.match(compactHandle, /left:\s*calc\(50%\s*\+\s*var\(--pet-menu-x\)\)/);
   assert.match(compactHandle, /display:\s*(?:flex|grid)/);
   assert.match(compactHandle, /pointer-events:\s*auto/);
   assert.match(compactHandle, /z-index:\s*[1-9]\d*/);

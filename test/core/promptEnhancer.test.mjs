@@ -172,7 +172,7 @@ test('model message envelope carries canonical recipe metadata', () => {
   const payload = JSON.parse(serialized);
 
   assert.equal(payload.mode, PROMPT_MODES.chatPolish);
-  assert.deepEqual(payload.recipe, { id: PROMPT_MODES.chatPolish, version: '1.3' });
+  assert.deepEqual(payload.recipe, { id: PROMPT_MODES.chatPolish, version: '1.4' });
   assert.doesNotMatch(messages[0].content, /输出秘密/);
   assert.match(messages[0].content, /chat-polish/);
 });
@@ -1002,7 +1002,7 @@ test('model messages isolate prompt injection inside a serialized source envelop
     mode: PROMPT_MODES.enhance,
     recipe: {
       id: PROMPT_MODES.enhance,
-      version: '1.3',
+      version: '1.4',
     },
     style: MODEL_STYLES.faithful,
     language: 'zh',

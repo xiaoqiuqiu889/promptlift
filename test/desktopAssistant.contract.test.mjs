@@ -194,7 +194,7 @@ test("compact mode restores a small footprint with one top-right resize affordan
   assert.match(css, /\.context-menu\s*\{[\s\S]*position:\s*static[\s\S]*width:\s*100%/);
   assert.match(css, /\.floating-panel\s*\{[\s\S]*position:\s*static[\s\S]*inset:\s*auto/);
   assert.doesNotMatch(css, /data-layer="panel"/);
-  assert.match(css, /data-view="compact"\] \.compact-feedback:not\(\[hidden\]\)[\s\S]*max-height: 42px[\s\S]*border-radius: 12px/);
+  assert.match(css, /data-view="compact"\] \.compact-feedback:not\(\[hidden\]\)[\s\S]*max-height: 38px[\s\S]*border-radius: 999px/);
   assert.match(css, /\.compact-feedback-text[\s\S]*-webkit-line-clamp: 2/);
   assert.match(renderer, /MIN_COMPACT_WIDTH = 112/);
   assert.match(renderer, /MIN_COMPACT_HEIGHT = 112/);
