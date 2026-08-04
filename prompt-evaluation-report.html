@@ -249,7 +249,7 @@ AND hardGatePassRate, semanticFidelity, anchorRecall, utility,
           <tr><td><code>npm run check</code></td><td><span class="tag good">通过</span></td><td>包含新增脚本语法检查。</td></tr>
           <tr><td>评测专项合约测试</td><td><span class="tag good">17 / 17</span></td><td><code>promptEvalMetrics</code>、<code>promptEvaluation</code>、<code>promptEvalCli</code> 全部通过。</td></tr>
           <tr><td><code>npm test</code></td><td><span class="tag warn">241 通过 / 1 环境失败</span></td><td>共 242 项；唯一失败来自预先存在的 <code>test/packageSurfaceAudit.test.mjs</code>：当前环境缺少 <code>@electron/asar</code>。由本版新增 fixture 引起的仓库表面白名单失败已在独立分支修正。</td></tr>
-          <tr><td>主干隔离</td><td><span class="tag good">保持未修改</span></td><td>本版文件只在独立 worktree <code>AIlight-prompt-eval</code> 产生；主 worktree 原有脏改动未被触碰。</td></tr>
+          <tr><td>主干隔离</td><td><span class="tag good">保持未写回</span></td><td>本版文件只在独立 worktree <code>AIlight-prompt-eval</code> 产生；评测 CLI 未自动向主 worktree 写回、提交或合并。</td></tr>
         </tbody>
       </table>
     </section>
@@ -274,7 +274,7 @@ AND hardGatePassRate, semanticFidelity, anchorRecall, utility,
     <section id="limits">
       <h2>当前限制与下一步</h2>
       <div class="grid two">
-        <div class="card"><h3>已知限制</h3><ul class="list"><li>本报告的 21.21% 使用 2 条合成 fixture，不是生产模型测评。</li><li>semantic / utility 目前允许独立 judge 提供 0–1 标量；正式上线前需要固定 judge rubric、重复采样和人工校准。</li><li>当前主 worktree 有既有未提交改动，因此本次没有把策略写回主干，也没有自动合并。</li><li>远端没有 <code>main</code> 分支，本次以最新已提交的 <code>origin/codex/prompt-tier-mascots</code> 作为基线。</li></ul></div>
+        <div class="card"><h3>已知限制</h3><ul class="list"><li>本报告的 21.21% 使用 2 条合成 fixture，不是生产模型测评。</li><li>semantic / utility 目前允许独立 judge 提供 0–1 标量；正式上线前需要固定 judge rubric、重复采样和人工校准。</li><li>本次没有把候选策略写回主干，也没有自动合并；写回仍需显式 <code>--promote</code> 并指向干净目标 worktree。</li><li>远端没有 <code>main</code> 分支，本次以最新已提交的 <code>origin/codex/prompt-tier-mascots</code> 作为基线。</li></ul></div>
         <div class="card"><h3>建议的下一轮</h3><ol class="list"><li>建立覆盖四种表达场景 × 全部档位的脱敏 golden set，并为每条样例标注 anchors、hard/soft/negative constraints。</li><li>接入真实模型 runner，固定 temperature、模型版本和重试策略，至少运行 3 次取均值与置信区间。</li><li>引入双盲人工评分，对 semantic fidelity 和 utility 做校准，保留 judge disagreement。</li><li>只允许候选在独立分支晋级；达到 3% 且 protected metrics 不回退后，再向干净主干写回策略。</li></ol></div>
       </div>
     </section>
