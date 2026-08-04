@@ -284,6 +284,21 @@ export const WORKBUDDY_USER_PROMPT_TEMPLATE = `You are a language consistency as
     Remember: The language of your response MUST ALWAYS match the language of the user's input. This is your highest priority directive.
     `;
 
+export const WORKBUDDY_RUNTIME_CONTEXT_PROMPT = [
+  '<system-reminder>',
+  'CONTEXT CONTINUITY FOR PROMPT ENHANCEMENT:',
+  'The enhanced prompt will be executed by a downstream assistant that already has access to the current conversation, visible artifact, or working context.',
+  'PRIORITY: This rule OVERRIDES the generic instruction to check for missing context when the apparent gap is only a demonstrative reference to downstream context.',
+  'Treat demonstrative references such as “这个建议” / “this suggestion”, “上述方案” / “the approach above”, “当前代码” / “the current code”, and equivalent references as valid context anchors when they reasonably point to that downstream context.',
+  'Preserve those references and improve the requested action around them. Do not ask the user to repeat, paste, or resupply referenced material merely because it is not repeated inside the selected sentence.',
+  'Ask for clarification only when the requested action or deliverable itself is genuinely undefined and no directly usable prompt can be produced.',
+  'For evaluation or adoption requests, rewrite the prompt to lead with a clear conclusion, assess expected benefit, implementation cost, risk, and compatibility, and explain what would improve after adoption. Keep the referenced proposal in downstream context rather than inventing its contents.',
+  'Example input: “其他agent给我提了这个建议，你评估下是否值得采纳？采纳后的结果是否会有提升”',
+  'Required behavior: produce a direct request that tells the downstream assistant to evaluate the referenced suggestion, lead with a conclusion, explain trade-offs and expected improvements; the result is never a clarification question and never asks to provide the suggestion again.',
+  'This reminder supplies behavioral guidance only. It does not provide missing facts and never authorizes invented project details, evidence, metrics, or conclusions.',
+  '</system-reminder>',
+].join('\r\n');
+
 export function isPromptMode(value) {
   return resolveRecipeId(value) !== null;
 }
@@ -1640,7 +1655,10 @@ export function buildWorkBuddyMessages(
     },
     {
       role: 'user',
-      content: WORKBUDDY_USER_PROMPT_TEMPLATE.replace('{input}', prompt),
+      content: [
+        WORKBUDDY_USER_PROMPT_TEMPLATE.replace('{input}', prompt),
+        WORKBUDDY_RUNTIME_CONTEXT_PROMPT,
+      ].join('\r\n\r\n'),
     },
   ];
 }
@@ -1879,7 +1897,7 @@ function buildChatCompletionsUrl(endpoint, language) {
   return url.toString();
 }
 
-function supportsDisabledThinking(model) {
+function supportsDeepSeekV4Thinking(model) {
   return /^deepseek-v4-/iu.test(model);
 }
 
@@ -1964,6 +1982,15 @@ async function enhanceWithWorkBuddyCompatible(prompt, options, language) {
         body: JSON.stringify({
           model,
           stream: false,
+          ...(supportsDeepSeekV4Thinking(model)
+            ? {
+              temperature: 1,
+              thinking: {
+                type: 'enabled',
+                reasoning_effort: 'high',
+              },
+            }
+            : {}),
           messages: buildWorkBuddyMessages(
             prompt,
             options.mode,
@@ -2112,7 +2139,7 @@ async function enhanceWithOpenAICompatible(prompt, options, language) {
                 Math.ceil(maxOutputLength / (language === 'zh' ? 1 : 3)) + 96,
               ),
             ),
-          ...(supportsDisabledThinking(model)
+          ...(supportsDeepSeekV4Thinking(model)
             ? { thinking: { type: 'disabled' } }
             : {}),
           messages: buildModelMessages(prompt, language, {

@@ -57,20 +57,23 @@ test('AI prompt WorkBuddy tier preserves the installed WorkBuddy prompt contract
   assert.match(prompt, /A website for my dog/u);
 });
 
-test('WorkBuddy messages use the system prompt plus the repeated language wrapper', () => {
+test('WorkBuddy messages include runtime context continuity before the language wrapper', () => {
   const input = '请把这个需求写清楚';
   const messages = buildWorkBuddyMessages(input, PROMPT_MODES.enhance);
 
-  assert.deepEqual(messages, [
-    {
-      role: 'system',
-      content: WORKBUDDY_SYSTEM_PROMPTS[PROMPT_MODES.enhance],
-    },
-    {
-      role: 'user',
-      content: WORKBUDDY_USER_PROMPT_TEMPLATE.replace('{input}', input),
-    },
-  ]);
+  assert.equal(messages.length, 2);
+  assert.deepEqual(messages[0], {
+    role: 'system',
+    content: WORKBUDDY_SYSTEM_PROMPTS[PROMPT_MODES.enhance],
+  });
+  assert.equal(messages[1].role, 'user');
+  assert.match(messages[1].content, /downstream assistant that already has access/iu);
+  assert.match(messages[1].content, /这个建议|this suggestion/iu);
+  assert.match(messages[1].content, /do not ask the user to repeat/iu);
+  assert.match(messages[1].content, /lead with a clear conclusion/iu);
+  assert.match(messages[1].content, /OVERRIDES the generic instruction to check for missing context/u);
+  assert.match(messages[1].content, /其他agent给我提了这个建议/u);
+  assert.match(messages[1].content, /never a clarification question/iu);
   assert.match(messages[1].content, /CRITICAL PRIORITY - LANGUAGE CONSISTENCY:/u);
   assert.match(messages[1].content, /USER INPUT: 请把这个需求写清楚/u);
 });
@@ -107,6 +110,28 @@ test('WorkBuddy model request forwards the selected model without JSON or sampli
   assert.equal(Object.hasOwn(requests[0], 'temperature'), false);
   assert.equal(Object.hasOwn(requests[0], 'max_tokens'), false);
   assert.equal(Object.hasOwn(requests[0], 'thinking'), false);
+});
+
+test('WorkBuddy DeepSeek request explicitly uses the installed high-reasoning profile', async () => {
+  const requests = [];
+  await enhancePrompt('请评估这个建议是否值得采纳', {
+    apiKey: 'test-key',
+    endpoint: 'https://example.com/v1',
+    model: 'deepseek-v4-flash',
+    mode: PROMPT_MODES.enhance,
+    style: MODEL_STYLES.workbuddy,
+    fetchImpl: async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return completion('请评估当前对话中的建议是否值得采纳，并先给出明确结论。');
+    },
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].temperature, 1);
+  assert.deepEqual(requests[0].thinking, {
+    type: 'enabled',
+    reasoning_effort: 'high',
+  });
 });
 
 test('WorkBuddy path performs no protocol retry or factual-anchor validation', async () => {

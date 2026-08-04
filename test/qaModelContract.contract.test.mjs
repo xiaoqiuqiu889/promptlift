@@ -18,6 +18,15 @@ test("real-model contract covers direct product feedback without invented Word c
   assert.match(script, /inventedProductContext/);
 });
 
+test("real-model contract covers WorkBuddy downstream context references", () => {
+  assert.match(script, /CONTEXT_REFERENCE_SOURCE/);
+  assert.match(script, /其他agent给我提了这个建议/);
+  assert.match(script, /style:\s*['"]workbuddy['"]/);
+  assert.match(script, /contextReferencePreserved/);
+  assert.match(script, /blockingClarification/);
+  assert.match(script, /请.*提供|请.*补充/);
+});
+
 test("real-model QA reports bounded booleans instead of successful raw model text", () => {
   assert.match(script, /cases:\s*caseResults/);
   assert.doesNotMatch(script, /qaResult:\s*result/);
