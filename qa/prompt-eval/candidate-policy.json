@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "revision": 1,
+  "constraints": {
+    "maxExpansionRatio": 3,
+    "global": {
+      "en": [
+        "Never exceed three times the source character count.",
+        "Do not add an application scenario, audience, platform, deliverable, or commitment that the source does not state."
+      ],
+      "zh": [
+        "最终结果不得超过原文字符数的三倍。",
+        "不得新增原文未明确提供的应用场景、受众、平台、交付物或承诺。"
+      ]
+    }
+  }
+}

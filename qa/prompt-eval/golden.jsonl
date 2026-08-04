@@ -1,0 +1,16 @@
+{"id":"enhance-faithful-en-001","mode":"enhance","style":"faithful","language":"en","sourceText":"Rewrite this request clearly and preserve https://example.test/spec, ticket PL-42, and the phrase `npm test`."}
+{"id":"enhance-concise-zh-001","mode":"enhance","style":"concise","language":"zh","sourceText":"请把这句话改得更清楚：周五前提交 D:\\data\\plan.xlsx，不要删除原文件。"}
+{"id":"enhance-professional-en-001","mode":"enhance","style":"professional","language":"en","sourceText":"Turn this into an actionable request: confirm the owner, keep the 2026-08-15 deadline, and flag unknowns."}
+{"id":"enhance-creative-zh-001","mode":"enhance","style":"creative","language":"zh","sourceText":"把“让用户更快理解”改写成一个有画面感但仍可执行的提示词，保留“首屏”和“3秒”。"}
+{"id":"chat-faithful-en-001","mode":"chat-polish","style":"faithful","language":"en","sourceText":"Please send the file today. I may need one more detail: whether the API key is still valid."}
+{"id":"chat-concise-zh-001","mode":"chat-polish","style":"concise","language":"zh","sourceText":"麻烦你看下这个问题，可能是权限导致的；如果不确定，请先告诉我需要什么信息。"}
+{"id":"chat-professional-en-001","mode":"chat-polish","style":"professional","language":"en","sourceText":"I disagree with the proposal because the evidence is incomplete. Can we review the assumptions before deciding?"}
+{"id":"chat-creative-zh-001","mode":"chat-polish","style":"creative","language":"zh","sourceText":"谢谢你的反馈，我想把重点说得更有温度：这次先解决登录问题，再讨论视觉细节。"}
+{"id":"upward-faithful-en-001","mode":"upward-communication","style":"faithful","language":"en","sourceText":"The team may ship Friday; confirm the dependency first and do not promise the date yet."}
+{"id":"upward-concise-zh-001","mode":"upward-communication","style":"concise","language":"zh","sourceText":"目前进度正常，但测试还没完成；建议先确认风险，再决定是否在周三发布。"}
+{"id":"upward-professional-en-001","mode":"upward-communication","style":"professional","language":"en","sourceText":"We missed the target because the approval arrived late. I will share a recovery plan after checking the remaining dependency."}
+{"id":"upward-creative-zh-001","mode":"upward-communication","style":"creative","language":"zh","sourceText":"把这段汇报写得更有说服力，但不要夸大结果：本季度留存提升了 8%，原因仍需验证。"}
+{"id":"ppt-faithful-en-001","mode":"ppt-copy","style":"faithful","language":"en","sourceText":"Slide title: reduce review time by 20% with a single checklist. Keep the metric 20% and the deliverable checklist."}
+{"id":"ppt-concise-zh-001","mode":"ppt-copy","style":"concise","language":"zh","sourceText":"将标题改成结论式：自动化让每周报表从 2 小时缩短到 20 分钟。保留 2 小时和 20 分钟。"}
+{"id":"ppt-professional-en-001","mode":"ppt-copy","style":"professional","language":"en","sourceText":"Make this slide claim sharper: three interviews exposed the same onboarding gap; next step is to test the fix."}
+{"id":"ppt-creative-zh-001","mode":"ppt-copy","style":"creative","language":"zh","sourceText":"把“功能很多”改成更有记忆点的演示标题，但不能新增功能、平台或用户人群。"}

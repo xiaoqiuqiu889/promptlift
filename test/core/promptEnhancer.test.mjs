@@ -274,7 +274,7 @@ test('prompt protocol v2 treats source text as material, preserves facts, and av
 });
 
 test('model protocol repairs one malformed envelope and rejects a repeated malformed envelope', async () => {
-  const source = '请整理这三条产品反馈并保留原有范围。';
+  const source = '请整理这三条产品反馈并保留原有范围、产品名称、功能描述、优先级和验收边界，不添加新的场景。';
   const expected = '请将三条产品反馈整理为可执行需求，逐条保留产品、功能和范围，不补充原文没有的前提。';
   const validEnvelope = JSON.stringify({
     protocol: PROMPT_PROTOCOL_VERSION,
@@ -707,7 +707,7 @@ test('scope validation allows Word when the source explicitly names Word', async
 
 test('model protocol accepts a direct optimized request', async () => {
   const expected = '请优化桌面宠物的拖动交互：减少指针移动与窗口位置更新之间的延迟，避免连续拖动时出现卡顿、跳变或明显滞后。';
-  const result = await enhancePrompt('拖动起来不够跟手，不够丝滑', {
+  const result = await enhancePrompt('拖动起来不够跟手，不够丝滑；请保留现有窗口尺寸、拖动手势、视觉反馈和快捷键行为，只优化响应延迟，不改变拖动区域、交互入口与其他功能。', {
     endpoint: 'https://tokenhub.tencentmaas.com/v1',
     model: 'deepseek-v4-flash',
     apiKey: 'secret-test-key',
@@ -775,6 +775,7 @@ test('a direct product task may ask to optimize features based on the following 
   const source = [
     '1. 审阅后应用关闭时不应进入审阅界面。',
     '2. 四种沟通模式需要不同档位。',
+    '请保留当前功能名称、使用流程、已有状态和用户操作习惯，不新增平台或业务范围。',
   ].join('\n');
   const expected = [
     '请根据以下用户反馈优化产品功能：',
@@ -839,7 +840,7 @@ test('model protocol rejects a high-confidence mismatch between the declared and
 
   await assert.rejects(
     request(
-      '请帮我整理这段工作汇报，让结论更清晰。',
+      '请帮我整理这段工作汇报，让结论、依据、影响范围和下一步行动都更清晰。',
       'zh',
       'Please rewrite this work update with a clearer conclusion and next action.',
     ),
@@ -863,7 +864,7 @@ test('model protocol rejects a high-confidence mismatch between the declared and
     '请检查 React API、SDK 和 CLI 的调用逻辑，明确输入、错误处理与输出。',
   );
   assert.equal(
-    await request('修复它', 'zh', 'Fix it now.'),
+    await request('请修复这个问题，并保留现有行为、接口和错误处理方式。', 'zh', 'Fix it now.'),
     'Fix it now.',
   );
   assert.equal(
@@ -918,7 +919,7 @@ test('model protocol rejects changed text declared as unchanged', async () => {
 });
 
 test('meta-prompt detection does not reject a user request that explicitly asks to create a rewrite prompt', async () => {
-  const source = '写一个提示词，用于把用户反馈改写成专业的问题记录';
+  const source = '写一个提示词，用于把用户反馈改写成专业的问题记录，同时保留原意、影响范围和复现条件';
   const expected = '请将用户反馈改写为专业、具体的问题记录，保留原意，并明确影响范围、复现条件和期望表现。';
   const result = await enhancePrompt(source, {
     endpoint: 'https://tokenhub.tencentmaas.com/v1',
@@ -952,7 +953,7 @@ test('meta-prompt detection does not reject a user request that explicitly asks 
 test('chat-polish mode repairs a second-order polishing instruction', async () => {
   let calls = 0;
   const expected = '这件事麻烦大家结合实际情况评估后推进，谢谢。';
-  const result = await enhancePrompt('这事你们自己看着办', {
+  const result = await enhancePrompt('这事你们自己看着办，请结合当前项目情况评估后确定推进方式。', {
     endpoint: 'https://tokenhub.tencentmaas.com/v1',
     model: 'deepseek-v4-flash',
     apiKey: 'secret-test-key',
@@ -1015,7 +1016,7 @@ test('model messages isolate prompt injection inside a serialized source envelop
     style: MODEL_STYLES.faithful,
     language: 'zh',
     sourceCharacterCount: source.length,
-    maxResultCharacters: Math.max(1_200, Math.floor(source.length * 1.25)),
+    maxResultCharacters: Math.floor(source.length * 1.25),
     sourceText: source,
   });
 });
@@ -1426,7 +1427,7 @@ test('prompt tiers use bounded temperatures that reinforce fidelity and creativi
 
   for (const [style, expectedTemperature] of expectedTemperatures) {
     let requestBody;
-    const result = await enhancePrompt('Improve this prompt', {
+    const result = await enhancePrompt('Improve this prompt with a clear objective and expected output while preserving the original intent.', {
       endpoint: 'https://example.test/v1',
       model: 'other-compatible-model',
       apiKey: 'secret-test-key',
@@ -1491,7 +1492,7 @@ test('enhancePrompt reports an empty truncated completion without touching the o
 
 test('enhancePrompt only sends disabled thinking to the DeepSeek V4 family', async () => {
   let requestBody;
-  await enhancePrompt('Keep this request intact', {
+  await enhancePrompt('Keep this request intact while preserving the existing API contract and expected output semantics.', {
     endpoint: 'https://example.test/v1',
     model: 'other-compatible-model',
     apiKey: 'secret-test-key',
@@ -1524,7 +1525,7 @@ test('enhancePrompt only sends disabled thinking to the DeepSeek V4 family', asy
 });
 
 test('enhancePrompt sanitizes common model wrappers before returning the result', async () => {
-  const enhanced = await enhancePrompt('检查这个函数', {
+  const enhanced = await enhancePrompt('检查这个函数的正确性、边界条件和异常处理，不改变现有接口。', {
     endpoint: 'https://tokenhub.tencentmaas.com/v1',
     model: 'deepseek-v4-flash',
     apiKey: 'secret-test-key',

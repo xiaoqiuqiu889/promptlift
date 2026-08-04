@@ -39,7 +39,7 @@ export const PROMPT_STYLE_POLICIES = Object.freeze({
   }),
   creative: Object.freeze({
     scopePolicy: 'bounded-creative-expansion',
-    maxExpansionRatio: 3.5,
+    maxExpansionRatio: 3,
     allowNewScenarios: true,
     preserveAnchors: true,
     preserveCommitmentStrength: true,
