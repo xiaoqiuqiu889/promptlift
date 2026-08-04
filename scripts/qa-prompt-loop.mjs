@@ -197,6 +197,23 @@ const CASES = [
     result: 'Option A: rewrite the request clearly. Option B: rewrite it with more detail.',
     expected: 'MODEL_OUTPUT_MULTIPLE_CANDIDATES',
   },
+  {
+    name: 'introduced-permission-seeking-tail',
+    source: 'Fix the UI issue and submit the result for review.',
+    mode: PROMPT_MODES.enhance,
+    style: MODEL_STYLES.concise,
+    result: 'Fix the UI issue and submit the result for review. Should I proceed now?',
+    expected: 'MODEL_OUTPUT_PERMISSION_SEEKING',
+  },
+  {
+    name: 'source-authored-permission-question-preserved',
+    source: 'Should I proceed with the approved release?',
+    mode: PROMPT_MODES.enhance,
+    style: MODEL_STYLES.faithful,
+    result: 'Should I proceed with the approved release?',
+    status: 'unchanged',
+    expected: 'ok',
+  },
 ];
 
 async function runCase(item) {

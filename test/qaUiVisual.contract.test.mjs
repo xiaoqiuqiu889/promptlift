@@ -35,7 +35,7 @@ test("UI visual QA uses trusted input, read-only DOM inspection, and masked mock
   assert.doesNotMatch(runner, /Add-Type.*Automation|Get-UIAutomation|System\.Windows\.Automation/i);
 });
 
-test("UI visual QA locks the four prompt tiers and four right-click mode color semantics", async () => {
+test("UI visual QA locks four prompt tiers and four merged scene color semantics", async () => {
   const runner = await readFile(path.join(projectRoot, "scripts/qa-ui-visual.mjs"), "utf8");
   assert.match(
     runner,
@@ -51,8 +51,9 @@ test("UI visual QA locks the four prompt tiers and four right-click mode color s
   assert.match(runner, /new Set\(modeColors\)\.size !== WORK_MODES\.length/);
   assert.match(runner, /style-option\[data-style\].*strong/);
   assert.match(runner, /new Set\(tierLabelSets\.map\(\(labels\) => JSON\.stringify\(labels\)\)\)\.size !== WORK_MODES\.length/);
-  assert.match(runner, /scene-selection-stays-in-scene-hub/);
-  assert.match(runner, /hub:\s*"scenes"/);
+  assert.match(runner, /scene-selection-stays-in-process-hub/);
+  assert.match(runner, /hub:\s*"process"/);
+  assert.doesNotMatch(runner, /hub:\s*"scenes"/);
 });
 
 test("UI visual QA verifies two decoded PNG mascots plus the semantic CSS green knight", async () => {

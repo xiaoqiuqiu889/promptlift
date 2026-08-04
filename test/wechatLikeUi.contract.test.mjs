@@ -7,18 +7,20 @@ const read = (relativePath) => readFileSync(
   "utf8",
 );
 
-test("round 1 exposes four task-aligned hubs without copying social or payment modules", () => {
+test("round 1 exposes three task-aligned hubs with scenes merged into processing", () => {
   const html = read("src/renderer/index.html");
   const targets = [...html.matchAll(/data-hub-target="([^"]+)"/g)]
     .map((match) => match[1]);
   const labels = [...html.matchAll(/class="hub-tab-label">([^<]+)</g)]
     .map((match) => match[1]);
 
-  assert.deepEqual(targets, ["process", "scenes", "services", "profile"]);
-  assert.deepEqual(labels, ["处理", "场景", "服务", "我的"]);
+  assert.deepEqual(targets, ["process", "services", "profile"]);
+  assert.deepEqual(labels, ["处理", "服务", "我的"]);
   for (const hub of targets) {
     assert.match(html, new RegExp(`data-hub-page="${hub}"`));
   }
+  assert.match(html, /data-hub-page="process"[\s\S]*id="hubSceneSelector"/);
+  assert.doesNotMatch(html, /data-hub-page="scenes"/);
   assert.doesNotMatch(html, />\s*(?:聊天|朋友圈|支付|小程序)\s*</u);
 });
 
@@ -95,8 +97,8 @@ test("round 5 exposes accessible tabs, selected states, and reduced-motion feedb
   const css = read("src/renderer/styles.css");
 
   assert.match(html, /class="hub-tabbar"[^>]*role="tablist"/);
-  assert.equal((html.match(/class="hub-tab"/g) ?? []).length, 4);
-  assert.equal((html.match(/role="tab"/g) ?? []).length, 4);
+  assert.equal((html.match(/class="hub-tab"/g) ?? []).length, 3);
+  assert.equal((html.match(/role="tab"/g) ?? []).length, 3);
   assert.match(renderer, /tab\.setAttribute\("aria-selected",\s*String\(selected\)\)/);
   assert.match(renderer, /tab\.tabIndex\s*=\s*selected\s*\?\s*0\s*:\s*-1/);
   assert.match(renderer, /event\.key\s*===\s*"ArrowRight"/);

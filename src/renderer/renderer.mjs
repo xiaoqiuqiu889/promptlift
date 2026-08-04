@@ -159,7 +159,6 @@ const MODE_PRESENTATION = Object.freeze({
 });
 const HUB_LABELS = Object.freeze({
   process: "处理",
-  scenes: "场景",
   services: "服务",
   profile: "我的",
 });
@@ -243,6 +242,7 @@ const hubPrimaryAction = document.querySelector("#hubPrimaryAction");
 const hubPrimaryActionTitle = document.querySelector("#hubPrimaryActionTitle");
 const hubPrimaryActionHint = document.querySelector("#hubPrimaryActionHint");
 const hubPrivacyNote = document.querySelector("#hubPrivacyNote");
+const hubSceneSelector = document.querySelector("#hubSceneSelector");
 const hubTaskState = document.querySelector("#hubTaskState");
 const hubModelStateLabel = document.querySelector("#hubModelStateLabel");
 const hubModelCheckLabel = document.querySelector("#hubModelCheckLabel");
@@ -1208,6 +1208,16 @@ function showContextMenu() {
   showHub(state.hub);
 }
 
+function focusSceneSelector() {
+  showHub("process");
+  requestAnimationFrame(() => {
+    hubSceneSelector?.scrollIntoView({ block: "center", behavior: "smooth" });
+    const activeScene = hubSceneSelector?.querySelector(".hub-scene-choice.is-active")
+      ?? hubSceneSelector?.querySelector(".hub-scene-choice");
+    activeScene?.focus({ preventScroll: true });
+  });
+}
+
 function hidePanels({ collapse = true } = {}) {
   if (state.shortcutRecording) {
     state.shortcutRecording = false;
@@ -2018,7 +2028,7 @@ contextMenu.addEventListener("click", (event) => {
   }
   const hubMode = event.target.closest("[data-hub-mode]")?.dataset.hubMode;
   if (hubMode) {
-    state.hub = "scenes";
+    state.hub = "process";
     void handleMode(hubMode, { returnToMenu: true });
     return;
   }
@@ -2033,7 +2043,7 @@ contextMenu.addEventListener("click", (event) => {
   if (action === "configure") {
     showPanel(settingsPanel);
   } else if (action === "scenes") {
-    showHub("scenes");
+    focusSceneSelector();
   } else if (action === "mascot") {
     showPanel(mascotPanel);
   } else if (action === "shortcut") {

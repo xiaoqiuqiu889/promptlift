@@ -7,15 +7,25 @@ const read = (relativePath) => readFileSync(
   "utf8",
 );
 
-test("scene is the only user-facing expression-target selector", () => {
+test("scene selector is merged into the first processing tab without a standalone tab", () => {
   const html = read("src/renderer/index.html");
   const renderer = read("src/renderer/renderer.mjs");
 
   assert.doesNotMatch(html, /id="modePanel"/);
   assert.doesNotMatch(html, />工作模式</);
-  assert.match(html, /id="hubTabScenes"[\s\S]*>场景</);
+  assert.doesNotMatch(html, /id="hubTabScenes"/);
+  assert.doesNotMatch(html, /id="hubPageScenes"/);
+  const processPage = html.slice(
+    html.indexOf('data-hub-page="process"'),
+    html.indexOf('data-hub-page="services"'),
+  );
+  assert.match(processPage, /id="hubSceneSelector"/);
+  assert.match(processPage, /选择表达场景/);
+  assert.equal((processPage.match(/data-hub-mode=/g) ?? []).length, 4);
   assert.match(html, /data-menu-action="scenes"/);
-  assert.match(renderer, /action === "scenes"[\s\S]*showHub\("scenes"\)/);
+  assert.match(renderer, /action === "scenes"[\s\S]*focusSceneSelector\(\)/);
+  assert.doesNotMatch(renderer, /showHub\("scenes"\)/);
+  assert.doesNotMatch(renderer, /state\.hub\s*=\s*"scenes"/);
   assert.doesNotMatch(renderer, /showPanel\(modePanel\)/);
 });
 

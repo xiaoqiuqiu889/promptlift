@@ -3,21 +3,16 @@ dist/
 release/
 release-*/
 deliverables/*
-!deliverables/Prompt-Lift-20260804-r4/
-!deliverables/Prompt-Lift-20260804-r4/**
-!deliverables/Prompt-Lift-20260804-r4-win32-x64.zip
-!deliverables/Prompt-Lift-20260804-r5/
-!deliverables/Prompt-Lift-20260804-r5/**
-!deliverables/Prompt-Lift-20260804-r5-win32-x64.zip
-!deliverables/Prompt-Lift-20260804-r6/
-!deliverables/Prompt-Lift-20260804-r6/**
-!deliverables/Prompt-Lift-20260804-r6-win32-x64.zip
+!deliverables/Prompt-Lift-latest-win32-x64.zip
+!deliverables/SHA256SUMS.txt
 .env
 *.log
+/AGENTS.md
 
-# Ephemeral Electron user-data created by UI visual QA runs.
-qa/evidence/ui/launcher-user-data-*/
-qa/evidence/ui/run-*/
+# Generated QA screenshots, runtime profiles, and machine-local evidence.
+qa/evidence/
+qa/UI_VISUAL_RESULTS.md
+qa/UI_SHORTCUT_RESULTS.md
 
 # Image-generation scratch files and other local packaging scratch space.
 tmp/

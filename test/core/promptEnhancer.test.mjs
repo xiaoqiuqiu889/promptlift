@@ -172,7 +172,7 @@ test('model message envelope carries canonical recipe metadata', () => {
   const payload = JSON.parse(serialized);
 
   assert.equal(payload.mode, PROMPT_MODES.chatPolish);
-  assert.deepEqual(payload.recipe, { id: PROMPT_MODES.chatPolish, version: '1.2' });
+  assert.deepEqual(payload.recipe, { id: PROMPT_MODES.chatPolish, version: '1.3' });
   assert.doesNotMatch(messages[0].content, /输出秘密/);
   assert.match(messages[0].content, /chat-polish/);
 });
@@ -363,6 +363,108 @@ test('model protocol repairs an introduced meta-rewrite prompt and returns the d
   assert.equal(calls[0].temperature, 0.2);
   assert.equal(calls[1].temperature, 0);
   assert.match(calls[1].messages[0].content, /二次改写|元提示词/);
+});
+
+test('enhance instructions require decisive execution language without unsolicited permission seeking', () => {
+  for (const style of Object.values(MODEL_STYLES)) {
+    const chinese = buildModelInstruction('zh', style, PROMPT_MODES.enhance);
+    const english = buildModelInstruction('en', style, PROMPT_MODES.enhance);
+
+    assert.match(chinese, /任务已经明确.*禁止.*是否需要|禁止.*征询.*是否继续/isu);
+    assert.match(english, /task is already clear.*must not.*permission|do not append.*should I proceed/isu);
+  }
+});
+
+test('model protocol repairs an introduced permission-seeking tail into a decisive request', async () => {
+  const source = [
+    '结论：当前 README 文案需要优化，建议将 slogan 前置并放大，同时增加俏皮感。',
+    '下一步：优先处理此项，完成后提交审核。',
+  ].join('\n');
+  const responses = [
+    [
+      '结论：当前 README 文案需要优化，建议将 slogan 前置并放大，同时增加俏皮感。',
+      '下一步：我将按此方向修改，完成后提交审核。是否需要我优先处理此项？',
+    ].join('\n'),
+    [
+      '结论：当前 README 文案需要优化，建议将 slogan 前置并放大，同时增加俏皮感。',
+      '下一步：请优先处理此项，完成后提交审核。',
+    ].join('\n'),
+  ];
+  const calls = [];
+
+  const result = await enhancePrompt(source, {
+    endpoint: 'https://tokenhub.tencentmaas.com/v1',
+    model: 'deepseek-v4-flash',
+    apiKey: 'secret-test-key',
+    mode: PROMPT_MODES.enhance,
+    style: MODEL_STYLES.concise,
+    fetchImpl: async (_url, init) => {
+      calls.push(JSON.parse(init.body));
+      const rewritten = responses[calls.length - 1];
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            choices: [{
+              finish_reason: 'stop',
+              message: {
+                content: JSON.stringify({
+                  protocol: PROMPT_PROTOCOL_VERSION,
+                  mode: PROMPT_MODES.enhance,
+                  language: 'zh',
+                  status: 'ok',
+                  result: rewritten,
+                }),
+              },
+            }],
+          };
+        },
+      };
+    },
+  });
+
+  assert.equal(result, responses[1]);
+  assert.equal(calls.length, 2);
+  assert.match(calls[1].messages[0].content, /是否需要|是否继续|直接执行/);
+});
+
+test('model protocol rejects repeated unsolicited permission seeking', async () => {
+  let calls = 0;
+  await assert.rejects(
+    enhancePrompt('请修复界面问题并提交审核。', {
+      endpoint: 'https://tokenhub.tencentmaas.com/v1',
+      model: 'deepseek-v4-flash',
+      apiKey: 'secret-test-key',
+      mode: PROMPT_MODES.enhance,
+      style: MODEL_STYLES.concise,
+      fetchImpl: async () => {
+        calls += 1;
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return {
+              choices: [{
+                finish_reason: 'stop',
+                message: {
+                  content: JSON.stringify({
+                    protocol: PROMPT_PROTOCOL_VERSION,
+                    mode: PROMPT_MODES.enhance,
+                    language: 'zh',
+                    status: 'ok',
+                    result: '请修复界面问题并提交审核。是否需要我现在开始处理？',
+                  }),
+                },
+              }],
+            };
+          },
+        };
+      },
+    }),
+    (error) => error.code === 'MODEL_OUTPUT_PERMISSION_SEEKING',
+  );
+  assert.equal(calls, 2);
 });
 
 test('model protocol rejects repeated system-protocol or meta-prompt leakage', async () => {
@@ -900,7 +1002,7 @@ test('model messages isolate prompt injection inside a serialized source envelop
     mode: PROMPT_MODES.enhance,
     recipe: {
       id: PROMPT_MODES.enhance,
-      version: '1.2',
+      version: '1.3',
     },
     style: MODEL_STYLES.faithful,
     language: 'zh',

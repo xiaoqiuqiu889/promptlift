@@ -166,23 +166,19 @@
             <button class="hub-summary-action" type="button" data-menu-action="scenes"><small>场景</small><strong id="hubModeValue">AI 提示词</strong></button>
             <button id="hubReviewQuick" class="hub-summary-action" type="button" data-menu-action="review" role="switch" aria-checked="false"><small>应用</small><strong id="hubReviewValue">直接回填</strong></button>
           </div>
+          <p class="hub-section-label">选择表达场景</p>
+          <div id="hubSceneSelector" class="hub-scene-grid" aria-label="选择表达场景">
+            <button class="hub-scene-choice" type="button" data-hub-mode="enhance"><span class="hub-row-icon">AI</span><span><strong>AI 提示词</strong><small>目标与约束</small></span></button>
+            <button class="hub-scene-choice" type="button" data-hub-mode="upward-communication"><span class="hub-row-icon">上</span><span><strong>向上沟通</strong><small>结论与行动</small></span></button>
+            <button class="hub-scene-choice" type="button" data-hub-mode="chat-polish"><span class="hub-row-icon">客</span><span><strong>用户沟通</strong><small>安全与礼貌</small></span></button>
+            <button class="hub-scene-choice" type="button" data-hub-mode="ppt-copy"><span class="hub-row-icon">P</span><span><strong>PPT 文案</strong><small>标题与层级</small></span></button>
+          </div>
           <p class="hub-section-label">处理设置</p>
           <div class="hub-group">
             <button class="hub-row" type="button" data-menu-action="style"><span class="hub-row-icon">✦</span><span>优化档位<small>控制保真、简洁、专业与创意程度</small></span><span id="currentStyleLabel" class="menu-value">清晰直达</span></button>
             <button id="reviewModeButton" class="hub-row" role="switch" type="button" data-menu-action="review" aria-checked="false"><span class="hub-row-icon">○</span><span>审阅后应用<small>开启后先看差异，再决定是否回填</small></span><span id="reviewModeLabel" class="menu-value">已关闭</span></button>
             <button id="systemPromptQuickAction" class="hub-row" type="button" data-menu-action="system-prompts"><span class="hub-row-icon">≡</span><span>系统提示词<small>查看当前档位约束，并编辑本机自定义补充规则</small></span><span class="menu-value">查看与编辑</span></button>
           </div>
-        </section>
-
-        <section id="hubPageScenes" class="hub-page" data-hub-page="scenes" role="tabpanel" aria-labelledby="hubTabScenes" hidden>
-          <p class="hub-section-label">选择表达场景</p>
-          <div class="hub-group">
-            <button class="hub-row hub-scene-row" type="button" data-hub-mode="enhance"><span class="hub-row-icon">AI</span><span>AI 提示词<small>明确目标、上下文、约束与输出格式</small></span><span class="menu-value">优化</span></button>
-            <button class="hub-row hub-scene-row" type="button" data-hub-mode="upward-communication"><span class="hub-row-icon">上</span><span>向上沟通<small>结论前置，整理依据、风险与下一步</small></span><span class="menu-value">汇报</span></button>
-            <button class="hub-row hub-scene-row" type="button" data-hub-mode="chat-polish"><span class="hub-row-icon">客</span><span>用户沟通<small>表达更安全、礼貌、清晰</small></span><span class="menu-value">沟通</span></button>
-            <button class="hub-row hub-scene-row" type="button" data-hub-mode="ppt-copy"><span class="hub-row-icon">P</span><span>PPT 文案<small>提炼结论型标题与单页分层正文</small></span><span class="menu-value">演示</span></button>
-          </div>
-          <p class="hub-footnote">单击切换后停留在本页，便于确认当前场景。</p>
         </section>
 
         <section id="hubPageServices" class="hub-page" data-hub-page="services" role="tabpanel" aria-labelledby="hubTabServices" hidden>
@@ -240,7 +236,6 @@
 
         <div class="hub-tabbar" role="tablist" aria-label="主要功能">
           <button id="hubTabProcess" class="hub-tab" type="button" role="tab" data-hub-target="process" aria-controls="hubPageProcess" aria-selected="true"><span class="hub-tab-icon" aria-hidden="true">◎</span><span class="hub-tab-label">处理</span></button>
-          <button id="hubTabScenes" class="hub-tab" type="button" role="tab" data-hub-target="scenes" aria-controls="hubPageScenes" aria-selected="false"><span class="hub-tab-icon" aria-hidden="true">◇</span><span class="hub-tab-label">场景</span></button>
           <button id="hubTabServices" class="hub-tab" type="button" role="tab" data-hub-target="services" aria-controls="hubPageServices" aria-selected="false"><span class="hub-tab-icon" aria-hidden="true">＋</span><span class="hub-tab-label">服务</span></button>
           <button id="hubTabProfile" class="hub-tab" type="button" role="tab" data-hub-target="profile" aria-controls="hubPageProfile" aria-selected="false"><span class="hub-tab-icon" aria-hidden="true">○</span><span class="hub-tab-label">我的</span></button>
         </div>

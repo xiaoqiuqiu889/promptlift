@@ -1,4 +1,4 @@
-export const RECIPE_SCHEMA_VERSION = '1.2';
+export const RECIPE_SCHEMA_VERSION = '1.3';
 
 export const RECIPE_IDS = Object.freeze({
   enhance: 'enhance',
@@ -160,11 +160,13 @@ const RECIPES = Object.freeze([
       zh: [
         '保留原意和事实锚点。',
         '不得返回要求另一个模型再次改写原文的二次提示词。',
+        '任务与下一步已经明确时，直接要求执行；不得追加“是否需要继续、是否需要处理、要不要开始”等征询许可。',
         '产品名、功能名、模式名、界面文案和指代默认按原文保留；仅在原文明确时指定产品或平台。',
       ],
       en: [
         'Preserve intent and factual anchors.',
         'Never return a second-order prompt asking another model to rewrite the source.',
+        'When the task and next action are already clear, request execution directly and never append permission-seeking language such as “should I proceed” or “would you like me to start.”',
         'Preserve product names, feature names, mode labels, UI copy, and references as written; name a product or platform only when the source does.',
       ],
     },

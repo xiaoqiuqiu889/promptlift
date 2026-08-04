@@ -1757,8 +1757,8 @@ async function runElectron(electron, args) {
   const runMenusAndPanels = async () => {
     await runFlow("wechat-like-hub-navigation", async () => {
       await compactReady(COMPACT_SIZES[1], {}, true);
-      await rightClickAvatar("open four-area product hub");
-      for (const hub of ["process", "scenes", "services", "profile"]) {
+      await rightClickAvatar("open three-area product hub");
+      for (const hub of ["process", "services", "profile"]) {
         await clickAt(
           "[data-hub-target=\"" + hub + "\"]",
           "hub navigation → " + hub,
@@ -1771,10 +1771,10 @@ async function runElectron(electron, args) {
         });
         await takeSnapshot(
           "hub-page-" + hub,
-          "four-area hub → " + hub,
+          "three-area hub → " + hub,
         );
       }
-      await pressEscape("close four-area product hub");
+      await pressEscape("close three-area product hub");
     });
 
     await runFlow("context-menu-complete", async () => {
@@ -1791,9 +1791,9 @@ async function runElectron(electron, args) {
             throw new Error("mock quit unexpectedly destroyed QA window");
           }
         } else if (action === "scenes") {
-          await waitForState({ view: "expanded", hub: "scenes", visible: { "#contextMenu": true } });
-          await takeSnapshot("context-scenes-visible", "context menu → scenes");
-          await pressEscape("close scenes context menu");
+          await waitForState({ view: "expanded", hub: "process", visible: { "#contextMenu": true } });
+          await takeSnapshot("context-scenes-merged-visible", "context menu → process scene selector");
+          await pressEscape("close process context menu");
         } else if (action === "startup" || action === "review") {
           await waitForState({ view: "expanded", visible: { "#contextMenu": true } });
           await takeSnapshot("context-startup-visible", "context menu → startup");
@@ -1865,19 +1865,19 @@ async function runElectron(electron, args) {
 
     await runFlow("right-click-mode-colors", async () => {
       await compactReady(COMPACT_SIZES[1], {}, true);
-      await rightClickAvatar("open scenes hub for right-click baseline");
-      await menuAction("scenes", "context menu → scenes baseline");
-      await waitForState({ view: "expanded", hub: "scenes", visible: { "#contextMenu": true } });
+      await rightClickAvatar("open process hub for right-click baseline");
+      await menuAction("scenes", "context menu → merged scene selector");
+      await waitForState({ view: "expanded", hub: "process", visible: { "#contextMenu": true } });
       await clickAt("[data-hub-mode=\"ppt-copy\"]", "set right-click baseline → ppt-copy");
       await waitForState({
         view: "expanded",
         mode: "ppt-copy",
-        hub: "scenes",
+        hub: "process",
         visible: { "#contextMenu": true },
       });
       await takeSnapshot(
-        "scene-selection-stays-in-scene-hub",
-        "scene option → scenes hub remains open",
+        "scene-selection-stays-in-process-hub",
+        "scene option → process hub remains open",
       );
       await clickAt("#collapseButton", "mode parent menu → compact");
       await waitForState({ view: "compact", mode: "ppt-copy" });
@@ -1919,14 +1919,14 @@ async function runElectron(electron, args) {
       const tierLabelSets = [];
       for (const mode of WORK_MODES) {
         await compactReady(COMPACT_SIZES[1], {}, true, { reviewMode: false });
-        await rightClickAvatar("open scenes hub for tier labels: " + mode);
-        await menuAction("scenes", "context menu → scenes for tier labels: " + mode);
-        await waitForState({ view: "expanded", hub: "scenes", visible: { "#contextMenu": true } });
+        await rightClickAvatar("open process hub for tier labels: " + mode);
+        await menuAction("scenes", "context menu → merged scenes for tier labels: " + mode);
+        await waitForState({ view: "expanded", hub: "process", visible: { "#contextMenu": true } });
         await clickAt("[data-hub-mode=\"" + mode + "\"]", "scene option for tier labels → " + mode);
         await waitForState({
           view: "expanded",
           mode,
-          hub: "scenes",
+          hub: "process",
           visible: { "#contextMenu": true },
         });
         await menuAction("style", "context menu → style labels: " + mode);

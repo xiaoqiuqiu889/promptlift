@@ -23,7 +23,7 @@ test("renderer exposes four expression recipes without adding a hot-path choice"
   );
 });
 
-test("settings menu prioritizes optimization tier and the canonical scene selector returns to scenes", () => {
+test("processing hub prioritizes optimization tier and keeps scene changes in the merged page", () => {
   const html = read("src/renderer/index.html");
   const renderer = read("src/renderer/renderer.mjs");
   const menuStart = html.indexOf('<nav id="contextMenu"');
@@ -44,6 +44,8 @@ test("settings menu prioritizes optimization tier and the canonical scene select
     renderer,
     /const hubMode = event\.target\.closest\("\[data-hub-mode\]"\)[\s\S]*handleMode\(hubMode,\s*\{\s*returnToMenu:\s*true\s*\}\)/,
   );
+  assert.match(renderer, /state\.hub\s*=\s*"process"/);
+  assert.doesNotMatch(renderer, /state\.hub\s*=\s*"scenes"/);
 });
 
 test("prompt style UI exposes exactly four distinct tiers and migrates legacy values", () => {

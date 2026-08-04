@@ -44,6 +44,23 @@ test("round 7 turns the current-state overview into direct, accessible shortcuts
   assert.match(css, /\.hub-summary-action:focus-visible/);
 });
 
+test("processing hub owns the scene selector and the bottom navigation has only three tabs", () => {
+  const html = read("src/renderer/index.html");
+  const process = pageSlice(html, "process", "services");
+  const tabbar = html.slice(
+    html.indexOf('class="hub-tabbar"'),
+    html.indexOf("</nav>", html.indexOf('class="hub-tabbar"')),
+  );
+
+  assert.match(process, /id="hubSceneSelector"/);
+  assert.equal((process.match(/data-hub-mode=/g) ?? []).length, 4);
+  assert.equal((tabbar.match(/class="hub-tab"/g) ?? []).length, 3);
+  assert.match(tabbar, />处理</);
+  assert.match(tabbar, />服务</);
+  assert.match(tabbar, />我的</);
+  assert.doesNotMatch(tabbar, />场景</);
+});
+
 test("round 8 mirrors operation progress in the feature hub without adding a second task", () => {
   const html = read("src/renderer/index.html");
   const renderer = read("src/renderer/renderer.mjs");
