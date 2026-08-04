@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prompt Lift · 提示词自动化迭代优化报告</title>
+  <style>
+    :root {
+      --ink: #17202a;
+      --muted: #667381;
+      --line: #dfe5e9;
+      --paper: #f7f9fa;
+      --card: #ffffff;
+      --accent: #136f63;
+      --accent-soft: #e4f3ef;
+      --blue: #2f5d9a;
+      --blue-soft: #e9f0fb;
+      --amber: #9a6418;
+      --amber-soft: #fff3dd;
+      --red: #9e3f42;
+      --red-soft: #fdebed;
+      --shadow: 0 12px 32px rgba(22, 36, 44, .07);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: "Segoe UI", "Noto Sans SC", system-ui, -apple-system, sans-serif;
+      line-height: 1.65;
+    }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .shell { max-width: 1180px; margin: 0 auto; padding: 42px 24px 80px; }
+    .hero {
+      background: linear-gradient(135deg, #102d36 0%, #175a56 56%, #2a7a67 100%);
+      color: #fff;
+      border-radius: 24px;
+      padding: 42px 44px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      width: 340px;
+      height: 340px;
+      right: -90px;
+      top: -120px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 50%;
+      box-shadow: 0 0 0 36px rgba(255,255,255,.04), 0 0 0 72px rgba(255,255,255,.03);
+    }
+    .eyebrow { text-transform: uppercase; letter-spacing: .15em; font-size: 12px; opacity: .78; }
+    h1 { font-size: clamp(30px, 4vw, 48px); line-height: 1.12; margin: 12px 0 16px; max-width: 760px; }
+    .hero p { max-width: 780px; margin: 0; font-size: 17px; color: rgba(255,255,255,.88); }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 24px; font-size: 13px; color: rgba(255,255,255,.8); }
+    .meta code { color: #fff; }
+    .nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0 34px; }
+    .nav a { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 7px 13px; font-size: 13px; }
+    section { margin-top: 36px; }
+    h2 { font-size: 25px; margin: 0 0 14px; letter-spacing: -.02em; }
+    h3 { font-size: 18px; margin: 0 0 8px; }
+    .lead { color: var(--muted); margin: -6px 0 18px; }
+    .grid { display: grid; gap: 16px; }
+    .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(22,36,44,.03); }
+    .metric-card { min-height: 142px; }
+    .metric-label { color: var(--muted); font-size: 13px; }
+    .metric { font-size: 34px; font-weight: 750; letter-spacing: -.04em; margin: 5px 0 1px; }
+    .metric-note { font-size: 12px; color: var(--muted); }
+    .good { color: var(--accent); }
+    .warn { color: var(--amber); }
+    .bad { color: var(--red); }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 650; }
+    .tag.good { background: var(--accent-soft); }
+    .tag.warn { background: var(--amber-soft); }
+    .tag.bad { background: var(--red-soft); }
+    .tag.blue { color: var(--blue); background: var(--blue-soft); }
+    .callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 15px 18px; border-radius: 0 12px 12px 0; }
+    .callout.warn { border-color: var(--amber); background: var(--amber-soft); }
+    .callout p:last-child, .card p:last-child { margin-bottom: 0; }
+    .principle { display: flex; gap: 13px; align-items: flex-start; }
+    .number { flex: 0 0 30px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: var(--accent); font-weight: 750; }
+    .principle p { margin: 0; color: var(--muted); font-size: 14px; }
+    .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 9px; align-items: stretch; }
+    .flow-step { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 17px 14px; min-height: 132px; }
+    .flow-step:not(:last-child)::after { content: "→"; position: absolute; right: -16px; top: 45%; color: var(--accent); font-size: 22px; font-weight: 700; z-index: 1; }
+    .flow-step strong { display: block; margin-bottom: 6px; }
+    .flow-step span { color: var(--muted); font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #f0f4f5; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    tr:last-child td { border-bottom: 0; }
+    code, pre { font-family: "Cascadia Code", Consolas, monospace; }
+    code { font-size: .92em; background: #f0f3f4; padding: 2px 5px; border-radius: 5px; }
+    pre { margin: 0; white-space: pre-wrap; background: #12232a; color: #e5f1ee; border-radius: 12px; padding: 16px; font-size: 12px; overflow: auto; }
+    .bar-row { display: grid; grid-template-columns: 170px 1fr 84px; gap: 12px; align-items: center; margin: 12px 0; font-size: 14px; }
+    .bar { height: 12px; background: #e8edef; border-radius: 99px; overflow: hidden; }
+    .bar > i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+    .bar.baseline > i { background: #93a1aa; }
+    .bar.candidate > i { background: var(--accent); }
+    .score-big { font-size: 52px; font-weight: 800; color: var(--accent); letter-spacing: -.06em; }
+    .delta { font-size: 24px; color: var(--accent); font-weight: 750; }
+    .small { font-size: 12px; color: var(--muted); }
+    .list { margin: 9px 0 0; padding-left: 19px; }
+    .list li { margin: 4px 0; }
+    .status-line { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    @media (max-width: 900px) {
+      .grid.four, .grid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .flow { grid-template-columns: 1fr; }
+      .flow-step:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -21px; }
+    }
+    @media (max-width: 620px) {
+      .shell { padding: 20px 14px 54px; }
+      .hero { padding: 29px 24px; border-radius: 18px; }
+      .grid.four, .grid.three, .grid.two { grid-template-columns: 1fr; }
+      .bar-row { grid-template-columns: 120px 1fr 68px; font-size: 12px; }
+      th, td { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="eyebrow">Prompt Lift · Prompt Engine Audit</div>
+      <h1>提示词自动化迭代优化报告</h1>
+      <p>本版建立独立的 Champion / Challenger 评测与受控晋级闭环：先用可重复的硬指标拦截格式、原文、长度和语义越界，再以相对提升门槛决定是否把候选系统提示词约束写回主干。</p>
+      <div class="meta">
+        <span>评测分支：<code>codex/prompt-eval-optimizer</code></span>
+        <span>基线：<code>origin/codex/prompt-tier-mascots@a41d323</code></span>
+        <span>报告日期：2026-08-04</span>
+      </div>
+    </header>
+
+    <nav class="nav" aria-label="报告目录">
+      <a href="#summary">结论</a><a href="#principles">改动原则</a><a href="#architecture">流程</a><a href="#changes">改动内容</a><a href="#metrics">指标</a><a href="#scores">得分</a><a href="#qa">验收</a><a href="#limits">限制与下一步</a>
+    </nav>
+
+    <section id="summary">
+      <h2>一页结论</h2>
+      <p class="lead">工程能力已落地；得分提升数据来自可控的合成 smoke fixture，尚未代表真实模型线上收益。</p>
+      <div class="grid four">
+        <div class="card metric-card"><div class="metric-label">质量综合分（合成样例）</div><div class="metric">0.825 → 1.000</div><div class="metric-note good">相对提升 21.21%</div></div>
+        <div class="card metric-card"><div class="metric-label">硬门禁通过率</div><div class="metric">0% → 100%</div><div class="metric-note good">协议 / 长度 / 锚点 / 越界均纳入</div></div>
+        <div class="card metric-card"><div class="metric-label">专项测试</div><div class="metric">17 / 17</div><div class="metric-note good">评测指标、晋级和 CLI 合约通过</div></div>
+        <div class="card metric-card"><div class="metric-label">原文长度上限</div><div class="metric">≤ 300%</div><div class="metric-note">严格按 Unicode code point 计数</div></div>
+      </div>
+      <div class="callout warn" style="margin-top:16px">
+        <strong>口径声明：</strong>21.21% 是 <code>qa/prompt-eval/golden.jsonl</code> + mock runner 的离线合成结果，用于证明评测管线和晋级门禁可工作；真实模型收益必须用同一批脱敏 golden cases、真实 runner 和至少一轮人工/独立 judge 校准后重新计算。
+      </div>
+    </section>
+
+    <section id="principles">
+      <h2>改动原则</h2>
+      <div class="grid two">
+        <div class="card principle"><div class="number">1</div><div><h3>原文优先，创意受控</h3><p>非创意档位不扩散应用场景；所有档位统一保留事实锚点、结构意图和关键约束。创意档位仍受 scope、modality 和长度门禁控制。</p></div></div>
+        <div class="card principle"><div class="number">2</div><div><h3>硬门禁先于主观评分</h3><p>协议字段、状态语义、300% 长度、URL/路径/代码等锚点、负向约束和软硬语气一旦失败，judge 分数不能把样本“救回来”。</p></div></div>
+        <div class="card principle"><div class="number">3</div><div><h3>Champion / Challenger 隔离</h3><p>候选在独立分支和独立 worktree 运行；比较必须使用完全相同的 case-id 集合，避免样本漂移和主进程干扰。</p></div></div>
+        <div class="card principle"><div class="number">4</div><div><h3>3% 是相对提升，不是绝对分差</h3><p>晋级条件为 <code>(candidate - baseline) / baseline ≥ 0.03</code>，并且任何受保护指标不能回退。</p></div></div>
+        <div class="card principle"><div class="number">5</div><div><h3>隐私最小化</h3><p>报告只保存计数、比率、哈希和失败类别，不写入原文、模型返回全文、模型凭据或授权头。</p></div></div>
+        <div class="card principle"><div class="number">6</div><div><h3>写回必须显式授权</h3><p>默认 dry-run；只有传入 <code>--promote</code> 且目标 worktree 干净、候选策略无疑似密钥、所有门禁通过时，才原子替换主干策略文件。</p></div></div>
+      </div>
+    </section>
+
+    <section id="architecture">
+      <h2>自动化迭代流程</h2>
+      <p class="lead">评测器只负责比较与给出晋级判定；真实模型调用由注入式 runner 持有，避免把生产凭据和生产编排耦合进工具。</p>
+      <div class="flow">
+        <div class="flow-step"><strong>1 · Golden cases</strong><span>脱敏的源文、模式、档位、语言和协议期望。两版必须拥有相同 case-id。</span></div>
+        <div class="flow-step"><strong>2 · Runner</strong><span>分别运行 baseline / candidate；返回结构化协议，不记录原文和全文结果。</span></div>
+        <div class="flow-step"><strong>3 · Metrics</strong><span>执行硬门禁、锚点召回、scope/modal drift 和可选独立 judge 聚合。</span></div>
+        <div class="flow-step"><strong>4 · Gate</strong><span>质量分相对提升 ≥3%，且 protected metrics 无回退，才 eligible。</span></div>
+        <div class="flow-step"><strong>5 · Write-back</strong><span>显式 <code>--promote</code>，干净主干 worktree，原子写入并保留时间戳备份。</span></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>晋级逻辑</h3>
+        <pre>candidate passes all hard gates
+AND (candidateQuality - baselineQuality) / baselineQuality &gt;= 0.03
+AND hardGatePassRate, semanticFidelity, anchorRecall, utility,
+    scopeInventionRate, repairRate, lengthViolationRate do not regress
+⇒ policy may be promoted</pre>
+      </div>
+    </section>
+
+    <section id="changes">
+      <h2>本版改动内容</h2>
+      <table>
+        <thead><tr><th>区域</th><th>文件</th><th>改动与价值</th></tr></thead>
+        <tbody>
+          <tr><td>评测核心</td><td><code>scripts/prompt-eval/metrics.mjs</code></td><td>新增确定性评测器：精确 JSON 协议、状态语义、≤300% 长度、不可变锚点、scope 引入、负向/软/硬 modality 漂移、聚合指标、保护指标和晋级比较。</td></tr>
+          <tr><td>自动化 CLI</td><td><code>scripts/prompt-eval.mjs</code></td><td>支持离线 JSONL 对比和注入式 runner；默认 dry-run；校验 case-id 集合；输出隐私安全摘要；只在显式 <code>--promote</code> 时写回策略。</td></tr>
+          <tr><td>运行时策略</td><td><code>config/prompt-policy.json</code><br><code>src/core/promptEnhancer.mjs</code></td><td>系统提示词加载受控策略；策略行经过 schema、长度和字符清洗；空策略无行为变化；晋级后的 global / mode / tier 约束可进入 prompt builder。</td></tr>
+          <tr><td>回归资产</td><td><code>qa/prompt-eval/</code></td><td>提供 golden fixture、mock runner 和候选策略，能离线重现门禁及 21.21% 合成提升。</td></tr>
+          <tr><td>测试与文档</td><td><code>test/promptEval*.test.mjs</code><br><code>docs/prompt-evaluation-loop.md</code></td><td>覆盖严格长度、锚点、scope、modality、隐私、3% 门槛、保护指标、CLI dry-run 和显式 promote；提供真实 runner 接入和策略回写说明。</td></tr>
+          <tr><td>工程脚本</td><td><code>package.json</code><br><code>.gitignore</code></td><td>新增 <code>prompt-eval</code> 与合约测试命令，忽略评测运行摘要和临时运行目录，避免测评产物污染仓库。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="metrics">
+      <h2>量化指标体系</h2>
+      <p class="lead">“质量分”不是单一黑盒分数，而是硬合规、语义保真和任务效用的加权组合；硬失败会直接阻止晋级。</p>
+      <table>
+        <thead><tr><th>指标</th><th>计算 / 检查</th><th>作用</th><th>保护级别</th></tr></thead>
+        <tbody>
+          <tr><td>Hard compliance</td><td>协议、mode/language、status 语义、≤300%、anchor、scope、modality 的通过率</td><td>确保模型返回可安全应用的协议结果</td><td><span class="tag bad">硬门禁</span></td></tr>
+          <tr><td>Semantic fidelity</td><td>可选独立 judge 标量，限制在 0–1；不覆盖硬失败</td><td>衡量是否忠实于原意、事实和约束</td><td><span class="tag blue">受保护</span></td></tr>
+          <tr><td>Anchor recall</td><td>保留 URL、路径、邮箱、Issue ID、flags、代码和模板变量的比例</td><td>客观捕捉关键事实丢失</td><td><span class="tag blue">受保护</span></td></tr>
+          <tr><td>Scope invention rate</td><td>新增平台、受众、流程、交付物、能力、解决方案类别的比例</td><td>防止“应用场景扩散”和自作主张加需求</td><td><span class="tag blue">受保护，越低越好</span></td></tr>
+          <tr><td>Modality drift</td><td>负向约束被解除、软约束被升级、硬约束被弱化的比例</td><td>防止“不应做”变成“可以做”或建议语气改变责任</td><td><span class="tag blue">受保护</span></td></tr>
+          <tr><td>Utility</td><td>可选独立 judge 标量，限制在 0–1</td><td>衡量结果是否更清晰、可执行且仍服务于原任务</td><td><span class="tag blue">受保护</span></td></tr>
+          <tr><td>Quality score</td><td><code>0.60 × hard + 0.25 × semantic + 0.15 × utility</code></td><td>作为 3% 相对提升的主比较分</td><td><span class="tag good">晋级主指标</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="scores">
+      <h2>测评得分提升情况</h2>
+      <div class="grid two">
+        <div class="card">
+          <div class="status-line"><span class="tag warn">合成 smoke</span><span class="small">2 cases · mock runner · 非生产数据</span></div>
+          <div class="score-big">+21.21%</div>
+          <div class="small">相对质量分提升，超过 3% 晋级门槛</div>
+          <div class="bar-row"><span>Baseline quality</span><div class="bar baseline"><i style="width:82.5%"></i></div><strong>0.825</strong></div>
+          <div class="bar-row"><span>Candidate quality</span><div class="bar candidate"><i style="width:100%"></i></div><strong>1.000</strong></div>
+        </div>
+        <div class="card">
+          <h3>关键变化</h3>
+          <div class="bar-row"><span>Hard gate pass</span><div class="bar baseline"><i style="width:0%"></i></div><strong>0% → 100%</strong></div>
+          <div class="bar-row"><span>Anchor recall</span><div class="bar candidate"><i style="width:100%"></i></div><strong>0.50 → 1.00</strong></div>
+          <div class="bar-row"><span>Failure count</span><div class="bar candidate"><i style="width:0%"></i></div><strong>2 → 0</strong></div>
+          <p class="small">Baseline failures：<code>ANCHOR_LOSS</code>、<code>SEMANTIC_MODALITY_DRIFT</code>。Candidate 未出现失败类别。由于样例很小，这些数值只能证明管线行为，不能外推线上效果。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="qa">
+      <h2>工程验收证据</h2>
+      <table>
+        <thead><tr><th>检查</th><th>结果</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>node --check</code></td><td><span class="tag good">通过</span></td><td><code>scripts/prompt-eval.mjs</code>、<code>scripts/prompt-eval/metrics.mjs</code>、<code>src/core/promptEnhancer.mjs</code>。</td></tr>
+          <tr><td><code>npm run check</code></td><td><span class="tag good">通过</span></td><td>包含新增脚本语法检查。</td></tr>
+          <tr><td>评测专项合约测试</td><td><span class="tag good">17 / 17</span></td><td><code>promptEvalMetrics</code>、<code>promptEvaluation</code>、<code>promptEvalCli</code> 全部通过。</td></tr>
+          <tr><td><code>npm test</code></td><td><span class="tag warn">232 通过 / 1 环境失败</span></td><td>唯一失败来自预先存在的 <code>test/packageSurfaceAudit.test.mjs</code>：当前环境缺少 <code>@electron/asar</code>；与本版评测逻辑无关。</td></tr>
+          <tr><td>主干隔离</td><td><span class="tag good">保持未修改</span></td><td>本版文件只在独立 worktree <code>AIlight-prompt-eval</code> 产生；主 worktree 原有脏改动未被触碰。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="commands">
+      <h2>复现命令</h2>
+      <div class="grid two">
+        <div class="card"><h3>离线 baseline / candidate 对比</h3><pre>node scripts/prompt-eval.mjs `
+  --baseline .\qa\prompt-eval\baseline.jsonl `
+  --candidate .\qa\prompt-eval\candidate.jsonl `
+  --output .\qa\prompt-eval\summary.json</pre><p class="small">不带 <code>--promote</code> 永远是 dry-run。</p></div>
+        <div class="card"><h3>连接真实模型 runner</h3><pre>node scripts/prompt-eval.mjs `
+  --dataset .\qa\prompt-eval\golden.jsonl `
+  --runner .\qa\prompt-eval\runner.mjs `
+  --baseline-policy .\config\prompt-policy.json `
+  --candidate-policy .\qa\prompt-eval\candidate-policy.json `
+  --output .\qa\prompt-eval\summary.json</pre><p class="small">runner 自己管理模型连接；不得把 Key、原文或全文结果写日志。</p></div>
+      </div>
+      <div class="callout" style="margin-top:16px"><strong>主干写回：</strong>只有在候选通过所有门禁后，使用 <code>--promote</code> 指向干净的主干 worktree。CLI 会对 <code>config/prompt-policy.json</code> 做临时文件写入、原子替换并留下时间戳 <code>.bak</code>；不会自动 commit、push、merge。</div>
+    </section>
+
+    <section id="limits">
+      <h2>当前限制与下一步</h2>
+      <div class="grid two">
+        <div class="card"><h3>已知限制</h3><ul class="list"><li>本报告的 21.21% 使用 2 条合成 fixture，不是生产模型测评。</li><li>semantic / utility 目前允许独立 judge 提供 0–1 标量；正式上线前需要固定 judge rubric、重复采样和人工校准。</li><li>当前主 worktree 有既有未提交改动，因此本次没有把策略写回主干，也没有自动合并。</li><li>远端没有 <code>main</code> 分支，本次以最新已提交的 <code>origin/codex/prompt-tier-mascots</code> 作为基线。</li></ul></div>
+        <div class="card"><h3>建议的下一轮</h3><ol class="list"><li>建立覆盖四种表达场景 × 全部档位的脱敏 golden set，并为每条样例标注 anchors、hard/soft/negative constraints。</li><li>接入真实模型 runner，固定 temperature、模型版本和重试策略，至少运行 3 次取均值与置信区间。</li><li>引入双盲人工评分，对 semantic fidelity 和 utility 做校准，保留 judge disagreement。</li><li>只允许候选在独立分支晋级；达到 3% 且 protected metrics 不回退后，再向干净主干写回策略。</li></ol></div>
+      </div>
+    </section>
+
+    <section id="traceability">
+      <h2>版本追踪</h2>
+      <table>
+        <thead><tr><th>提交</th><th>目的</th></tr></thead>
+        <tbody>
+          <tr><td><code>860b2de</code></td><td>补充晋级与隐私合约测试</td></tr>
+          <tr><td><code>7b2ee77</code></td><td>增加确定性输出指标</td></tr>
+          <tr><td><code>b8a145f</code></td><td>覆盖 CLI dry-run 与显式 promote</td></tr>
+          <tr><td><code>3ad1321</code></td><td>增加可测量的提示词优化循环</td></tr>
+          <tr><td><code>6564457</code></td><td>运行时加载晋级策略约束</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer>
+      报告文件为独立 worktree 中的自包含静态 HTML；不包含模型凭据、原文或模型全文返回。数据口径以代码和专项测试为准，合成 smoke 结果必须在真实 runner 接入后重新计算。
+    </footer>
+  </main>
+</body>
+</html>
