@@ -371,7 +371,15 @@ test('enhance instructions require decisive execution language without unsolicit
     const english = buildModelInstruction('en', style, PROMPT_MODES.enhance);
 
     assert.match(chinese, /任务已经明确.*禁止.*是否需要|禁止.*征询.*是否继续/isu);
+    assert.match(
+      chinese,
+      /编号产品反馈.*实现细节.*不构成改写阻塞.*不得新增.*待确认/isu,
+    );
     assert.match(english, /task is already clear.*must not.*permission|do not append.*should I proceed/isu);
+    assert.match(
+      english,
+      /numbered product feedback.*implementation details.*do not block the rewrite.*do not add.*confirmation/isu,
+    );
   }
 });
 

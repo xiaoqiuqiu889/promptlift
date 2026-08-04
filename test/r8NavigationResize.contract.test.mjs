@@ -122,6 +122,11 @@ test("resize gesture uses pointer capture, preserves aspect ratio, and cannot op
   }
   assert.match(resizeGesture, /suppressAvatarClickUntil/);
   assert.match(resizeGesture, /suppressMenuClickUntil/);
+  assert.match(
+    resizeGesture,
+    /resizeSettleToken[\s\S]*settleToken[\s\S]*resizeSettleToken\s*!==\s*settleToken/,
+    "an earlier resize acknowledgement must not settle a newer drag session",
+  );
   assert.doesNotMatch(resizeGesture, /handleEnhance|api\.enhance|api\.capture|api\.apply/);
 });
 

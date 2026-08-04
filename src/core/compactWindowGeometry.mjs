@@ -2,6 +2,7 @@ const MIN_VISUAL_SIZE = 48;
 const MAX_VISUAL_SIZE = 430;
 const SHAPE_PADDING = 4;
 const RESIZE_HANDLE_SIZE = 28;
+export const COMPACT_RESIZE_SHAPE_SIGNATURE = "__compact-resize-full-surface__";
 
 function clamp(value, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -108,4 +109,22 @@ export function computeCompactShapeRects(input = {}) {
   }
 
   return rects.filter(Boolean);
+}
+
+export function resolveCompactShapeUpdate(input = {}) {
+  const currentSignature = typeof input.currentSignature === "string"
+    ? input.currentSignature
+    : "";
+  if (input.resizing === true) {
+    return currentSignature === COMPACT_RESIZE_SHAPE_SIGNATURE
+      ? { signature: currentSignature, rects: null }
+      : { signature: COMPACT_RESIZE_SHAPE_SIGNATURE, rects: [] };
+  }
+
+  const rects = Array.isArray(input.rects) ? input.rects : [];
+  const signature = JSON.stringify(rects);
+  return {
+    signature,
+    rects: signature === currentSignature ? null : rects,
+  };
 }

@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  COMPACT_RESIZE_SHAPE_SIGNATURE,
   computeCompactLayout,
   computeCompactShapeRects,
+  resolveCompactShapeUpdate,
 } from "../src/core/compactWindowGeometry.mjs";
 
 function unionBounds(rects) {
@@ -105,6 +107,34 @@ test("visible feedback is included in the interactive shape without restoring a 
   assert.ok(bounds.width < 240 || bounds.height < 280);
 });
 
+test("continuous compact resizing opens one stable drawing surface and reapplies shape once", () => {
+  const initialRects = [{ x: 20, y: 20, width: 180, height: 220 }];
+  const firstDragFrame = resolveCompactShapeUpdate({
+    resizing: true,
+    currentSignature: JSON.stringify(initialRects),
+    rects: initialRects,
+  });
+  assert.deepEqual(firstDragFrame.rects, []);
+  assert.equal(firstDragFrame.signature, COMPACT_RESIZE_SHAPE_SIGNATURE);
+
+  const laterDragFrame = resolveCompactShapeUpdate({
+    resizing: true,
+    currentSignature: firstDragFrame.signature,
+    rects: [{ x: 24, y: 24, width: 210, height: 250 }],
+  });
+  assert.equal(laterDragFrame.rects, null);
+  assert.equal(laterDragFrame.signature, COMPACT_RESIZE_SHAPE_SIGNATURE);
+
+  const finalRects = [{ x: 30, y: 28, width: 240, height: 286 }];
+  const settledFrame = resolveCompactShapeUpdate({
+    resizing: false,
+    currentSignature: laterDragFrame.signature,
+    rects: finalRects,
+  });
+  assert.deepEqual(settledFrame.rects, finalRects);
+  assert.equal(settledFrame.signature, JSON.stringify(finalRects));
+});
+
 test("compact shape crosses the isolated preload boundary and resets for expanded pages", () => {
   const preload = read("src/preload.mjs");
   const main = read("src/main.mjs");
@@ -118,6 +148,7 @@ test("compact shape crosses the isolated preload boundary and resets for expande
   assert.match(main, /handleIpc\('prompt:shape:set',\s*setWindowShape\)/);
   assert.match(renderer, /api\.setShape\(rects\)/);
   assert.match(renderer, /api\.setShape\(\[\]\)/);
+  assert.match(renderer, /root\.dataset\.resizing === "true"/);
   assert.match(
     renderer,
     /function setMascot\([\s\S]*state\.view === "compact"[\s\S]*updateCompactScale\(\)/,

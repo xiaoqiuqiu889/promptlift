@@ -1279,6 +1279,8 @@ button {
   margin-top: -32px;
   margin-left: -32px;
   scale: var(--pet-scale, 1);
+  backface-visibility: hidden;
+  will-change: scale;
 }
 
 .pet-shell[data-view="compact"] .pet-avatar:hover:not(:disabled) .pet-sprite,

@@ -11,6 +11,7 @@ import {
 import {
   computeCompactLayout,
   computeCompactShapeRects,
+  resolveCompactShapeUpdate,
 } from "../core/compactWindowGeometry.mjs";
 
 const MAX_PROMPT_LENGTH = 1_000_000;
@@ -366,6 +367,8 @@ const state = {
 let pendingCapture;
 let resizeSession;
 let resizeFrame;
+let compactScaleFrame;
+let resizeSettleToken = 0;
 let dragSession;
 let suppressAvatarClickUntil = 0;
 let suppressMenuClickUntil = 0;
@@ -480,19 +483,34 @@ function updateCompactScale() {
   root.style.setProperty("--pet-menu-y", `${layout.menuY}px`);
 
   if (typeof api?.setShape === "function") {
-    const rects = computeCompactShapeRects({
+    const shapeRects = computeCompactShapeRects({
       ...layout,
       width: window.innerWidth,
       height: window.innerHeight,
       mascot: state.mascot,
       feedbackVisible,
     });
-    const signature = JSON.stringify(rects);
-    if (signature !== compactShapeSignature) {
-      compactShapeSignature = signature;
+    const shapeUpdate = resolveCompactShapeUpdate({
+      resizing: root.dataset.resizing === "true",
+      currentSignature: compactShapeSignature,
+      rects: shapeRects,
+    });
+    compactShapeSignature = shapeUpdate.signature;
+    const rects = shapeUpdate.rects;
+    if (rects !== null) {
       void api.setShape(rects).catch(() => {});
     }
   }
+}
+
+function scheduleCompactScaleUpdate() {
+  if (compactScaleFrame) {
+    return;
+  }
+  compactScaleFrame = requestAnimationFrame(() => {
+    compactScaleFrame = undefined;
+    updateCompactScale();
+  });
 }
 
 function restoreCompactBounds() {
@@ -1949,7 +1967,9 @@ resizeHandle.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   event.stopPropagation();
   resizeHandle.setPointerCapture(event.pointerId);
+  resizeSettleToken += 1;
   resizeSession = {
+    settleToken: resizeSettleToken,
     pointerId: event.pointerId,
     startX: event.screenX,
     startY: event.screenY,
@@ -1963,6 +1983,7 @@ resizeHandle.addEventListener("pointerdown", (event) => {
     moved: false,
   };
   root.dataset.resizing = "true";
+  updateCompactScale();
 });
 resizeHandle.addEventListener("pointermove", (event) => {
   if (!resizeSession || event.pointerId !== resizeSession.pointerId) {
@@ -2024,20 +2045,39 @@ function finishResize(event) {
       MAX_COMPACT_HEIGHT,
       Math.max(MIN_COMPACT_HEIGHT, Math.round(resizeSession.pendingHeight)),
     );
-    void api.resize(finalWidth, finalHeight, { anchor: "top-right" });
+    const settleToken = resizeSession.settleToken;
+    if (resizeFrame) {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = undefined;
+    }
+    let finalResize;
+    try {
+      finalResize = Promise.resolve(
+        api.resize(finalWidth, finalHeight, { anchor: "top-right" }),
+      );
+    } catch {
+      finalResize = Promise.resolve();
+    }
     if (state.view === "compact") {
       state.compactWidth = finalWidth;
       state.compactHeight = finalHeight;
       persistCompactSize(finalWidth, finalHeight);
     }
     resizeSession = undefined;
-    root.dataset.resizing = "false";
-    updateCompactScale();
     try {
       resizeHandle.releasePointerCapture(event.pointerId);
     } catch {
       // Pointer capture may already have been released by the browser.
     }
+    void finalResize
+      .catch(() => {})
+      .finally(() => {
+        if (resizeSettleToken !== settleToken || resizeSession) {
+          return;
+        }
+        root.dataset.resizing = "false";
+        scheduleCompactScaleUpdate();
+      });
   }
 }
 resizeHandle.addEventListener("pointerup", finishResize);
@@ -2048,7 +2088,7 @@ resizeHandle.addEventListener("click", () => {
   }
   showContextMenu();
 });
-window.addEventListener("resize", updateCompactScale);
+window.addEventListener("resize", scheduleCompactScaleUpdate);
 
 petAvatar.addEventListener("pointerenter", prepareTargetSnapshot);
 petAvatar.addEventListener("pointerdown", beginAvatarDrag);

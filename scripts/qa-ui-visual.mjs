@@ -2518,11 +2518,16 @@ async function runElectron(electron, args) {
       const operationNames = ["capture", "enhance", "apply"];
       const callsBefore = apiCalls.filter((call) => operationNames.includes(call.name)).length;
       const before = (await state()).viewport;
+      const apiCallStart = apiCalls.length;
       await dragAt("#resizeHandle", "compact #resizeHandle resize gesture", 20, 0);
-      const after = (await state()).viewport;
+      const afterState = await state();
+      const after = afterState.viewport;
       await takeSnapshot("resize-handle-gesture", "#resizeHandle pointerdown → pointermove → pointerup");
       const aspectDelta = Math.abs((after.width / after.height) - (before.width / before.height));
       const callsAfter = apiCalls.filter((call) => operationNames.includes(call.name)).length;
+      const resizeShapeTransitions = apiCalls
+        .slice(apiCallStart)
+        .filter((call) => call.name === "setShape" && Array.isArray(call.rects));
       if (after.width <= before.width || after.height <= before.height) {
         const error = new Error("resize handle did not enlarge viewport: " + JSON.stringify({ before, after }));
         error.selector = "#resizeHandle";
@@ -2550,11 +2555,28 @@ async function runElectron(electron, args) {
       if (callsAfter !== callsBefore) {
         throw new Error("resize gesture triggered an optimization");
       }
+      if (afterState.resizing !== "false") {
+        throw new Error("compact resize did not leave the settled rendering state");
+      }
+      if (resizeShapeTransitions.length !== 2
+        || resizeShapeTransitions[0].rects.length !== 0
+        || resizeShapeTransitions[1].rects.length === 0) {
+        throw new Error(
+          "compact resize repeatedly rebuilt the native shape: "
+          + JSON.stringify(resizeShapeTransitions),
+        );
+      }
       const idle = await readOnly(readMascotIdleState);
       if (idle.clipped) {
         throw new Error("idle-mascot-desktop-clipping after resize: " + JSON.stringify(idle));
       }
-      qaResult.compactResize = { before, after, aspectDelta, idle };
+      qaResult.compactResize = {
+        before,
+        after,
+        aspectDelta,
+        idle,
+        shapeTransitions: resizeShapeTransitions.map((call) => call.rects),
+      };
     }, { classification: "automation-limitation" });
   };
 
