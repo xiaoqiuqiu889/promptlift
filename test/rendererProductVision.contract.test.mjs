@@ -307,6 +307,11 @@ test("expanded UI uses a light flat palette and no decorative effects", () => {
   assert.match(css, /--accent:\s*#07c160/);
   assert.match(css, /--text:\s*#191919/);
   assert.doesNotMatch(css, /(?:linear|radial)-gradient/);
-  assert.doesNotMatch(css, /\banimation\s*:/);
+  assert.match(css, /data-view="compact"\]\[data-state="idle"\][^{]*\.mascot-idle-rig/);
+  assert.doesNotMatch(
+    css,
+    /data-view="expanded"[^{]*\{[^}]*\banimation\s*:/s,
+    "calm mascot motion is compact-only; expanded product surfaces remain still",
+  );
   assert.doesNotMatch(css, /box-shadow\s*:/);
 });

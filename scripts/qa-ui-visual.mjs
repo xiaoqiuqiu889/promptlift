@@ -422,6 +422,15 @@ function geometryAudit() {
     }
   }
   const overlapCandidates = interactiveElements.filter((item) => !item.disabled);
+  const isCompactAvatarOverlay = (firstElement, secondElement) => {
+    if (document.querySelector(".pet-shell")?.dataset.view !== "compact") {
+      return false;
+    }
+    const avatar = firstElement.closest?.("#petAvatar") || secondElement.closest?.("#petAvatar");
+    const compactFeedback = firstElement.closest?.("#compactFeedback")
+      || secondElement.closest?.("#compactFeedback");
+    return Boolean(avatar && compactFeedback);
+  };
   for (let first = 0; first < overlapCandidates.length; first += 1) {
     for (let second = first + 1; second < overlapCandidates.length; second += 1) {
       const a = overlapCandidates[first];
@@ -436,6 +445,9 @@ function geometryAudit() {
       }
       if ((a.selector === "#petAvatar" && b.selector === "#resizeHandle")
         || (a.selector === "#resizeHandle" && b.selector === "#petAvatar")) {
+        continue;
+      }
+      if (isCompactAvatarOverlay(a.element, b.element)) {
         continue;
       }
       failures.push({
@@ -483,6 +495,9 @@ function geometryAudit() {
       }
       const interactiveOverlay = overlayOf(interactive.element);
       if (textOverlay !== interactiveOverlay && (textOverlay || interactiveOverlay)) {
+        continue;
+      }
+      if (isCompactAvatarOverlay(parent, interactive.element)) {
         continue;
       }
       if (intersects(textRect, interactive.rect)) {
@@ -608,6 +623,57 @@ function readPageState() {
     inputs: Object.fromEntries([
       "#modelEndpoint", "#modelName", "#apiKey", "#targetWindowTitlePattern",
     ].map((selector) => [selector, inputState(selector)])),
+  };
+}
+
+function readMascotIdleState() {
+  const rig = document.querySelector("#mascotIdleRig");
+  const mascot = document.querySelector("#mascotImageFrame:not([hidden]), #mascotSprite:not([hidden])");
+  const avatar = document.querySelector("#petAvatar");
+  const handle = document.querySelector("#resizeHandle");
+  const rect = (element) => {
+    const value = element?.getBoundingClientRect();
+    return value ? {
+      x: value.x,
+      y: value.y,
+      width: value.width,
+      height: value.height,
+      right: value.right,
+      bottom: value.bottom,
+    } : undefined;
+  };
+  const mascotRect = rect(mascot);
+  const avatarRect = rect(avatar);
+  const handleRect = rect(handle);
+  const avatarHit = avatarRect
+    ? document.elementFromPoint(
+      avatarRect.x + avatarRect.width / 2,
+      avatarRect.y + avatarRect.height / 2,
+    )
+    : undefined;
+  const handleHit = handleRect
+    ? document.elementFromPoint(
+      handleRect.x + handleRect.width / 2,
+      handleRect.y + handleRect.height / 2,
+    )
+    : undefined;
+  return {
+    animationName: rig ? getComputedStyle(rig).animationName : "none",
+    animations: rig?.getAnimations().map((animation) => ({
+      playState: animation.playState,
+      currentTime: animation.currentTime,
+    })) ?? [],
+    reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+    mascotRect,
+    avatarRect,
+    clipped: Boolean(mascotRect && avatarRect && (
+      mascotRect.x < avatarRect.x - 1
+      || mascotRect.y < avatarRect.y - 1
+      || mascotRect.right > avatarRect.right + 1
+      || mascotRect.bottom > avatarRect.bottom + 1
+    )),
+    closestAvatar: Boolean(avatarHit?.closest?.("#petAvatar")),
+    closestHandle: Boolean(handleHit?.closest?.("#resizeHandle")),
   };
 }
 
@@ -1151,10 +1217,20 @@ async function runElectron(electron, args) {
     await sleep(20);
     const midX = startX + Math.round(deltaX / 2);
     const midY = startY + Math.round(deltaY / 2);
-    qaWindow.webContents.sendInputEvent({ type: "mouseMove", x: midX, y: midY });
+    qaWindow.webContents.sendInputEvent({
+      type: "mouseMove",
+      x: midX,
+      y: midY,
+      button: "left",
+    });
     await sleep(35);
     gesture.midState = await state();
-    qaWindow.webContents.sendInputEvent({ type: "mouseMove", x: endX, y: endY });
+    qaWindow.webContents.sendInputEvent({
+      type: "mouseMove",
+      x: endX,
+      y: endY,
+      button: "left",
+    });
     await sleep(30);
     gesture.endState = await state();
     qaWindow.webContents.sendInputEvent({ type: "mouseUp", x: endX, y: endY, button: "left", clickCount: 1 });
@@ -1191,6 +1267,7 @@ async function runElectron(electron, args) {
     if (!geometry || !page) {
       throw auditError || new Error("geometry audit did not return");
     }
+    const mascotIdle = await readOnly(readMascotIdleState);
     screenshotNumber += 1;
     const filename = String(screenshotNumber).padStart(3, "0") + "-" + slug(label) + ".png";
     const screenshotPath = path.join(screenshotsPath, filename);
@@ -1220,6 +1297,7 @@ async function runElectron(electron, args) {
       visibleElementCount: geometry.visibleElementCount,
       controls: page.controls,
       inputs: page.inputs,
+      mascotIdle,
       resizeHandleHitTests: geometry.resizeHandleHitTests,
       geometryFailures: geometry.failures,
     };
@@ -1281,9 +1359,9 @@ async function runElectron(electron, args) {
     scenes: "process",
     review: "process",
     "system-prompts": "process",
-    configure: "services",
-    check: "services",
-    startup: "services",
+    configure: "profile",
+    check: "profile",
+    startup: "profile",
     help: "profile",
     mascot: "profile",
     shortcut: "profile",
@@ -1758,8 +1836,8 @@ async function runElectron(electron, args) {
   const runMenusAndPanels = async () => {
     await runFlow("wechat-like-hub-navigation", async () => {
       await compactReady(COMPACT_SIZES[1], {}, true);
-      await rightClickAvatar("open three-area product hub");
-      for (const hub of ["process", "services", "profile"]) {
+      await rightClickAvatar("open two-area product hub");
+      for (const hub of ["process", "profile"]) {
         await clickAt(
           "[data-hub-target=\"" + hub + "\"]",
           "hub navigation → " + hub,
@@ -1772,10 +1850,10 @@ async function runElectron(electron, args) {
         });
         await takeSnapshot(
           "hub-page-" + hub,
-          "three-area hub → " + hub,
+          "two-area hub → " + hub,
         );
       }
-      await pressEscape("close three-area product hub");
+      await pressEscape("close two-area product hub");
     });
 
     await runFlow("context-menu-complete", async () => {
@@ -1966,25 +2044,57 @@ async function runElectron(electron, args) {
       const initial = await readOnly(function systemPromptEditorInitialRead() {
         return {
           styleTabs: document.querySelectorAll("[data-system-style]").length,
-          defaultReadOnly: document.querySelector("#systemPromptDefault")?.readOnly === true,
-          effectiveReadOnly: document.querySelector("#systemPromptEffective")?.readOnly === true,
+          currentTag: document.querySelector("#systemPromptCurrent")?.tagName || "",
+          duplicateDefaults: Boolean(
+            document.querySelector("#systemPromptDefault, #systemPromptEffective"),
+          ),
           maxLength: document.querySelector("#systemPromptCustom")?.getAttribute("maxlength"),
           mode: document.querySelector("#systemPromptModeSelect")?.value,
         };
       });
       if (initial.styleTabs !== PROMPT_TIERS.length
-        || !initial.defaultReadOnly
-        || !initial.effectiveReadOnly
+        || initial.currentTag !== "PRE"
+        || initial.duplicateDefaults
         || initial.maxLength !== "6000") {
-        throw new Error("system prompt editor did not expose bounded read-only defaults and four tiers: " + JSON.stringify(initial));
+        throw new Error("system prompt editor did not expose one current prompt and four tiers: " + JSON.stringify(initial));
       }
+      const promptMatrix = [];
+      for (const mode of WORK_MODES) {
+        await qaWindow.webContents.executeJavaScript(`(() => {
+          const select = document.querySelector("#systemPromptModeSelect");
+          select.value = ${JSON.stringify(mode)};
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          return select.value;
+        })()`, true);
+        for (const tier of PROMPT_TIERS) {
+          await clickAt(
+            `[data-system-style="${tier}"]`,
+            `system prompt ${mode} → ${tier}`,
+            { wait: 20 },
+          );
+          const current = await readOnly(function currentSystemPromptRead() {
+            return document.querySelector("#systemPromptCurrent")?.textContent || "";
+          });
+          promptMatrix.push({ mode, tier, current });
+        }
+      }
+      if (promptMatrix.length !== 16
+        || new Set(promptMatrix.map((entry) => entry.current)).size !== 16) {
+        throw new Error("scene/tier switching did not expose 16 distinct system prompts");
+      }
+      qaResult.systemPromptMatrix = promptMatrix.map(({ mode, tier, current }) => ({
+        mode,
+        tier,
+        length: current.length,
+      }));
+      await clickAt("#systemPromptDisclosure > summary", "expand current system prompt", { wait: 20 });
       await typeInto("#systemPromptCustom", "先给结论，再列出两条依据。", { wait: 20 });
       await takeSnapshot("system-prompt-editor-dirty", "system prompt editor → local custom rule");
       await clickAt("#saveSystemPromptButton", "save local system prompt override", { wait: 60 });
       const saved = await readOnly(function systemPromptSavedRead() {
         return {
           custom: document.querySelector("#systemPromptCustom")?.value || "",
-          effective: document.querySelector("#systemPromptEffective")?.value || "",
+          effective: document.querySelector("#systemPromptCurrent")?.textContent || "",
           saveDisabled: document.querySelector("#saveSystemPromptButton")?.disabled === true,
         };
       });
@@ -1996,7 +2106,7 @@ async function runElectron(electron, args) {
       const reset = await readOnly(function systemPromptResetRead() {
         return {
           custom: document.querySelector("#systemPromptCustom")?.value || "",
-          effective: document.querySelector("#systemPromptEffective")?.value || "",
+          effective: document.querySelector("#systemPromptCurrent")?.textContent || "",
         };
       });
       if (reset.custom || reset.effective.includes("先给结论")) {
@@ -2032,7 +2142,7 @@ async function runElectron(electron, args) {
       if (!dirtySettings.note.includes("配置已修改")) {
         throw new Error("edited model configuration did not expose a pending-save state");
       }
-      await clickAt("[data-close-panel=\"settingsPanel\"]", "edited settings → services hub");
+      await clickAt("[data-close-panel=\"settingsPanel\"]", "edited settings → 我的");
       const dirtyServiceState = await readOnly(function dirtyModelServiceStateRead() {
         return {
           storage: document.querySelector("#hubModelStateLabel")?.textContent?.trim() || "",
@@ -2040,13 +2150,13 @@ async function runElectron(electron, args) {
         };
       });
       if (dirtyServiceState.storage !== "待保存" || dirtyServiceState.connection !== "未检查") {
-        throw new Error("services hub did not expose edited configuration state: " + JSON.stringify(dirtyServiceState));
+        throw new Error("profile hub did not expose edited configuration state: " + JSON.stringify(dirtyServiceState));
       }
       await takeSnapshot(
-        "services-model-config-dirty",
-        "edited settings → services hub → pending save",
+        "profile-model-config-dirty",
+        "edited settings → 我的 → pending save",
       );
-      await menuAction("configure", "services hub → reopen model settings");
+      await menuAction("configure", "我的 → reopen model settings");
       await waitForState({ view: "expanded", visible: { "#settingsPanel": true } });
       await setScenario({}, false);
       await clickAt("#checkModelButton", "settings → check and save success", { wait: 80 });
@@ -2060,11 +2170,11 @@ async function runElectron(electron, args) {
         };
       });
       if (connectedServiceState.storage !== "已配置" || connectedServiceState.connection !== "已连接") {
-        throw new Error("services hub did not expose connected model state: " + JSON.stringify(connectedServiceState));
+        throw new Error("profile hub did not expose connected model state: " + JSON.stringify(connectedServiceState));
       }
       await takeSnapshot(
-        "services-model-connected",
-        "checked settings → services hub → connected",
+        "profile-model-connected",
+        "checked settings → 我的 → connected",
       );
 
       await compactReady(COMPACT_SIZES[1], {
@@ -2075,20 +2185,20 @@ async function runElectron(electron, args) {
       await clickAt("#checkModelButton", "settings → check and save error", { wait: 80 });
       await waitForState({ phase: "error", view: "expanded", visible: { "#settingsPanel": true } });
       await takeSnapshot("settings-check-error", "settings → 检查并保存 → error");
-      await clickAt("[data-close-panel=\"settingsPanel\"]", "failed check → services hub");
+      await clickAt("[data-close-panel=\"settingsPanel\"]", "failed check → 我的");
       const failedServiceState = await readOnly(function failedModelServiceStateRead() {
         return {
           connection: document.querySelector("#hubModelCheckLabel")?.textContent?.trim() || "",
         };
       });
       if (failedServiceState.connection !== "检查失败") {
-        throw new Error("services hub did not expose failed connection state: " + JSON.stringify(failedServiceState));
+        throw new Error("profile hub did not expose failed connection state: " + JSON.stringify(failedServiceState));
       }
       await takeSnapshot(
-        "services-model-check-failed",
-        "failed check → services hub → check failed",
+        "profile-model-check-failed",
+        "failed check → 我的 → check failed",
       );
-      await menuAction("configure", "services hub → reopen settings after failed check");
+      await menuAction("configure", "我的 → reopen settings after failed check");
       await waitForState({ view: "expanded", visible: { "#settingsPanel": true } });
 
       await setScenario({
@@ -2204,6 +2314,30 @@ async function runElectron(electron, args) {
   };
 
   const runPointerAndResizeChecks = async () => {
+    await runFlow("compact-idle-motion", async () => {
+      await qaWindow.webContents.executeJavaScript(
+        'localStorage.setItem("prompt-pet.mascot.v1", "green-knight-pup")',
+        true,
+      );
+      await compactReady(COMPACT_SIZES[2], {}, true);
+      const idle = await readOnly(readMascotIdleState);
+      await takeSnapshot("compact-idle-motion", "compact mascot → calm idle animation");
+      if (idle.clipped || !idle.closestAvatar || !idle.closestHandle) {
+        const error = new Error(
+          "idle-mascot-desktop-clipping: " + JSON.stringify(idle),
+        );
+        error.selector = "#mascotIdleRig";
+        error.rect = idle.mascotRect;
+        error.againstSelector = "#petAvatar";
+        error.againstRect = idle.avatarRect;
+        throw error;
+      }
+      if (!idle.reducedMotion
+        && (idle.animationName === "none" || idle.animations.length === 0)) {
+        throw new Error("compact idle motion was not active");
+      }
+      qaResult.compactIdleMotion = idle;
+    });
     await runFlow("avatar-drag-and-overlay-hit-tests", async () => {
       await compactReady(COMPACT_SIZES[1], {}, true);
       const overlay = await readOnly(function avatarOverlayRead() {
@@ -2253,12 +2387,16 @@ async function runElectron(electron, args) {
         throw error;
       }
     }, { classification: "automation-limitation" });
-    await runFlow("resize-handle", async () => {
+    await runFlow("compact-resize-preserves-aspect-ratio", async () => {
       await compactReady(COMPACT_SIZES[2], {}, true);
+      const operationNames = ["capture", "enhance", "apply"];
+      const callsBefore = apiCalls.filter((call) => operationNames.includes(call.name)).length;
       const before = (await state()).viewport;
-      await dragAt("#resizeHandle", "compact #resizeHandle resize gesture", 20, -20);
+      await dragAt("#resizeHandle", "compact #resizeHandle resize gesture", 20, 0);
       const after = (await state()).viewport;
       await takeSnapshot("resize-handle-gesture", "#resizeHandle pointerdown → pointermove → pointerup");
+      const aspectDelta = Math.abs((after.width / after.height) - (before.width / before.height));
+      const callsAfter = apiCalls.filter((call) => operationNames.includes(call.name)).length;
       if (after.width <= before.width || after.height <= before.height) {
         const error = new Error("resize handle did not enlarge viewport: " + JSON.stringify({ before, after }));
         error.selector = "#resizeHandle";
@@ -2276,6 +2414,21 @@ async function runElectron(electron, args) {
         error.viewport = after;
         throw error;
       }
+      if (aspectDelta > 0.012) {
+        throw new Error("compact resize changed aspect ratio: " + JSON.stringify({
+          before,
+          after,
+          aspectDelta,
+        }));
+      }
+      if (callsAfter !== callsBefore) {
+        throw new Error("resize gesture triggered an optimization");
+      }
+      const idle = await readOnly(readMascotIdleState);
+      if (idle.clipped) {
+        throw new Error("idle-mascot-desktop-clipping after resize: " + JSON.stringify(idle));
+      }
+      qaResult.compactResize = { before, after, aspectDelta, idle };
     }, { classification: "automation-limitation" });
   };
 
@@ -2418,7 +2571,7 @@ async function runElectron(electron, args) {
         + "; loading/success: " + (qaResult.p0?.loading?.phase || "not recorded")
         + " → " + (qaResult.p0?.success?.phase || "not recorded") + ".",
       "- Avatar drag, resize-handle hit testing, and compact badge pointer behavior are recorded in qa/evidence/ui/summary.json.",
-      "- Special resizeHandle 18x18 point audit: compact avatar/badge centers did not hit #resizeHandle; expanded #resizeHandle is display:none, so the closeButton/resizeHandle overlap is resolved.",
+      "- Special resizeHandle 18x18 point audit: mascot and adjacent control centers remain outside the resize-handle hit target in every audited view.",
       "",
       "## Defects and reproduction",
       "",

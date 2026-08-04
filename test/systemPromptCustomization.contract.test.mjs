@@ -13,7 +13,8 @@ test("system prompt customization exposes a mode-by-tier editor and local persis
   assert.match(html, /data-menu-action="system-prompts"/);
   assert.match(html, /id="systemPromptPanel"/);
   assert.match(html, /id="viewSystemPromptButton"/);
-  assert.match(html, /id="systemPromptDefault"/);
+  assert.match(html, /id="systemPromptCurrent"/);
+  assert.doesNotMatch(html, /id="systemPromptDefault"|id="systemPromptEffective"/);
   assert.match(html, /id="systemPromptCustom"/);
   assert.match(html, /id="saveSystemPromptButton"/);
   assert.match(html, /id="resetSystemPromptButton"/);

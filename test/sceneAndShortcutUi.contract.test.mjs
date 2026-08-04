@@ -16,7 +16,7 @@ test("scene and tier are one quiet settings group without duplicated scene cards
   assert.doesNotMatch(html, /id="hubPageScenes"/);
   const processPage = html.slice(
     html.indexOf('data-hub-page="process"'),
-    html.indexOf('data-hub-page="services"'),
+    html.indexOf('data-hub-page="profile"'),
   );
   const expressionSettings = processPage.slice(
     processPage.indexOf('id="hubExpressionSettings"'),

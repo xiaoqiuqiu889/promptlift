@@ -7,20 +7,23 @@ const read = (relativePath) => readFileSync(
   "utf8",
 );
 
-test("round 1 exposes three task-aligned hubs with one scene entry in processing", () => {
+test("round 1 exposes two task-aligned hubs with model services merged into profile", () => {
   const html = read("src/renderer/index.html");
   const targets = [...html.matchAll(/data-hub-target="([^"]+)"/g)]
     .map((match) => match[1]);
   const labels = [...html.matchAll(/class="hub-tab-label">([^<]+)</g)]
     .map((match) => match[1]);
 
-  assert.deepEqual(targets, ["process", "services", "profile"]);
-  assert.deepEqual(labels, ["处理", "服务", "我的"]);
+  assert.deepEqual(targets, ["process", "profile"]);
+  assert.deepEqual(labels, ["处理", "我的"]);
   for (const hub of targets) {
     assert.match(html, new RegExp(`data-hub-page="${hub}"`));
   }
   assert.match(html, /data-hub-page="process"[\s\S]*id="hubExpressionSettings"/);
   assert.match(html, /data-hub-page="process"[\s\S]*data-menu-action="scenes"/);
+  assert.match(html, /data-hub-page="profile"[\s\S]*data-menu-action="configure"/);
+  assert.match(html, /data-hub-page="profile"[\s\S]*data-menu-action="startup"/);
+  assert.doesNotMatch(html, /data-hub-page="services"/);
   assert.doesNotMatch(html, /data-hub-page="scenes"/);
   assert.doesNotMatch(html, />\s*(?:聊天|朋友圈|支付|小程序)\s*</u);
 });
@@ -98,8 +101,8 @@ test("round 5 exposes accessible tabs, selected states, and reduced-motion feedb
   const css = read("src/renderer/styles.css");
 
   assert.match(html, /class="hub-tabbar"[^>]*role="tablist"/);
-  assert.equal((html.match(/class="hub-tab"/g) ?? []).length, 3);
-  assert.equal((html.match(/role="tab"/g) ?? []).length, 3);
+  assert.equal((html.match(/class="hub-tab"/g) ?? []).length, 2);
+  assert.equal((html.match(/role="tab"/g) ?? []).length, 2);
   assert.match(renderer, /tab\.setAttribute\("aria-selected",\s*String\(selected\)\)/);
   assert.match(renderer, /tab\.tabIndex\s*=\s*selected\s*\?\s*0\s*:\s*-1/);
   assert.match(renderer, /event\.key\s*===\s*"ArrowRight"/);

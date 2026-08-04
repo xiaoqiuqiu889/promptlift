@@ -145,6 +145,23 @@ button {
   opacity: 0.65;
 }
 
+.mascot-idle-rig
+{
+  position: relative;
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  pointer-events: none;
+  scale: 1;
+  transform-origin: center;
+}
+
+.mascot-idle-rig > .pet-mascot-frame,
+.mascot-idle-rig > .pet-sprite {
+  grid-area: 1 / 1;
+}
+
 .pet-sprite {
   position: relative;
   display: block;
@@ -165,14 +182,16 @@ button {
   transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
 }
 
-.pet-shell[data-mascot="green-knight-pup"] .pet-mascot-frame {
+.pet-shell[data-mascot="green-knight-pup"] .pet-mascot-frame
+{
   border: 0;
   border-radius: 0;
   background: transparent;
   overflow: visible;
 }
 
-.pet-mascot-image {
+.pet-mascot-image
+{
   display: block;
   width: 100%;
   height: 100%;
@@ -852,30 +871,16 @@ button {
 
 .system-prompt-panel {
   position: relative;
-  height: calc(100vh - 20px);
-  max-height: calc(100vh - 20px);
-  overflow: hidden;
+  min-height: 100%;
+  overflow: visible;
 }
 
 .system-prompt-panel .panel-heading {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  left: 12px;
-  z-index: 2;
+  position: static;
   margin: 0;
   padding-bottom: 8px;
   border-bottom: 1px solid rgba(151, 171, 230, 0.14);
-  background: rgba(17, 25, 42, 0.99);
-}
-
-.system-prompt-scroll {
-  width: 100%;
-  height: calc(100% - 58px);
-  margin-top: 58px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  padding-right: 2px;
+  background: transparent;
 }
 
 .system-prompt-safety-note {
@@ -922,6 +927,60 @@ button {
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.system-prompt-disclosure {
+  margin-top: 12px;
+  border: 1px solid rgba(151, 171, 230, 0.2);
+  border-radius: 10px;
+  background: rgba(6, 11, 20, 0.42);
+}
+
+.system-prompt-disclosure summary {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  color: #edf2ff;
+  cursor: pointer;
+  list-style: none;
+}
+
+.system-prompt-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.system-prompt-disclosure summary::after {
+  color: #8f9fbe;
+  content: "展开";
+  font-size: 9px;
+}
+
+.system-prompt-disclosure[open] summary::after {
+  content: "收起";
+}
+
+.system-prompt-disclosure summary > span {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.system-prompt-disclosure summary > small {
+  margin-left: auto;
+  color: #8f9fbe;
+  font-size: 9px;
+}
+
+.system-prompt-current {
+  margin: 0;
+  padding: 12px;
+  border-top: 1px solid rgba(151, 171, 230, 0.14);
+  color: #aebbd8;
+  font: 9px/1.6 "Cascadia Mono", "Microsoft YaHei UI", sans-serif;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .system-prompt-editor {
@@ -1035,7 +1094,8 @@ button {
 
 .pet-shell[data-view="compact"] .pet-card {
   width: 100%;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -1135,25 +1195,96 @@ button {
   flex: 0 0 100%;
 }
 
-.pet-shell[data-view="compact"] .pet-sprite,
-.pet-shell[data-view="compact"] .pet-mascot-frame {
-  transform: scale(var(--pet-scale, 1));
-  transform-origin: center;
+.pet-shell[data-view="compact"] .mascot-idle-rig {
+  scale: var(--pet-scale, 1);
 }
 
 .pet-shell[data-view="compact"] .pet-avatar:hover:not(:disabled) .pet-sprite,
 .pet-shell[data-view="compact"] .pet-avatar:hover:not(:disabled) .pet-mascot-frame {
-  transform: scale(var(--pet-scale, 1)) translateY(-2px) rotate(-3deg);
+  transform: translateY(-2px) rotate(-3deg);
 }
 
 .pet-shell[data-view="compact"] .resize-handle {
   top: 8px;
   right: 8px;
+  z-index: 12;
+  display: flex;
+  pointer-events: auto;
 }
 
-.pet-shell[data-view="compact"] .compact-mode-badge,
-.pet-shell[data-view="compact"] .resize-handle {
+.pet-shell[data-view="compact"] .compact-mode-badge {
   display: none;
+}
+
+@keyframes pet-idle-breathe {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+
+  50% {
+    translate: 0 -2px;
+  }
+}
+
+@keyframes pet-idle-curious {
+  0%,
+  72%,
+  100% {
+    rotate: 0deg;
+  }
+
+  79% {
+    rotate: -4deg;
+  }
+
+  86% {
+    rotate: 2deg;
+  }
+}
+
+@keyframes pet-idle-twitch {
+  0%,
+  82%,
+  100% {
+    translate: 0 0;
+  }
+
+  86% {
+    translate: 1px -1px;
+  }
+
+  90% {
+    translate: -1px 0;
+  }
+}
+
+.pet-shell[data-view="compact"][data-state="idle"] .mascot-idle-rig {
+  animation: pet-idle-breathe 4.8s ease-in-out infinite;
+}
+
+.pet-shell[data-view="compact"][data-state="idle"] .pet-mascot-frame,
+.pet-shell[data-view="compact"][data-state="idle"] .pet-sprite {
+  animation: pet-idle-curious 8.4s ease-in-out infinite;
+}
+
+.pet-shell[data-view="compact"][data-state="idle"] .pet-mascot-image {
+  animation: pet-idle-twitch 10.8s ease-in-out infinite;
+}
+
+.pet-shell[data-dragging="true"] .mascot-idle-rig,
+.pet-shell[data-dragging="true"] .pet-mascot-frame,
+.pet-shell[data-dragging="true"] .pet-sprite,
+.pet-shell[data-dragging="true"] .pet-mascot-image,
+.pet-shell[data-resizing="true"] .mascot-idle-rig,
+.pet-shell[data-resizing="true"] .pet-mascot-frame,
+.pet-shell[data-resizing="true"] .pet-sprite,
+.pet-shell[data-resizing="true"] .pet-mascot-image,
+.pet-avatar:hover .mascot-idle-rig,
+.pet-avatar:hover .pet-mascot-frame,
+.pet-avatar:hover .pet-sprite,
+.pet-avatar:hover .pet-mascot-image {
+  animation-play-state: paused;
 }
 
 @keyframes pet-flame-flicker {
@@ -1724,7 +1855,7 @@ textarea:focus-visible {
   bottom: 0;
   z-index: 2;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: auto;
   border-top: 1px solid var(--line);
   background: var(--panel);
@@ -1846,6 +1977,26 @@ textarea:focus-visible {
   background: var(--accent-soft);
 }
 
+.system-prompt-panel .system-prompt-disclosure {
+  border-color: var(--line);
+  background: var(--panel);
+}
+
+.system-prompt-panel .system-prompt-disclosure summary {
+  color: var(--text);
+}
+
+.system-prompt-panel .system-prompt-disclosure summary::after,
+.system-prompt-panel .system-prompt-disclosure summary > small {
+  color: var(--muted);
+}
+
+.system-prompt-panel .system-prompt-current {
+  border-top-color: var(--line);
+  color: var(--muted);
+  background: var(--surface);
+}
+
 .system-prompt-panel .system-prompt-editor {
   border-color: var(--line);
   color: var(--text);
@@ -1874,7 +2025,7 @@ textarea:focus-visible {
 }
 
 /* Readability pass: expanded surfaces favor a calm, conversational rhythm over
-   dense control panels. The content page scrolls while the three primary tabs
+   dense control panels. The content page scrolls while the two primary tabs
    remain stable, so 360×520 fallbacks stay usable without shrinking text. */
 .pet-shell[data-view="expanded"] .pet-header {
   min-height: 66px;
@@ -1906,7 +2057,8 @@ textarea:focus-visible {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 12px 12px 16px;
+  padding: 12px 12px 76px;
+  scroll-padding-bottom: 76px;
   scrollbar-width: thin;
 }
 
@@ -2182,6 +2334,14 @@ textarea:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .mascot-idle-rig,
+  .pet-mascot-frame,
+  .pet-sprite,
+  .pet-mascot-image {
+    animation: none !important;
+    transform: none !important;
+  }
+
   *,
   *::before,
   *::after {

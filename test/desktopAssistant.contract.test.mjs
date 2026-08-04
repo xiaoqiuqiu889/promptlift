@@ -149,7 +149,8 @@ test("desktop assistant window is resizable and its outer styling has no shadows
   assert.match(main, /function isExpandedAssistantBounds/);
   assert.match(main, /!isExpandedAssistantBounds\(persistedWindowBounds\)/);
   assert.match(main, /input\.anchor === 'top-right'/);
-  assert.match(renderer, /startHeight - event\.screenY \+ resizeSession\.startY/);
+  assert.match(renderer, /aspectRatio:\s*window\.outerWidth\s*\/\s*window\.outerHeight/);
+  assert.match(renderer, /nextHeight\s*=\s*Math\.round\(nextWidth\s*\/\s*resizeSession\.aspectRatio\)/);
   assert.match(main, /width: 120/);
   assert.match(main, /height: 140/);
   assert.match(main, /minWidth: 88/);
@@ -172,7 +173,7 @@ test("desktop assistant window is resizable and its outer styling has no shadows
   assert.doesNotMatch(css, /box-shadow\s*:/);
 });
 
-test("compact mode restores a small footprint without utility markers beside the pet", () => {
+test("compact mode restores a small footprint with one top-right resize affordance", () => {
   const main = read("src/main.mjs");
   const renderer = read("src/renderer/renderer.mjs");
   const css = read("src/renderer/styles.css");
@@ -183,9 +184,10 @@ test("compact mode restores a small footprint without utility markers beside the
   assert.match(renderer, /function restoreCompactBounds/);
   assert.match(renderer, /setTimeout\(\(\) =>/);
   assert.match(read("src/preload.mjs"), /persist: options\.persist !== false/);
+  assert.match(css, /data-view="compact"\] \.compact-mode-badge\s*\{\s*display:\s*none/);
   assert.match(
     css,
-    /data-view="compact"\] \.compact-mode-badge,\s*\.pet-shell\[data-view="compact"\] \.resize-handle\s*\{\s*display:\s*none/,
+    /data-view="compact"\] \.resize-handle\s*\{[^}]*display:\s*flex;[^}]*pointer-events:\s*auto/s,
   );
   assert.match(css, /data-view="expanded"\] \.resize-handle\s*\{\s*display:\s*flex/);
   assert.match(css, /data-view="expanded"\] \.pet-card[\s\S]*overflow-y:\s*auto/);

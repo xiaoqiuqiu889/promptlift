@@ -20,8 +20,8 @@ const DEFAULT_EXPANDED_WIDTH = 420;
 const DEFAULT_EXPANDED_HEIGHT = 620;
 const MIN_COMPACT_WIDTH = 112;
 const MIN_COMPACT_HEIGHT = 112;
-const MAX_COMPACT_WIDTH = 700;
-const MAX_COMPACT_HEIGHT = 820;
+const MAX_COMPACT_WIDTH = 420;
+const MAX_COMPACT_HEIGHT = 490;
 const COMPACT_SIZE_STORAGE_KEY = "prompt-pet.compact-size.v1";
 const REVIEW_MODE_STORAGE_KEY = "prompt-pet.review-mode.v1";
 const MASCOT_STORAGE_KEY = "prompt-pet.mascot.v1";
@@ -159,7 +159,6 @@ const MODE_PRESENTATION = Object.freeze({
 });
 const HUB_LABELS = Object.freeze({
   process: "处理",
-  services: "服务",
   profile: "我的",
 });
 
@@ -224,8 +223,8 @@ const checkModelButton = document.querySelector("#checkModelButton");
 const saveModelButton = document.querySelector("#saveModelButton");
 const viewSystemPromptButton = document.querySelector("#viewSystemPromptButton");
 const systemPromptModeSelect = document.querySelector("#systemPromptModeSelect");
-const systemPromptDefault = document.querySelector("#systemPromptDefault");
-const systemPromptEffective = document.querySelector("#systemPromptEffective");
+const systemPromptCurrent = document.querySelector("#systemPromptCurrent");
+const systemPromptSelectionLabel = document.querySelector("#systemPromptSelectionLabel");
 const systemPromptCustom = document.querySelector("#systemPromptCustom");
 const saveSystemPromptButton = document.querySelector("#saveSystemPromptButton");
 const resetSystemPromptButton = document.querySelector("#resetSystemPromptButton");
@@ -450,8 +449,8 @@ function updateExpressionSummary() {
 }
 
 function updateCompactScale() {
-  const widthScale = window.innerWidth / state.compactWidth;
-  const heightScale = window.innerHeight / state.compactHeight;
+  const widthScale = window.innerWidth / DEFAULT_COMPACT_WIDTH;
+  const heightScale = window.innerHeight / DEFAULT_COMPACT_HEIGHT;
   const scale = Math.min(3.5, Math.max(0.75, Math.min(widthScale, heightScale)));
   root.style.setProperty("--pet-scale", String(scale));
 }
@@ -516,8 +515,8 @@ function findSystemPromptEntry(mode = state.systemPromptMode, style = state.syst
 }
 
 function renderSystemPromptPanel() {
-  if (!systemPromptPanel || !systemPromptModeSelect || !systemPromptDefault
-    || !systemPromptEffective || !systemPromptCustom) {
+  if (!systemPromptPanel || !systemPromptModeSelect || !systemPromptCurrent
+    || !systemPromptCustom) {
     return;
   }
   const presentation = MODE_STYLE_PRESENTATION[state.systemPromptMode]
@@ -539,9 +538,15 @@ function renderSystemPromptPanel() {
     button.classList.toggle("is-active", selected);
   });
   const entry = findSystemPromptEntry();
+  if (systemPromptSelectionLabel) {
+    const sceneLabel = MODE_LABELS[state.systemPromptMode] ?? MODE_LABELS.enhance;
+    const tierLabel = presentation[state.systemPromptStyle]?.label
+      ?? STYLE_LABELS[state.systemPromptStyle]
+      ?? STYLE_LABELS.concise;
+    systemPromptSelectionLabel.textContent = `${sceneLabel} · ${tierLabel}`;
+  }
   if (!entry) {
-    systemPromptDefault.value = "正在读取当前档位的默认系统提示词…";
-    systemPromptEffective.value = "";
+    systemPromptCurrent.textContent = "正在读取当前场景与档位的专属系统提示词…";
     if (!state.systemPromptDirty) {
       systemPromptCustom.value = "";
     }
@@ -550,8 +555,7 @@ function renderSystemPromptPanel() {
     resetSystemPromptButton.disabled = true;
     return;
   }
-  systemPromptDefault.value = entry.defaultPrompt ?? "";
-  systemPromptEffective.value = entry.effectivePrompt ?? entry.defaultPrompt ?? "";
+  systemPromptCurrent.textContent = entry.effectivePrompt ?? entry.defaultPrompt ?? "";
   if (!state.systemPromptDirty) {
     systemPromptCustom.value = entry.customPrompt ?? "";
   }
@@ -1886,13 +1890,17 @@ function finishAvatarDrag(event) {
 
 resizeHandle.addEventListener("pointerdown", (event) => {
   event.preventDefault();
+  event.stopPropagation();
   resizeHandle.setPointerCapture(event.pointerId);
   resizeSession = {
     pointerId: event.pointerId,
     startX: event.screenX,
     startY: event.screenY,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
     startWidth: window.outerWidth,
     startHeight: window.outerHeight,
+    aspectRatio: window.outerWidth / window.outerHeight,
     pendingWidth: window.outerWidth,
     pendingHeight: window.outerHeight,
     moved: false,
@@ -1903,24 +1911,62 @@ resizeHandle.addEventListener("pointermove", (event) => {
   if (!resizeSession || event.pointerId !== resizeSession.pointerId) {
     return;
   }
+  event.preventDefault();
+  event.stopPropagation();
+  const screenDeltaX = event.screenX - resizeSession.startX;
+  const screenDeltaY = resizeSession.startY - event.screenY;
+  const clientDeltaX = event.clientX - resizeSession.startClientX;
+  const clientDeltaY = resizeSession.startClientY - event.clientY;
+  const deltaX = Math.abs(screenDeltaX) >= Math.abs(clientDeltaX)
+    ? screenDeltaX
+    : clientDeltaX;
+  const deltaY = Math.abs(screenDeltaY) >= Math.abs(clientDeltaY)
+    ? screenDeltaY
+    : clientDeltaY;
   if (Math.hypot(
-    event.screenX - resizeSession.startX,
-    event.screenY - resizeSession.startY,
+    deltaX,
+    deltaY,
   ) >= 5) {
     resizeSession.moved = true;
   }
+  const widthScale = (resizeSession.startWidth + deltaX) / resizeSession.startWidth;
+  const heightScale = (resizeSession.startHeight + deltaY) / resizeSession.startHeight;
+  const pointerScale = Math.abs(deltaX / resizeSession.startWidth)
+    >= Math.abs(deltaY / resizeSession.startHeight)
+    ? widthScale
+    : heightScale;
+  const minimumScale = Math.max(
+    MIN_COMPACT_WIDTH / resizeSession.startWidth,
+    MIN_COMPACT_HEIGHT / resizeSession.startHeight,
+  );
+  const maximumScale = Math.min(
+    MAX_COMPACT_WIDTH / resizeSession.startWidth,
+    MAX_COMPACT_HEIGHT / resizeSession.startHeight,
+  );
+  const scale = Math.min(maximumScale, Math.max(minimumScale, pointerScale));
+  const nextWidth = Math.round(resizeSession.startWidth * scale);
+  const nextHeight = Math.round(nextWidth / resizeSession.aspectRatio);
   scheduleResize(
-    resizeSession.startWidth + event.screenX - resizeSession.startX,
-    resizeSession.startHeight - event.screenY + resizeSession.startY,
+    nextWidth,
+    nextHeight,
   );
 });
 function finishResize(event) {
   if (resizeSession?.pointerId === event.pointerId) {
+    event.preventDefault();
+    event.stopPropagation();
     if (resizeSession.moved) {
       suppressMenuClickUntil = Date.now() + 250;
+      suppressAvatarClickUntil = Date.now() + 250;
     }
-    const finalWidth = Math.min(700, Math.max(MIN_COMPACT_WIDTH, resizeSession.pendingWidth));
-    const finalHeight = Math.min(820, Math.max(MIN_COMPACT_HEIGHT, resizeSession.pendingHeight));
+    const finalWidth = Math.min(
+      MAX_COMPACT_WIDTH,
+      Math.max(MIN_COMPACT_WIDTH, Math.round(resizeSession.pendingWidth)),
+    );
+    const finalHeight = Math.min(
+      MAX_COMPACT_HEIGHT,
+      Math.max(MIN_COMPACT_HEIGHT, Math.round(resizeSession.pendingHeight)),
+    );
     void api.resize(finalWidth, finalHeight, { anchor: "top-right" });
     if (state.view === "compact") {
       state.compactWidth = finalWidth;
@@ -1930,6 +1976,11 @@ function finishResize(event) {
     resizeSession = undefined;
     root.dataset.resizing = "false";
     updateCompactScale();
+    try {
+      resizeHandle.releasePointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture may already have been released by the browser.
+    }
   }
 }
 resizeHandle.addEventListener("pointerup", finishResize);

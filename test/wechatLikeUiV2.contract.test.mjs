@@ -9,7 +9,8 @@ const read = (relativePath) => readFileSync(
 
 function pageSlice(html, page, nextPage) {
   const start = html.indexOf(`data-hub-page="${page}"`);
-  const end = html.indexOf(`data-hub-page="${nextPage}"`, start);
+  const next = html.indexOf(`data-hub-page="${nextPage}"`, start);
+  const end = next >= 0 ? next : html.length;
   return html.slice(start, end);
 }
 
@@ -32,7 +33,7 @@ test("round 6 adds one clear primary action inside the processing hub", () => {
 test("round 7 removes redundant page chrome and groups the two expression choices", () => {
   const html = read("src/renderer/index.html");
   const css = read("src/renderer/styles.css");
-  const process = pageSlice(html, "process", "services");
+  const process = pageSlice(html, "process", "profile");
   const expressionSettings = process.slice(
     process.indexOf('id="hubExpressionSettings"'),
     process.indexOf("</div>", process.indexOf('id="hubExpressionSettings"')) + 6,
@@ -46,9 +47,9 @@ test("round 7 removes redundant page chrome and groups the two expression choice
   assert.match(css, /\.hub-expression-settings/);
 });
 
-test("processing hub owns one scene entry and the bottom navigation has only three tabs", () => {
+test("processing hub owns one scene entry and the bottom navigation has only two tabs", () => {
   const html = read("src/renderer/index.html");
-  const process = pageSlice(html, "process", "services");
+  const process = pageSlice(html, "process", "profile");
   const tabbar = html.slice(
     html.indexOf('class="hub-tabbar"'),
     html.indexOf("</nav>", html.indexOf('class="hub-tabbar"')),
@@ -56,10 +57,10 @@ test("processing hub owns one scene entry and the bottom navigation has only thr
 
   assert.match(process, /data-menu-action="scenes"/);
   assert.equal((process.match(/data-hub-mode=/g) ?? []).length, 0);
-  assert.equal((tabbar.match(/class="hub-tab"/g) ?? []).length, 3);
+  assert.equal((tabbar.match(/class="hub-tab"/g) ?? []).length, 2);
   assert.match(tabbar, />处理</);
-  assert.match(tabbar, />服务</);
   assert.match(tabbar, />我的</);
+  assert.doesNotMatch(tabbar, />服务</);
   assert.doesNotMatch(tabbar, />场景</);
 });
 
@@ -78,12 +79,13 @@ test("round 8 mirrors operation progress in the feature hub without adding a sec
   assert.match(statusBody, /updateHubOperationState\(\)/);
 });
 
-test("round 9 places privacy and usage guidance with personal preferences, not model services", () => {
+test("round 9 places privacy guidance and model services together under profile", () => {
   const html = read("src/renderer/index.html");
-  const services = pageSlice(html, "services", "profile");
   const profile = pageSlice(html, "profile", "__missing__");
 
-  assert.doesNotMatch(services, /data-menu-action="help"/);
+  assert.match(profile, /data-menu-action="configure"/);
+  assert.match(profile, /data-menu-action="check"/);
+  assert.match(profile, /data-menu-action="startup"/);
   assert.match(profile, /隐私与安全/);
   assert.match(profile, /data-menu-action="help"/);
   assert.match(profile, /本地保护/);
