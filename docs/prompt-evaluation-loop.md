@@ -72,6 +72,29 @@ node scripts/prompt-eval.mjs `
 
 The runner must return one result per fixture. The CLI compares the same fixture IDs and rejects mismatched sets.
 
+The repository includes a real OpenAI-compatible TokenHub runner at
+`qa/prompt-eval/tokenhub-runner.mjs`. It reuses Prompt Lift's production
+`buildModelMessages` contract, sends `thinking: { "type": "disabled" }` for
+DeepSeek V4, and reads credentials only from process environment variables:
+
+```powershell
+$env:TOKENHUB_API_KEY = '<provided out of band>'
+$env:TOKENHUB_BASE_URL = 'https://tokenhub.tencentmaas.com/v1'
+$env:TOKENHUB_MODEL = 'deepseek-v4-flash'
+node scripts/prompt-eval.mjs `
+  --dataset .\qa\prompt-eval\golden.jsonl `
+  --runner .\qa\prompt-eval\tokenhub-runner.mjs `
+  --baseline-policy .\config\prompt-policy.json `
+  --candidate-policy .\qa\prompt-eval\candidate-policy.json `
+  --output .\qa\prompt-eval\summary.json
+Remove-Item Env:TOKENHUB_API_KEY, Env:TOKENHUB_BASE_URL, Env:TOKENHUB_MODEL
+```
+
+The key must never be committed, passed as a command-line argument, or written
+to the summary. If the real runner fails, the result is reported as a failed
+evaluation; the mock runner is only for offline contract tests and cannot
+produce a production conclusion.
+
 ## Controlled write-back
 
 Writing a candidate policy is an explicit operation:

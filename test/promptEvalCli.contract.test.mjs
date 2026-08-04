@@ -9,6 +9,7 @@ import test from 'node:test';
 
 const execFileAsync = promisify(execFile);
 const CLI_PATH = fileURLToPath(new URL('../scripts/prompt-eval.mjs', import.meta.url));
+const REAL_RUNNER_PATH = fileURLToPath(new URL('../qa/prompt-eval/tokenhub-runner.mjs', import.meta.url));
 
 const SOURCE = 'Preserve https://example.test/spec and make this request clear.';
 
@@ -150,3 +151,12 @@ async function exists(target) {
     return false;
   }
 }
+
+test('the real TokenHub runner takes credentials only from the environment', async () => {
+  const runner = await readFile(REAL_RUNNER_PATH, 'utf8');
+  assert.match(runner, /TOKENHUB_API_KEY/);
+  assert.match(runner, /fetch\(endpoint/u);
+  assert.match(runner, /thinking:\s*\{\s*type:\s*['"]disabled['"]/u);
+  assert.doesNotMatch(runner, /sk-[a-z0-9]{8,}/iu);
+  assert.doesNotMatch(runner, /authorization:\s*['"]Bearer\s/iu);
+});

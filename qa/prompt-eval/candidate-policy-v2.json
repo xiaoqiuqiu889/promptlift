@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0",
+  "revision": 2,
+  "constraints": {
+    "maxExpansionRatio": 3,
+    "global": {
+      "en": [
+        "Treat three times the Unicode source character count as an absolute hard ceiling; count before returning and remove optional text until the result is within the ceiling.",
+        "For short source text, return one concise paragraph only; do not add headings, explanations, examples, alternatives, acceptance criteria, or background not present in the source.",
+        "Return only the final rewritten text in result. Never add a new application scenario, audience, platform, deliverable, capability, or commitment."
+      ],
+      "zh": [
+        "将原文 Unicode 字符数的三倍作为绝对硬上限；返回前先计数，超出时删除可选内容直到满足上限。",
+        "对于短原文只返回一段简洁文本；不得新增标题、解释、示例、备选方案、验收标准或原文没有的背景。",
+        "result 只包含最终改写文本。不得新增应用场景、受众、平台、交付物、能力或承诺。"
+      ]
+    }
+  }
+}
