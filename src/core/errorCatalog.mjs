@@ -53,6 +53,9 @@ const KNOWN_ERROR_CODES = new Set([
   "MODEL_OUTPUT_PERMISSION_SEEKING",
   "MODEL_OUTPUT_FALSE_EXECUTION_CLAIM",
   "MODEL_OUTPUT_UNNECESSARY_CLARIFICATION",
+  "MODEL_OUTPUT_TASK_INTENT_DRIFT",
+  "MODEL_OUTPUT_OBJECT_DRIFT",
+  "MODEL_OUTPUT_UNSUPPORTED_FACT",
 ]);
 
 const ERROR_CODE_PATTERNS = Object.freeze([
@@ -69,6 +72,9 @@ const ERROR_CODE_PATTERNS = Object.freeze([
   ["MODEL_OUTPUT_PERMISSION_SEEKING", /追加.*(?:是否|要不要|请确认)|permission[- ]seeking|should i proceed/iu],
   ["MODEL_OUTPUT_FALSE_EXECUTION_CLAIM", /伪造.*(?:完成|审计|检查)|fabricated.*(?:completed|audited|inspected)/iu],
   ["MODEL_OUTPUT_UNNECESSARY_CLARIFICATION", /不必要.*追问|unnecessary clarification/iu],
+  ["MODEL_OUTPUT_TASK_INTENT_DRIFT", /核心任务动作|core task action/iu],
+  ["MODEL_OUTPUT_OBJECT_DRIFT", /交付物类型|deliverable type/iu],
+  ["MODEL_OUTPUT_UNSUPPORTED_FACT", /量化阈值|quantified target/iu],
   ["MISSING_RESULT", /响应缺少\s*result|missing (?:a )?result,?\s*(?:text|or content)/iu],
   ["MODE_INVALID", /提示词工作模式无效|工作模式无效|invalid (?:prompt )?work mode/iu],
 ]);
@@ -128,6 +134,9 @@ const ERROR_MESSAGES = Object.freeze({
   MODEL_OUTPUT_PERMISSION_SEEKING: "模型追加了不必要的确认或继续询问：原文未改动。",
   MODEL_OUTPUT_FALSE_EXECUTION_CLAIM: "模型把待执行任务误写成已完成事实：原文未改动。",
   MODEL_OUTPUT_UNNECESSARY_CLARIFICATION: "模型追加了不会改变任务的澄清问题：原文未改动。",
+  MODEL_OUTPUT_TASK_INTENT_DRIFT: "模型改变或遗漏了原文的核心任务动作：原文未改动。",
+  MODEL_OUTPUT_OBJECT_DRIFT: "模型改变或遗漏了原文指定的交付物类型：原文未改动。",
+  MODEL_OUTPUT_UNSUPPORTED_FACT: "模型新增了原文没有的量化阈值或验收数字：原文未改动。",
 });
 
 export function inferPromptErrorCode(error) {

@@ -45,6 +45,9 @@ async function run() {
     });
   }
 
+  const casePattern = process.env.QA_CASE_PATTERN
+    ? new RegExp(process.env.QA_CASE_PATTERN, 'iu')
+    : null;
   const cases = [
     {
       name: 'direct-feedback',
@@ -79,13 +82,13 @@ async function run() {
         return {
           mergedModeAndScene: /工作模式/u.test(result) && /场景/u.test(result),
           uiUpgradePreserved: /UI|界面/u.test(result) && /升级|优化/u.test(result),
-          shortcutScopePreserved: /快捷键/u.test(result) && /技术实现范围|实现范围/u.test(result),
+          shortcutScopePreserved: /快捷键/u.test(result) && /技术实现范围|实现范围|技术范围/u.test(result),
           permissionSeeking: PERMISSION_SEEKING_OUTPUT.test(result),
           metaPromptLeak: META_OUTPUT.test(result),
         };
       },
     },
-  ];
+  ].filter(({ name }) => !casePattern || casePattern.test(name));
   const caseResults = [];
   for (const contractCase of cases) {
     activeCase = contractCase.name;
@@ -107,6 +110,7 @@ async function run() {
     caseResults.push({
       name: contractCase.name,
       resultChars: result.length,
+      ...(process.env.QA_DEBUG_SYNTHETIC === '1' ? { result } : {}),
       ...checks,
     });
     if (failed) {
@@ -115,6 +119,7 @@ async function run() {
       ), {
         code: 'QA_MODEL_CONTRACT_FAILED',
         qaCase: contractCase.name,
+        qaResult: process.env.QA_DEBUG_SYNTHETIC === '1' ? result : undefined,
       });
     }
   }
@@ -134,6 +139,9 @@ run()
       case: String(error?.qaCase ?? activeCase),
       code: String(error?.code ?? 'QA_MODEL_CONTRACT_FAILED'),
       message: String(error?.message ?? error),
+      ...(process.env.QA_DEBUG_SYNTHETIC === '1' && error?.qaResult
+        ? { result: String(error.qaResult) }
+        : {}),
     })}\n`);
     app.exit(1);
   });

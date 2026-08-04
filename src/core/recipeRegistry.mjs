@@ -120,7 +120,7 @@ const RECIPES = Object.freeze([
         creative: tier(
           '创意策划',
           '在专业任务简报基础上提供受控的探索空间和差异化方向。',
-          '允许补充二至三个可选创意方向、评价维度或组合方式，但每项必须服务原任务。',
+          '最多补充两个单句可选创意方向、评价维度或组合方式，且每项必须服务原任务。',
           '先完整定义目标、约束和交付，再列可比较的创意方向及选择标准。',
           '不得把创意建议伪装为事实，不得虚构数据、来源、用户结论、产品能力或业务前提。',
         ),
@@ -150,7 +150,7 @@ const RECIPES = Object.freeze([
         creative: tier(
           'Creative Planning',
           'Add bounded exploration and differentiated directions on top of a professional task brief.',
-          'Add two or three optional creative directions, evaluation dimensions, or combinations only when they serve the source task.',
+          'Add at most two one-sentence optional creative directions, evaluation dimensions, or combinations that serve the source task.',
           'Define the objective, constraints, and deliverable first, then comparable creative directions and selection criteria.',
           'Do not present suggestions as facts or invent data, sources, user conclusions, product capabilities, or business premises.',
         ),

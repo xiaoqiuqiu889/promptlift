@@ -10,6 +10,7 @@ import {
   createLocalEnhancement,
   detectLanguage,
   enhancePrompt,
+  maxAllowedResultLength,
   MODEL_STYLES,
   PROMPT_MODES,
   isPromptMode,
@@ -252,6 +253,61 @@ test('needs_input exposes only a bounded plain-text clarification in error detai
   );
 });
 
+test('clear prompt tasks repair needs_input with an explicit no-clarification directive', async () => {
+  const source = [
+    'Audit https://example.test/repo for Prompt Engine and UI/UX findings.',
+    'Return a P0/P1/P2 report.',
+  ].join(' ');
+  const messages = [];
+  const responses = [
+    {
+      protocol: PROMPT_PROTOCOL_VERSION,
+      mode: PROMPT_MODES.enhance,
+      language: 'en',
+      status: 'needs_input',
+      result: 'Which area should the audit prioritize?',
+    },
+    {
+      protocol: PROMPT_PROTOCOL_VERSION,
+      mode: PROMPT_MODES.enhance,
+      language: 'en',
+      status: 'ok',
+      result: source,
+    },
+  ];
+
+  const result = await enhancePrompt(source, {
+    endpoint: 'https://tokenhub.tencentmaas.com/v1',
+    model: 'deepseek-v4-flash',
+    apiKey: 'secret-test-key',
+    mode: PROMPT_MODES.enhance,
+    style: MODEL_STYLES.concise,
+    fetchImpl: async (_url, options) => {
+      messages.push(JSON.parse(options.body).messages);
+      const envelope = responses[messages.length - 1];
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            choices: [{
+              finish_reason: 'stop',
+              message: { content: JSON.stringify(envelope) },
+            }],
+          };
+        },
+      };
+    },
+  });
+
+  assert.equal(result, source);
+  assert.equal(messages.length, 2);
+  assert.match(
+    messages[1][0].content,
+    /previous needs_input was invalid.*status must be ok.*do not ask.*(?:preference|scope)/isu,
+  );
+});
+
 test('prompt protocol v2 treats source text as material, preserves facts, and avoids over-expansion', () => {
   assert.equal(PROMPT_PROTOCOL_VERSION, '2.0');
   assert.equal(MODEL_STYLES.faithful, 'faithful');
@@ -360,7 +416,7 @@ test('model protocol repairs an introduced meta-rewrite prompt and returns the d
 
   assert.equal(result, responses[1]);
   assert.equal(calls.length, 2);
-  assert.equal(calls[0].temperature, 0.2);
+  assert.equal(calls[0].temperature, 0);
   assert.equal(calls[1].temperature, 0);
   assert.match(calls[1].messages[0].content, /二次改写|元提示词/);
 });
@@ -373,12 +429,12 @@ test('enhance instructions require decisive execution language without unsolicit
     assert.match(chinese, /任务已经明确.*禁止.*是否需要|禁止.*征询.*是否继续/isu);
     assert.match(
       chinese,
-      /编号产品反馈.*实现细节.*不构成改写阻塞.*不得新增.*待确认/isu,
+      /编号产品反馈.*实现细节.*不构成阻塞.*逐项保留.*功能名.*界面动作.*不得新增.*待确认/isu,
     );
     assert.match(english, /task is already clear.*must not.*permission|do not append.*should I proceed/isu);
     assert.match(
       english,
-      /numbered product feedback.*implementation details.*do not block the rewrite.*do not add.*confirmation/isu,
+      /implementation details.*do not block.*numbered feedback.*keep every feature.*UI action.*never collapse.*confirmation/isu,
     );
   }
 });
@@ -1402,9 +1458,10 @@ test('enhancePrompt calls an OpenAI-compatible model with a bearer key', async (
   const body = JSON.parse(calls[0].init.body);
   assert.equal(body.model, 'deepseek-v4-flash');
   assert.equal(body.stream, false);
-  assert.equal(body.temperature, 0.05);
+  assert.equal(body.temperature, 0);
+  assert.deepEqual(body.response_format, { type: 'json_object' });
   assert.deepEqual(body.thinking, { type: 'disabled' });
-  assert.ok(body.max_tokens >= 512 && body.max_tokens <= 4096);
+  assert.ok(body.max_tokens >= 96 && body.max_tokens <= 4096);
   assert.match(body.messages.at(-1).content, /SOURCE_MATERIAL_JSON/);
   assert.match(body.messages.at(-1).content, /Improve this prompt/);
   assert.match(body.messages[0].content, /original intent|原意/i);
@@ -1414,20 +1471,15 @@ test('enhancePrompt calls an OpenAI-compatible model with a bearer key', async (
 test('prompt tiers use bounded temperatures that reinforce fidelity and creativity differences', async () => {
   const expectedTemperatures = new Map([
     [MODEL_STYLES.faithful, 0],
-    [MODEL_STYLES.concise, 0.05],
-    [MODEL_STYLES.professional, 0.1],
-    [MODEL_STYLES.creative, 0.2],
+    [MODEL_STYLES.concise, 0],
+    [MODEL_STYLES.professional, 0],
+    [MODEL_STYLES.creative, 0],
   ]);
-  const expectedTokenFloors = new Map([
-    [MODEL_STYLES.faithful, 512],
-    [MODEL_STYLES.concise, 512],
-    [MODEL_STYLES.professional, 768],
-    [MODEL_STYLES.creative, 1_024],
-  ]);
+  const source = 'Improve this prompt with a clear objective and expected output while preserving the original intent.';
 
   for (const [style, expectedTemperature] of expectedTemperatures) {
     let requestBody;
-    const result = await enhancePrompt('Improve this prompt with a clear objective and expected output while preserving the original intent.', {
+    const result = await enhancePrompt(source, {
       endpoint: 'https://example.test/v1',
       model: 'other-compatible-model',
       apiKey: 'secret-test-key',
@@ -1459,7 +1511,11 @@ test('prompt tiers use bounded temperatures that reinforce fidelity and creativi
 
     assert.equal(result, 'Improve this prompt with a clear objective and expected output.');
     assert.equal(requestBody.temperature, expectedTemperature);
-    assert.ok(requestBody.max_tokens >= expectedTokenFloors.get(style));
+    const expectedMaxTokens = Math.max(
+      96,
+      Math.ceil(maxAllowedResultLength(source, style) / 3) + 96,
+    );
+    assert.equal(requestBody.max_tokens, expectedMaxTokens);
   }
 });
 

@@ -1117,6 +1117,9 @@ function legacyErrorMessage(error, fallback = messages.error) {
     case "MODEL_OUTPUT_SCOPE_INVENTION":
     case "MODEL_OUTPUT_MULTIPLE_CANDIDATES":
     case "MODEL_OUTPUT_SEMANTIC_ESCALATION":
+    case "MODEL_OUTPUT_TASK_INTENT_DRIFT":
+    case "MODEL_OUTPUT_OBJECT_DRIFT":
+    case "MODEL_OUTPUT_UNSUPPORTED_FACT":
       return "模型结果未通过安全校验，原文未被覆盖；请重试或切换“原意守护”。";
     case "MODEL_NEEDS_INPUT":
       return clarificationQuestion(error)

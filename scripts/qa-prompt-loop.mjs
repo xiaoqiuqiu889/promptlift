@@ -107,7 +107,7 @@ const CASES = [
   },
   {
     name: 'creative-anchor-loss',
-    source: 'Keep URL https://example.test/a in the final request.',
+    source: 'Keep ticket PL-42 and URL https://example.test/a in the final request.',
     mode: PROMPT_MODES.enhance,
     style: MODEL_STYLES.creative,
     result: 'Keep the link in the final request and add one optional direction.',

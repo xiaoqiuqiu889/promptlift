@@ -35,16 +35,11 @@ const LEGACY_MODEL_STYLE_ALIASES = Object.freeze({
 });
 const MODEL_STYLE_TEMPERATURES = Object.freeze({
   [MODEL_STYLES.faithful]: 0,
-  [MODEL_STYLES.concise]: 0.05,
-  [MODEL_STYLES.professional]: 0.1,
-  [MODEL_STYLES.creative]: 0.2,
+  [MODEL_STYLES.concise]: 0,
+  [MODEL_STYLES.professional]: 0,
+  [MODEL_STYLES.creative]: 0,
 });
-const MODEL_STYLE_TOKEN_FLOORS = Object.freeze({
-  [MODEL_STYLES.faithful]: 512,
-  [MODEL_STYLES.concise]: 512,
-  [MODEL_STYLES.professional]: 768,
-  [MODEL_STYLES.creative]: 1_024,
-});
+const MIN_MODEL_OUTPUT_TOKENS = 96;
 
 function loadPromptPolicy() {
   try {
@@ -374,9 +369,15 @@ function extractResult(payload, language) {
 }
 
 function immutableAnchors(source) {
+  const anchorSource = String(source ?? '').replace(
+    /^\s*\d{1,3}[.)、．]\s+/gmu,
+    '',
+  );
   const patterns = [
     /https?:\/\/[^\s<>"'）)]+/giu,
     /\b[A-Za-z]:\\[^\r\n\t"'<>|]+/gu,
+    /(?:\d{4}年)?\d{1,2}月\d{1,2}日/gu,
+    /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:,\s+\d{4})?\b/giu,
     /\b[A-Z][A-Z0-9]+-\d+\b/gu,
     /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu,
     /(?<!\w)--[a-z][\w-]*/giu,
@@ -387,11 +388,116 @@ function immutableAnchors(source) {
   ];
   const anchors = new Set();
   for (const pattern of patterns) {
-    for (const match of source.match(pattern) ?? []) {
+    for (const match of anchorSource.match(pattern) ?? []) {
       anchors.add(match.replace(/[，。；、]+$/u, ''));
     }
   }
   return [...anchors].filter(Boolean);
+}
+
+function boundedRepairAnchors(source) {
+  const candidates = [
+    ...immutableAnchors(source),
+    ...PRESERVED_PRODUCT_TERMS.filter((term) => String(source ?? '').includes(term)),
+  ];
+  const selected = [];
+  let characters = 0;
+  for (const candidate of new Set(candidates)) {
+    if (selected.length >= 12 || characters + candidate.length > 600) break;
+    selected.push(candidate);
+    characters += candidate.length;
+  }
+  return selected;
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+function restoreSafeAnchorVariants(result, source) {
+  let restored = result;
+  const englishDates = source.match(
+    /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:,\s+\d{4})?\b/giu,
+  ) ?? [];
+  for (const fullDate of englishDates) {
+    const match = fullDate.match(/^([A-Za-z]+)(\s+\d{1,2}(?:,\s+\d{4})?)$/u);
+    if (!match || match[1].length <= 3) continue;
+    const abbreviatedDate = `${match[1].slice(0, 3)}${match[2]}`;
+    restored = restored.replace(
+      new RegExp(`\\b${escapeRegex(abbreviatedDate)}\\b`, 'giu'),
+      fullDate,
+    );
+  }
+  const sourceUrls = source.match(/https?:\/\/[^\s<>"'）)]+/giu) ?? [];
+  if (sourceUrls.length === 1 && !restored.includes(sourceUrls[0])) {
+    const genericRepositoryReference = /(?:the\s+)?(?:given|provided|linked)\s+(?:repository(?:\s+(?:path|link))?|link)|(?:该|这个|上述|给定的?|提供的?)\s*(?:仓库|链接|地址|路径)(?:路径|链接)?/iu;
+    restored = genericRepositoryReference.test(restored)
+      ? restored.replace(genericRepositoryReference, sourceUrls[0])
+      : `${restored.trimEnd()}\n${/[\u3400-\u9fff]/u.test(source) ? '参考：' : 'Reference: '}${sourceUrls[0]}`;
+  }
+  return restored;
+}
+
+function restoreSafeModalityVariants(result, source, language, mode) {
+  let restored = result;
+  const sourceIsSoftOnly = SOFT_MODALITY_PATTERN.test(source)
+    && !HARD_MODALITY_PATTERN.test(source);
+  const resultIntroducedHardOnly = HARD_MODALITY_PATTERN.test(result)
+    && !SOFT_MODALITY_PATTERN.test(result);
+
+  if (mode === PROMPT_MODES.pptCopy && sourceIsSoftOnly && resultIntroducedHardOnly) {
+    restored = language === 'zh'
+      ? restored
+        .replace(/要求(?=\s*[:：])/gu, '建议')
+        .replace(/(?:必须|务必|不得不)/gu, '建议')
+        .replace(/需先/gu, '建议先')
+        .replace(/确保/gu, '建议保障')
+        .replace(/(?:一定|必然)/gu, '可能')
+      : restored
+        .replace(/\bmust\b|\bshall\b|\bhave to\b|\bneed to\b/giu, 'could')
+        .replace(/\brequired\b/giu, 'suggested')
+        .replace(/\bensure\b/giu, 'consider ensuring')
+        .replace(/\bdefinitely\b|\bcertainly\b/giu, 'possibly')
+        .replace(/\bwill\b/giu, 'may');
+  }
+
+  if (mode === PROMPT_MODES.pptCopy && language === 'zh') {
+    for (const match of source.matchAll(/可能存在([^，。；\n]{1,24})/gu)) {
+      const claim = match[1].trim();
+      if (!claim || restored.includes(`可能存在${claim}`)) continue;
+      restored = restored.replace(
+        new RegExp(`(?<!可能)存在\\s*${escapeRegex(claim)}`, 'u'),
+        `可能存在${claim}`,
+      );
+    }
+  }
+
+  if (mode === PROMPT_MODES.pptCopy) {
+    const clauses = source
+      .split(language === 'zh' ? /[，。；\n]+/u : /[.;\n]+/u)
+      .map((clause) => clause.trim())
+      .filter(Boolean);
+    const restoreClause = (sourcePattern, resultPattern) => {
+      if (!sourcePattern.test(source) || resultPattern.test(restored)) return;
+      const clause = clauses.find((candidate) => sourcePattern.test(candidate));
+      if (!clause || restored.includes(clause)) return;
+      const separator = language === 'zh'
+        ? (/[。；！？]$/u.test(restored) ? '' : '；')
+        : (/[.!?]$/u.test(restored) ? ' ' : '; ');
+      restored = `${restored}${separator}${clause}${language === 'zh' ? '。' : '.'}`;
+    };
+    restoreClause(
+      language === 'zh' ? /(?:可能|或许|也许)/u : /\b(?:may|might|possible|possibly)\b/iu,
+      language === 'zh' ? /(?:可能|或许|也许|尚不能排除)/u : /\b(?:may|might|possible|possibly)\b/iu,
+    );
+    restoreClause(
+      language === 'zh' ? /(?:建议|可考虑)/u : /\b(?:consider|suggest(?:ion|ed)?)\b/iu,
+      language === 'zh' ? /(?:建议|可考虑)/u : /\b(?:consider|suggest(?:ion|ed)?)\b/iu,
+    );
+    restoreClause(NEGATIVE_CONSTRAINT_PATTERN, PRESERVED_NEGATIVE_PATTERN);
+  }
+
+  return restored;
 }
 
 const UNSUPPORTED_PRODUCT_CONTEXTS = Object.freeze([
@@ -410,6 +516,63 @@ const UNSUPPORTED_PRODUCT_CONTEXTS = Object.freeze([
   ['new deployment context', /\b(?:mobile|web|production|cloud)\s+(?:app|platform|deployment|environment)\b/iu],
   ['new evidence source', /\b(?:chart|data|metrics?|sources?)\b/iu],
 ]);
+
+const PRESERVED_PRODUCT_TERMS = Object.freeze([
+  'Prompt Lift',
+  'Prompt Pet',
+  'AI 提示词',
+  '向上沟通',
+  '用户沟通',
+  'PPT 文案',
+  '工作模式',
+  '沟通模式',
+  '优化档位',
+  '审阅后应用',
+  '审阅状态',
+  '系统提示词',
+  '模型与 Key 配置',
+  '开机自启动',
+  '小精灵形象',
+  '取消',
+  '恢复原文',
+  '重新生成',
+  '复制',
+]);
+
+function restoreNumberedProductFeedback(result, source, mode) {
+  if (mode !== PROMPT_MODES.enhance) return result;
+  const numberedLines = String(source ?? '')
+    .split(/\r?\n/u)
+    .filter((line) => /^\s*\d{1,3}[.)、．]\s+/u.test(line));
+  if (numberedLines.length < 2) return result;
+
+  const missingTerms = PRESERVED_PRODUCT_TERMS.filter(
+    (term) => source.includes(term) && !result.includes(term),
+  );
+  if (missingTerms.length === 0) return result;
+  const recoveryLines = numberedLines
+    .filter((line) => missingTerms.some((term) => line.includes(term)))
+    .map((line) => line.replace(/^\s*\d{1,3}[.)、．]\s+/u, '').trim())
+    .filter((line) => line && !result.includes(line));
+  if (recoveryLines.length === 0) return result;
+
+  return `${result.trimEnd()}\n${recoveryLines.map((line) => `- ${line}`).join('\n')}`;
+}
+
+function assertNamedProductTermsPreserved(result, source, language) {
+  const missingTerms = PRESERVED_PRODUCT_TERMS.filter(
+    (term) => source.includes(term) && !result.includes(term),
+  );
+  if (missingTerms.length === 0) return;
+
+  throw createEnhancementError(
+    'MODEL_OUTPUT_FACT_LOSS',
+    language,
+    '模型遗漏了原文中的产品名、功能名、模式名或界面动作，已阻止覆盖原文。',
+    'The model dropped a product, feature, mode, or UI-action term from the source.',
+    { missingCount: missingTerms.length, policy: 'preserve-named-product-terms' },
+  );
+}
 
 function assertSupportedProductContext(result, source, language, mode, style) {
   const introducedProductContexts = UNSUPPORTED_PRODUCT_CONTEXTS
@@ -475,6 +638,7 @@ function assertStrictScope(result, source, language, style) {
 const SOFT_MODALITY_PATTERN = /(?:建议|可选|可以|可能|或许|也许|可考虑|待确认|如需|suggest(?:ion|ed)?|consider|could|may|might|optional|possible|if|when)/iu;
 const HARD_MODALITY_PATTERN = /(?:必须|务必|要求|确保|一定|必然|不得不|must|shall|required|need to|have to|ensure|definitely|guarantee|certainly|\bwill\b)/iu;
 const NEGATIVE_CONSTRAINT_PATTERN = /(?:不得|禁止|不能|不要|仅限|只允许|除非|不可|must not|do not|don't|never|cannot|only if|unless)/iu;
+const PRESERVED_NEGATIVE_PATTERN = /(?:不得|禁止|不能|不要|不可|未|尚未|没|不(?:再|先|会|予|作|做|进行|承诺|新增|添加|开启|启用|应|得)|must not|do not|don't|never|cannot|without|\bnot\b|\bno\b)/iu;
 const NEGATIVE_MODALITY_GUARD_PATTERN = /(?:不要|不得|不能|must not|do not|never).{0,18}(?:把|将|turn|rewrite|change).{0,18}(?:建议|可能|不确定|承诺|suggest|possible|uncertain|commitment).{0,18}(?:改|写|升级|变|requirement|certainty|mandatory|hard)/isu;
 const UNSOLICITED_PERMISSION_SEEKING_PATTERNS = Object.freeze([
   /(?:是否|要不要|需不需要)(?:需要)?我.{0,24}(?:继续|开始|优先|现在|进一步|着手|处理|执行|修改|开发|优化|完善|推进)/iu,
@@ -492,15 +656,139 @@ const EXECUTION_CLAIM_PATTERNS = Object.freeze([
   /(?:审计|检查|分析|评估)(?:结果)?(?:显示|发现|表明|确认).{0,100}/iu,
   /【?(?:现状|证据|发现|结论)】?\s*[:：][\s\S]{0,280}(?:存在|缺少|尚未|未明确|有差距|处于)/iu,
   /(?:have|has|was|were)\s+(?:already\s+)?(?:completed|audited|inspected|reviewed|read|visited|analy[sz]ed|evaluated)/iu,
+  /(?:have|has)\s+(?:already\s+)?been\s+(?:completed|audited|inspected|reviewed|read|visited|analy[sz]ed|evaluated)/iu,
   /(?:our|the|this)\s+(?:audit|inspection|review|analysis|evaluation)\s+(?:found|shows?|indicates?|confirmed)/iu,
 ]);
 const NON_BLOCKING_CLARIFICATION_PATTERNS = Object.freeze([
   /(?:需决策事项|待确认事项|需要确认|需进一步确认|请确认|请补充|请明确|需要补充)/iu,
   /(?:decision needed|to confirm|needs? confirmation|please confirm|please clarify|please provide|need more information)/iu,
 ]);
+const TASK_INTENT_PATTERNS = Object.freeze([
+  ['audit', /(?:审计|检查|评审|audit|inspect|review)/iu],
+  ['analyze', /(?:分析|评估|诊断|analy[sz]e|evaluate|diagnose)/iu],
+  ['fix', /(?:修复|解决|排查|纠正|fix|resolve|debug|correct)/iu],
+  ['design', /(?:设计|design)/iu],
+  ['translate', /(?:翻译|translate)/iu],
+  ['summarize', /(?:总结|摘要|概括|summari[sz]e)/iu],
+  ['test', /(?:(?:执行|进行|完成|跑)(?:测试|验收|验证)|(?:测试|验证)(?:一下|结果|报告|流程)?|test|verify|validate)/iu],
+  ['publish', /(?:上传|发布|提交|推送|upload|publish|push|commit)/iu],
+  ['remove', /(?:删除|移除|去掉|remove|delete)/iu],
+  ['implement', /(?:开发|实现|落地|develop|implement|build)/iu],
+]);
+const OUTPUT_OBJECT_PATTERNS = Object.freeze([
+  ['email', /(?:邮件|电邮|e-?mail)/iu],
+  ['report', /(?:报告|report)/iu],
+  ['title', /(?:标题|headline|title)/iu],
+  ['readme', /\bREADME\b/iu],
+  ['table', /(?:表格|table)/iu],
+  ['code', /(?:代码|脚本|程序|code|script)/iu],
+  ['image', /(?:图片|图像|立绘|图标|image|illustration|icon)/iu],
+  ['slides', /(?:PPT|PowerPoint|幻灯片|演示文稿|slides?|deck)/iu],
+  ['document', /(?:文档|document)/iu],
+]);
+const QUANTIFIED_TARGET_PATTERN = /(?:不超过|不少于|至少|至多|低于|高于|达到|控制在|within|under|below|above|at least|at most|no more than|less than|more than|on a)\s*(\d+(?:\.\d+)?(?:\s*[-–—]\s*\d+(?:\.\d+)?)?)\s*(%|％|毫秒|秒|分钟|小时|天|元|万元|字|字符|条|项|轮|次|个|人|页|分制|kb|mb|gb|milliseconds?|seconds?|minutes?|hours?|days?|tokens?|rounds?|times?|scale)/giu;
+const TASK_REQUEST_MARKER = /(?:请|帮我|麻烦|需要|要求|目标是|任务是|你来|please|need you to|task is to|objective is to|you should)/iu;
 
 function matchesAny(patterns, value) {
   return patterns.some((pattern) => pattern.test(value));
+}
+
+function matchedLabels(patterns, value) {
+  return patterns
+    .filter(([, pattern]) => pattern.test(value))
+    .map(([label]) => label);
+}
+
+const OUTPUT_DIRECTIVE_PATTERN = /(?:输出格式|交付物|输出|返回|提供|生成|撰写|编写|制作|交付|改写|优化|润色|output|deliverable|return|provide|produce|write|create|generate|prepare|draft|rewrite|optimi[sz]e|polish)\s*(?::|：)?\s*(?:a|an|the|一份|一个|一封)?\s*/giu;
+
+function requestedOutputObjectLabels(value) {
+  const text = String(value ?? '')
+    .replace(/https?:\/\/\S+/giu, ' ')
+    .replace(/\b[A-Za-z]:\\[^\r\n\t"'<>|]+/gu, ' ')
+    .replace(/`[^`\r\n]+`/gu, ' ');
+  const labels = new Set();
+  for (const directive of text.matchAll(OUTPUT_DIRECTIVE_PATTERN)) {
+    const tail = text.slice(
+      (directive.index ?? 0) + directive[0].length,
+      (directive.index ?? 0) + directive[0].length + 96,
+    ).split(/[。！？.!?;\n]/u, 1)[0];
+    const nearest = OUTPUT_OBJECT_PATTERNS
+      .map(([label, pattern]) => ({ label, index: tail.search(pattern) }))
+      .filter(({ index }) => index >= 0)
+      .sort((left, right) => left.index - right.index)[0];
+    if (nearest) labels.add(nearest.label);
+  }
+  return [...labels];
+}
+
+function requestedTaskIntentLabels(value) {
+  const sentences = String(value ?? '')
+    .replace(/https?:\/\/\S+/giu, ' ')
+    .replace(/\b[A-Za-z]:\\[^\r\n\t"'<>|]+/gu, ' ')
+    .replace(/`[^`\r\n]+`/gu, ' ')
+    .split(/[。！？.!?;\n]/u);
+  return TASK_INTENT_PATTERNS
+    .filter(([, pattern]) => sentences.some((sentence) => {
+      const match = sentence.match(pattern);
+      return match && (TASK_REQUEST_MARKER.test(sentence) || (match.index ?? Infinity) <= 4);
+    }))
+    .map(([label]) => label);
+}
+
+function assertTaskIntentPreserved(result, source, language, mode) {
+  if (mode !== PROMPT_MODES.enhance) return;
+  const missing = requestedTaskIntentLabels(source)
+    .filter((label) => {
+      const pattern = TASK_INTENT_PATTERNS.find(([candidate]) => candidate === label)?.[1];
+      return pattern && !pattern.test(result);
+    });
+  if (missing.length === 0) return;
+
+  throw createEnhancementError(
+    'MODEL_OUTPUT_TASK_INTENT_DRIFT',
+    language,
+    '模型改变或遗漏了原文要求执行的核心任务动作，已阻止覆盖原文。',
+    'The model changed or dropped a core task action from the source.',
+    { missing, policy: 'preserve-task-intent' },
+  );
+}
+
+function assertOutputObjectPreserved(result, source, language, mode) {
+  if (mode !== PROMPT_MODES.enhance) return;
+  const missing = requestedOutputObjectLabels(source)
+    .filter((label) => {
+      const pattern = OUTPUT_OBJECT_PATTERNS.find(([candidate]) => candidate === label)?.[1];
+      return pattern && !pattern.test(result);
+    });
+  if (missing.length === 0) return;
+
+  throw createEnhancementError(
+    'MODEL_OUTPUT_OBJECT_DRIFT',
+    language,
+    '模型改变或遗漏了原文指定的交付物类型，已阻止覆盖原文。',
+    'The model changed or dropped the explicit deliverable type from the source.',
+    { missing, policy: 'preserve-output-object' },
+  );
+}
+
+function quantifiedTargets(value) {
+  return [...String(value ?? '').matchAll(QUANTIFIED_TARGET_PATTERN)]
+    .map((match) => `${match[1]}:${match[2].toLowerCase().replace(/s$/u, '')}`);
+}
+
+function assertNoUnsupportedQuantifiedTarget(result, source, language) {
+  const sourceTargets = new Set(quantifiedTargets(source));
+  const introduced = quantifiedTargets(result)
+    .filter((target) => !sourceTargets.has(target));
+  if (introduced.length === 0) return;
+
+  throw createEnhancementError(
+    'MODEL_OUTPUT_UNSUPPORTED_FACT',
+    language,
+    '模型新增了原文没有的量化阈值或验收数字，已阻止覆盖原文。',
+    'The model introduced a quantified target or acceptance number absent from the source.',
+    { introducedCount: introduced.length, policy: 'no-invented-quantified-targets' },
+  );
 }
 
 function assertFactStatePreserved(result, source, language) {
@@ -555,7 +843,7 @@ function assertSemanticStrength(result, source, language, style) {
 
   const sourceUsesNegativeModalityGuard = NEGATIVE_MODALITY_GUARD_PATTERN.test(source);
   if (NEGATIVE_CONSTRAINT_PATTERN.test(source)
-    && !NEGATIVE_CONSTRAINT_PATTERN.test(result)
+    && !PRESERVED_NEGATIVE_PATTERN.test(result)
     && !sourceUsesNegativeModalityGuard) {
     throw createEnhancementError(
       'MODEL_OUTPUT_SEMANTIC_ESCALATION',
@@ -624,6 +912,9 @@ function assertDirectRewriteResult(result, source, language, mode, style) {
   assertStrictScope(result, source, language, style);
   assertSupportedProductContext(result, source, language, mode, style);
   assertFactStatePreserved(result, source, language);
+  assertOutputObjectPreserved(result, source, language, mode);
+  assertTaskIntentPreserved(result, source, language, mode);
+  assertNoUnsupportedQuantifiedTarget(result, source, language);
   assertNoUnnecessaryClarification(result, source, language, mode);
   assertSemanticStrength(result, source, language, style);
   assertNoUnsolicitedPermissionSeeking(result, source, language, mode);
@@ -756,10 +1047,14 @@ function validateProtocolResult(raw, source, language, options) {
     );
   }
 
-  const result = sanitizeModelOutput(envelope.result, {
+  let result = sanitizeModelOutput(envelope.result, {
     language,
     mode: expectedMode,
   });
+  result = restoreSafeAnchorVariants(result, source);
+  result = restoreSafeModalityVariants(result, source, language, expectedMode);
+  result = restoreNumberedProductFeedback(result, source, expectedMode);
+  assertNamedProductTermsPreserved(result, source, language);
   assertDirectRewriteResult(result, source, language, expectedMode, expectedStyle);
   assertResultLanguage(result, source, language);
   const maxLength = maxAllowedResultLength(source, expectedStyle);
@@ -958,7 +1253,7 @@ const COMPACT_TIER_CONTRACTS = Object.freeze({
     },
     [MODEL_STYLES.creative]: {
       goal: '创意策划：以专业任务简报为基础，提供受控探索空间。',
-      budget: '仅增加两至三个服务原任务的可选创意方向、评价维度或组合。',
+      budget: '最多增加两个服务原任务的单句可选方向、评价维度或组合。',
       structure: '先定义目标、约束、交付，再列可比较的创意方向和选择标准。',
       forbidden: '建议不得写成事实；不得虚构数据、来源、用户结论、产品能力或业务前提。',
     },
@@ -984,7 +1279,7 @@ const COMPACT_TIER_CONTRACTS = Object.freeze({
     },
     [MODEL_STYLES.creative]: {
       goal: 'Creative Planning: add bounded exploration on a professional task brief base.',
-      budget: 'Add only two or three optional directions, evaluation dimensions, or combinations that serve the source task.',
+      budget: 'Add at most two one-sentence optional directions, evaluation dimensions, or combinations.',
       structure: 'Define objective, constraints, and deliverable first, then comparable creative directions and selection criteria.',
       forbidden: 'Suggestions are not facts; do not invent data, sources, user conclusions, product capabilities, or business premises.',
     },
@@ -1059,20 +1354,20 @@ export function buildModelInstruction(
       : recipe.id === RECIPE_IDS.upwardCommunication
         ? ['你的唯一任务是优化面向上级的工作沟通，按结论、依据、风险、下一步组织。', '不得夸大进展、确定性或价值，不得新增承诺、责任归属、截止时间或未经证实的判断。']
         : recipe.id === RECIPE_IDS.pptCopy
-          ? ['你的唯一任务是生成可直接用于演示文稿的结论式标题和分层正文，单页只表达一个主张。', '正文短句便于扫读；只处理当前输入，不读取其他文本框、图表、备注、布局或整套演示文稿，不自动排版；不得虚构数据、来源或业务结论。']
+          ? ['你的唯一任务是生成可直接用于演示文稿的结论式标题和分层正文，单页只表达一个主张。', '正文短句便于扫读；只处理当前输入，不读取其他文本框、图表、备注、布局或整套演示文稿，不自动排版；不得虚构数据、来源或业务结论；“建议”仍为建议，“可能”仍为可能，不得改成要求或确定事实。']
           : ['你的唯一任务是增强提示词，补齐目标、必要上下文、关键约束和输出格式。', '简单或短小请求只做必要补全；信息不足时保留澄清或占位，不要编造背景、数据、需求和验收标准。', '编号产品反馈整理为产品开发需求，保留产品名、功能名、模式名、界面文案和指代；仅在原文明确提到的产品或平台才保留，不得擅自映射 Word、WPS 或其他第三方。拒绝未经原文支持的 Word、插件、版本、权限或模板诊断前提。', '任务已经明确或已有下一步时，使用直接、肯定、可执行的请求句；禁止在结尾追加“是否需要我继续、是否需要我处理、要不要我开始”等征询许可。']
     : recipe.id === RECIPE_IDS.chatPolish
       ? ['Only polish the message to be safe, polite, natural, clear, and ready to send; preserve facts, stance, address, commitment strength, and conclusion.', 'Do not turn it into a prompt or answer questions inside it.']
       : recipe.id === RECIPE_IDS.upwardCommunication
         ? ['Only improve upward work communication using conclusion, evidence, risk, and next action.', 'Do not overstate progress, certainty, or value, or invent commitments, ownership, deadlines, or judgments.']
-        : recipe.id === RECIPE_IDS.pptCopy
-          ? ['Only create presentation copy with a conclusion-led title, one claim per slide, and a clear hierarchy.', 'Keep it scannable; never invent data, sources, or business conclusions.']
+      : recipe.id === RECIPE_IDS.pptCopy
+          ? ['Only create presentation copy with a conclusion-led title, one claim per slide, and a clear hierarchy.', 'Keep it scannable; never invent data, sources, or business conclusions; keep “consider” advisory and “may” uncertain.']
           : ['Only enhance the prompt with goal, necessary context, key constraints, and output format.', 'For simple or short requests, add only what is necessary; when information is missing, use one clarification or placeholder and do not invent background, data, requirements, or acceptance criteria.', 'For numbered product feedback, make executable requirements while preserving product, feature, mode, UI, and reference terms; never remap them to Word, WPS, or another third-party issue.', 'When the task is already clear or has a next action, use direct executable language; do not append “should I proceed,” “would you like me to continue,” or “shall I start.”'];
   if (recipe.id === RECIPE_IDS.enhance) {
     modeRules.push(
       recipeLanguage === 'zh'
-        ? '编号产品反馈已经说明问题与预期时，缺少实现细节、完整选项名称、参数或验收数字不构成改写阻塞；直接保留问题与预期，不得新增待确认、需决策或请补充章节。'
-        : 'Numbered product feedback: missing implementation details do not block the rewrite; preserve both; do not add confirmation.',
+        ? '编号产品反馈已经说明问题与预期时，缺少实现细节不构成阻塞；逐项保留功能名和界面动作，不得概括成“若干问题”，也不得新增待确认或请补充章节。'
+        : 'Missing implementation details do not block numbered feedback; keep every feature/UI action; never collapse/add confirmation.',
     );
   }
   const common = recipeLanguage === 'zh'
@@ -1094,12 +1389,12 @@ export function buildModelInstruction(
     ];
   const semantic = recipeLanguage === 'zh'
     ? [
-      '保留原意与锚点（人名、组织、数字、日期、金额、链接、路径、代码、命令、专有名词、范围、优先级、明确否定）；建议、可能性、不确定性和承诺强度保持不变；跟随原文主要语言。',
+      '保留原意、任务动作、每个明确命名的交付物类型与锚点（人名、组织、数字、日期、金额、链接、路径、代码、命令、专有名词、范围、优先级）；明确否定仍须明确表达；不得新增量化阈值；语气强度不变；跟随原文主要语言。',
       '澄清闸门：任务对象和交付物明确时，禁止追加是否需要、是否继续等征询；只有缺口会实质改变事实、责任、承诺或输出对象时才用 status=needs_input。',
       '只调用当前模型并返回一个最终结果；不得比较模型、列出候选或返回多个备选。',
     ]
     : [
-      'Preserve intent and anchors (names, numbers, dates, amounts, links, paths, code, commands, scope, priority, and explicit negatives); preserve suggestion, possibility, uncertainty, and commitment strength; follow the source language.',
+      'Preserve intent, task actions, named deliverables, and copy anchors verbatim (names, numbers, dates, amounts, links, paths, code, commands, scope, and priority); keep explicit negatives explicit; add no quantified target; preserve modality and source language.',
       'Clarity gate: when task and deliverable are clear, do not append permission questions; use status=needs_input only when a missing fact, responsibility, commitment, or output object would materially change the result.',
       'Use the configured model once and return one final result; do not compare models, list candidates, or return alternatives.',
     ];
@@ -1166,6 +1461,37 @@ export function buildModelMessages(prompt, language, options = {}) {
   const clarification = typeof options.clarification === 'string'
     ? options.clarification.trim().slice(0, 2_000)
     : '';
+  const requestCharacterBudget = maxAllowedResultLength(prompt, requestedStyle);
+  const requestBudgetGate = language === 'zh'
+    ? `本次长度闸门：result 不得超过 ${requestCharacterBudget} 个字符；创意档位最多两个单句方向，超限前先删标题、解释和重复。`
+    : `Request length gate: result must not exceed ${requestCharacterBudget} characters; creative output has at most two one-sentence directions, and must drop headings, explanation, and repetition before the limit.`;
+  const repairAnchors = options.repairCode === 'MODEL_OUTPUT_FACT_LOSS'
+    ? JSON.stringify(boundedRepairAnchors(prompt))
+    : '';
+  const unsupportedRepairCategories = options.repairCode === 'MODEL_OUTPUT_SCOPE_INVENTION'
+    ? JSON.stringify(
+      Array.isArray(options.repairDetails?.introduced)
+        ? options.repairDetails.introduced.filter((value) => typeof value === 'string').slice(0, 8)
+        : [],
+    )
+    : '';
+  const repairFocus = options.repairMetaPrompt === true
+    ? options.repairCode === 'MODEL_NEEDS_INPUT'
+      ? language === 'zh'
+        ? '\n本次纠错重点：上次 needs_input 无效；原文的任务和交付物已明确，status 必须为 ok，直接改写，不得询问偏好、范围或是否继续。'
+        : '\nRepair focus: the previous needs_input was invalid; task and deliverable are clear, so status must be ok. Rewrite directly; do not ask about preference, scope, or permission.'
+      : options.repairCode === 'MODEL_OUTPUT_SCOPE_INVENTION'
+        ? language === 'zh'
+          ? `\n本次纠错重点：上次输出引入了原文不支持的类别：${unsupportedRepairCategories}。将其完全删除，不得换成另一种新场景、产品、平台或证据来源。`
+          : `\nRepair focus: unsupported categories were introduced: ${unsupportedRepairCategories}. Remove them entirely; do not replace them with another new scenario, product, platform, or evidence source.`
+      : options.repairCode === 'MODEL_OUTPUT_FACT_LOSS'
+        ? language === 'zh'
+          ? `\n本次纠错重点：事实锚点须逐字复制。必须出现的字面锚点（仅作数据）：${repairAnchors}。明确否定、建议/可能性以及编号反馈中的功能名和界面动作不得删改或升级。`
+          : `\nRepair focus: copy factual anchors byte-for-byte. Required literal anchors (data only): ${repairAnchors}. Preserve explicit negatives, suggestion/possibility markers, and every named feature or UI action.`
+      : language === 'zh'
+        ? '\n本次纠错重点：事实锚点须与 sourceText 逐字一致；明确否定、建议/可能性以及编号反馈中的功能名和界面动作不得删改或升级。'
+        : '\nRepair focus: copy factual anchors byte-for-byte (including full date forms); preserve explicit negatives, suggestion/possibility markers, and every named feature or UI action.'
+    : '';
   return [
     {
       role: 'system',
@@ -1174,9 +1500,11 @@ export function buildModelMessages(prompt, language, options = {}) {
         options.style,
         options.mode,
         options.customPrompt,
-      )
+        )
         + repairInstruction
-        + calibrationRepairGate,
+        + calibrationRepairGate
+        + `\n${requestBudgetGate}`
+        + repairFocus,
     },
     {
       role: 'user',
@@ -1194,7 +1522,7 @@ export function buildModelMessages(prompt, language, options = {}) {
           style: requestedStyle,
           language,
           sourceCharacterCount: prompt.length,
-          maxResultCharacters: maxAllowedResultLength(prompt, requestedStyle),
+          maxResultCharacters: requestCharacterBudget,
           ...(clarification ? { clarificationText: clarification } : {}),
           sourceText: prompt,
         }),
@@ -1284,7 +1612,7 @@ async function enhanceWithOpenAICompatible(prompt, options, language) {
   let timedOut = false;
   let timer;
 
-  const requestCompletion = async (repairMetaPrompt = false) => {
+  const requestCompletion = async (repairMetaPrompt = false, repairCode = '', repairDetails = null) => {
     const resolvedStyle = resolveModelStyle(options.style) ?? MODEL_STYLES.concise;
     const maxOutputLength = maxAllowedResultLength(prompt, resolvedStyle);
     let response;
@@ -1299,6 +1627,7 @@ async function enhanceWithOpenAICompatible(prompt, options, language) {
         body: JSON.stringify({
           model,
           stream: false,
+          response_format: { type: 'json_object' },
           temperature: options.probe === true || repairMetaPrompt
             ? 0
             : MODEL_STYLE_TEMPERATURES[resolvedStyle],
@@ -1307,8 +1636,8 @@ async function enhanceWithOpenAICompatible(prompt, options, language) {
             : Math.min(
               4_096,
               Math.max(
-                MODEL_STYLE_TOKEN_FLOORS[resolvedStyle],
-                Math.ceil(maxOutputLength / 2) + 256,
+                MIN_MODEL_OUTPUT_TOKENS,
+                Math.ceil(maxOutputLength / (language === 'zh' ? 1 : 3)) + 96,
               ),
             ),
           ...(supportsDisabledThinking(model)
@@ -1317,6 +1646,8 @@ async function enhanceWithOpenAICompatible(prompt, options, language) {
           messages: buildModelMessages(prompt, language, {
             ...options,
             repairMetaPrompt,
+            repairCode,
+            repairDetails,
           }),
         }),
         signal: controller.signal,
@@ -1367,19 +1698,29 @@ async function enhanceWithOpenAICompatible(prompt, options, language) {
     try {
       return await requestCompletion(false);
     } catch (error) {
+      const clearEnhancementNeedsInput = error?.code === 'MODEL_NEEDS_INPUT'
+        && (options.mode ?? PROMPT_MODES.enhance) === PROMPT_MODES.enhance
+        && requestedTaskIntentLabels(prompt).length > 0
+        && requestedOutputObjectLabels(prompt).length > 0;
       const repairableOutputError = error?.code === 'MODEL_OUTPUT_META_PROMPT'
         || error?.code === 'MODEL_OUTPUT_SCOPE_INVENTION'
+        || error?.code === 'MODEL_OUTPUT_TASK_INTENT_DRIFT'
+        || error?.code === 'MODEL_OUTPUT_OBJECT_DRIFT'
+        || error?.code === 'MODEL_OUTPUT_UNSUPPORTED_FACT'
+        || error?.code === 'MODEL_OUTPUT_FACT_LOSS'
+        || error?.code === 'MODEL_OUTPUT_TRUNCATED'
         || error?.code === 'MODEL_OUTPUT_MULTIPLE_CANDIDATES'
         || error?.code === 'MODEL_OUTPUT_SEMANTIC_ESCALATION'
         || error?.code === 'MODEL_OUTPUT_PERMISSION_SEEKING'
         || error?.code === 'MODEL_OUTPUT_FALSE_EXECUTION_CLAIM'
         || error?.code === 'MODEL_OUTPUT_UNNECESSARY_CLARIFICATION'
         || error?.code === 'MODEL_OUTPUT_TOO_LONG'
-        || error?.code === 'INVALID_MODEL_OUTPUT';
+        || error?.code === 'INVALID_MODEL_OUTPUT'
+        || clearEnhancementNeedsInput;
       if (options.probe === true || !repairableOutputError) {
         throw error;
       }
-      return requestCompletion(true);
+      return requestCompletion(true, error?.code, error?.details);
     }
   })();
 
