@@ -148,6 +148,7 @@ button {
 }
 
 .pet-avatar {
+  -webkit-app-region: no-drag;
   display: grid;
   width: 58px;
   height: 58px;
@@ -1289,6 +1290,7 @@ button {
 }
 
 .pet-shell[data-view="compact"] .resize-handle {
+  -webkit-app-region: no-drag;
   top: calc(var(--pet-center-y) - var(--pet-menu-y));
   left: calc(50% + var(--pet-menu-x));
   z-index: 12;

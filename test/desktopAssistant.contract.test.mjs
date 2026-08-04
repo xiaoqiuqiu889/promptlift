@@ -140,6 +140,9 @@ test("desktop assistant window is resizable and its outer styling has no shadows
   assert.doesNotMatch(dragBlock, /requestAnimationFrame|api\.moveBy/);
   assert.match(main, /function moveWindowBy/);
   assert.match(main, /function clampBoundsToWorkArea/);
+  assert.match(main, /function readCurrentDragPoint/);
+  assert.match(main, /screen\.getCursorScreenPoint\(\)/);
+  assert.match(main, /resolveDragPoint\(input, screen\.getCursorScreenPoint\(\)\)/);
   assert.match(main, /createWindowStateStore/);
   assert.match(main, /scheduleWindowStateSave/);
   assert.match(main, /display-removed/);

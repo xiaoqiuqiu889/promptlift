@@ -40,7 +40,7 @@ import { createWindowStateStore } from './core/windowStateStore.mjs';
 import { serializeIpcError, serializeIpcResult } from './core/ipcProtocol.mjs';
 import {
   createWindowDragSession,
-  normalizeDragPoint,
+  resolveDragPoint,
   resolveWindowDragBounds,
   updateWindowDragSession,
 } from './core/windowDrag.mjs';
@@ -532,8 +532,19 @@ function applyPendingWindowDrag() {
   mainWindow.setPosition(nextBounds.x, nextBounds.y, false);
 }
 
+function readCurrentDragPoint(input = {}) {
+  try {
+    if (typeof screen.getCursorScreenPoint === 'function') {
+      return resolveDragPoint(input, screen.getCursorScreenPoint());
+    }
+  } catch {
+    // Fall back to the renderer point if the native cursor is temporarily unavailable.
+  }
+  return resolveDragPoint(input);
+}
+
 function startWindowDrag(event, input = {}) {
-  const point = normalizeDragPoint(input);
+  const point = readCurrentDragPoint(input);
   if (!point || !isMainWindowSender(event)) {
     return;
   }
@@ -541,7 +552,7 @@ function startWindowDrag(event, input = {}) {
 }
 
 function updateWindowDrag(event, input = {}) {
-  const point = normalizeDragPoint(input);
+  const point = readCurrentDragPoint(input);
   if (!point || !windowDragSession || !isMainWindowSender(event)) {
     return;
   }
@@ -556,7 +567,7 @@ function endWindowDrag(event, input = {}) {
   if (!windowDragSession || !isMainWindowSender(event)) {
     return;
   }
-  const point = normalizeDragPoint(input);
+  const point = readCurrentDragPoint(input);
   if (point) {
     updateWindowDragSession(windowDragSession, point);
   }

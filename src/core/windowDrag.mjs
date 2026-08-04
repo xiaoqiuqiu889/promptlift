@@ -14,6 +14,19 @@ export function normalizeDragPoint(input = {}) {
   };
 }
 
+export function resolveDragPoint(input = {}, cursorPoint) {
+  if (cursorPoint && typeof cursorPoint === "object") {
+    const nativePoint = normalizeDragPoint({
+      screenX: cursorPoint.x,
+      screenY: cursorPoint.y,
+    });
+    if (nativePoint) {
+      return nativePoint;
+    }
+  }
+  return normalizeDragPoint(input);
+}
+
 export function createWindowDragSession(point, startBounds) {
   if (!point || !startBounds) {
     return undefined;

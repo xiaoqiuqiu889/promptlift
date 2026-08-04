@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   createWindowDragSession,
   normalizeDragPoint,
+  resolveDragPoint,
   resolveWindowDragBounds,
   updateWindowDragSession,
 } from '../../src/core/windowDrag.mjs';
@@ -52,4 +53,19 @@ test('drag accepts fractional and negative high-DPI screen coordinates safely', 
   );
   assert.equal(normalizeDragPoint({ screenX: Number.NaN, screenY: 0 }), undefined);
   assert.equal(normalizeDragPoint({ screenX: 100_001, screenY: 0 }), undefined);
+});
+
+test('drag prefers the native cursor position over renderer coordinates', () => {
+  assert.deepEqual(
+    resolveDragPoint({ screenX: 10, screenY: 20 }, { x: 810, y: 620 }),
+    { screenX: 810, screenY: 620 },
+  );
+  assert.deepEqual(
+    resolveDragPoint({ screenX: 10, screenY: 20 }),
+    { screenX: 10, screenY: 20 },
+  );
+  assert.deepEqual(
+    resolveDragPoint({ screenX: 10, screenY: 20 }, { x: Number.NaN, y: 620 }),
+    { screenX: 10, screenY: 20 },
+  );
 });
