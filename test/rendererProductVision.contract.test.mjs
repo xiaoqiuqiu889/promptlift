@@ -11,19 +11,19 @@ test("renderer exposes four expression recipes without adding a hot-path choice"
   const html = read("src/renderer/index.html");
   const renderer = read("src/renderer/renderer.mjs");
   for (const mode of ["enhance", "upward-communication", "chat-polish", "ppt-copy"]) {
-    assert.match(html, new RegExp(`data-mode="${mode}"`));
+    assert.match(html, new RegExp(`data-hub-mode="${mode}"`));
     assert.match(renderer, new RegExp(`"${mode}"`));
   }
   assert.match(renderer, /petAvatar\.addEventListener\("click"/);
   assert.match(renderer, /payload\?\.autoEnhance\s*===\s*true/);
   assert.match(
     renderer,
-    /function compactFeedbackMessage\([\s\S]*message\.startsWith\("工作模式已切换"\)[\s\S]*MODE_LABELS\[state\.mode\]/u,
-    "compact feedback must reveal the mode selected by the zero-window right-click cycle",
+    /function compactFeedbackMessage\([\s\S]*message\.startsWith\("场景已切换"\)[\s\S]*MODE_LABELS\[state\.mode\]/u,
+    "compact feedback must reveal the scene selected by the zero-window right-click cycle",
   );
 });
 
-test("settings menu prioritizes optimization tier and mode selection returns to the parent menu", () => {
+test("settings menu prioritizes optimization tier and the canonical scene selector returns to scenes", () => {
   const html = read("src/renderer/index.html");
   const renderer = read("src/renderer/renderer.mjs");
   const menuStart = html.indexOf('<nav id="contextMenu"');
@@ -35,14 +35,14 @@ test("settings menu prioritizes optimization tier and mode selection returns to 
     renderer.indexOf("async function handleStartupToggle"),
   );
 
-  assert.deepEqual(actions.slice(0, 2), ["style", "mode"]);
+  assert.deepEqual(actions.slice(0, 2), ["style", "scenes"]);
   assert.match(
     handleMode,
     /if \(returnToMenu\)\s*\{\s*showContextMenu\(\);\s*\}\s*else\s*\{\s*hidePanels\(\);/s,
   );
   assert.match(
     renderer,
-    /modePanel\.addEventListener\("click"[\s\S]*handleMode\(mode,\s*\{\s*returnToMenu:\s*true\s*\}\)/,
+    /const hubMode = event\.target\.closest\("\[data-hub-mode\]"\)[\s\S]*handleMode\(hubMode,\s*\{\s*returnToMenu:\s*true\s*\}\)/,
   );
 });
 
@@ -185,6 +185,15 @@ test("review result keeps explicit actions and supports non-destructive discard"
     renderer,
     /handleDiscardReview\(\)[\s\S]*api\.cancel\(operationId\)[\s\S]*resultPanel\.hidden = true[\s\S]*collapseAssistant\(\)/,
   );
+  const discardReview = renderer.slice(
+    renderer.indexOf("async function handleDiscardReview"),
+    renderer.indexOf("async function handleCancel"),
+  );
+  assert.doesNotMatch(
+    discardReview,
+    /if \(state\.requestId\s*\|\|/,
+    "a visible completed review must remain discardable while the request finally block settles",
+  );
   assert.match(renderer, /cancelButton\.disabled\s*=\s*!\(canCancelRequest \|\| canDiscardReview\)/);
 
   const showMenu = renderer.slice(
@@ -192,7 +201,7 @@ test("review result keeps explicit actions and supports non-destructive discard"
     renderer.indexOf("function hidePanels"),
   );
   assert.doesNotMatch(showMenu, /resultPanel\.hidden|enhancedText\s*=|generationOperationId\s*=/);
-  for (const action of ["mode", "mascot", "review", "configure", "style", "check", "startup", "quit"]) {
+  for (const action of ["scenes", "mascot", "shortcut", "review", "configure", "style", "check", "startup", "quit"]) {
     assert.match(html, new RegExp(`data-menu-action="${action}"`));
   }
 });

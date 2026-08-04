@@ -8,6 +8,7 @@ const MAX_API_KEY_LENGTH = 4_096;
 const MAX_ENDPOINT_LENGTH = 2_000;
 const MAX_MODEL_LENGTH = 200;
 const MAX_CUSTOM_SYSTEM_PROMPT_LENGTH = 6_000;
+const MAX_SHORTCUT_LENGTH = 80;
 
 export const PROMPT_LIFT_CHANNELS = Object.freeze({
   capture: "prompt:capture",
@@ -23,6 +24,8 @@ export const PROMPT_LIFT_CHANNELS = Object.freeze({
   restore: "prompt:restore",
   configure: "prompt:configure",
   modelGet: "prompt:model:get",
+  shortcutGet: "prompt:shortcut:get",
+  shortcutSet: "prompt:shortcut:set",
   systemPromptsGet: "prompt:system-prompts:get",
   systemPromptsSave: "prompt:system-prompts:save",
   systemPromptsReset: "prompt:system-prompts:reset",
@@ -225,6 +228,19 @@ const promptLiftApi = Object.freeze({
 
   getModelConfig() {
     return invoke(PROMPT_LIFT_CHANNELS.modelGet);
+  },
+
+  getShortcut() {
+    return invoke(PROMPT_LIFT_CHANNELS.shortcutGet);
+  },
+
+  setShortcut(shortcut) {
+    return invoke(PROMPT_LIFT_CHANNELS.shortcutSet, {
+      shortcut: requireString(shortcut, "shortcut", {
+        allowEmpty: false,
+        maxLength: MAX_SHORTCUT_LENGTH,
+      }),
+    });
   },
 
   getSystemPrompts() {

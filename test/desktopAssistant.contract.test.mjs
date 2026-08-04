@@ -29,7 +29,7 @@ test("desktop assistant exposes left-click, right-click settings, and non-destru
     "contextMenu",
     "settingsPanel",
     "stylePanel",
-    "modePanel",
+    "shortcutPanel",
     "resizeHandle",
     "collapseButton",
     "checkModelButton",
@@ -157,7 +157,8 @@ test("desktop assistant window is resizable and its outer styling has no shadows
   assert.match(main, /showInactive\(\)/);
   assert.match(main, /mode: modelConfig\.mode/);
   assert.match(main, /createWindowsDoubleAltListener/);
-  assert.match(main, /startDoubleAltListener/);
+  assert.match(main, /createGlobalShortcutController/);
+  assert.match(main, /startConfiguredShortcut/);
   assert.match(main, /safeStorage/);
   assert.match(main, /createEncryptedModelConfigStore/);
   assert.match(read("src/platform/windowsBridge.mjs"), /Prompt\\s\*\(\?:Lift\|Pet\)/);

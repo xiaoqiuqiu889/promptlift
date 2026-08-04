@@ -26,6 +26,8 @@ test("UI visual QA uses trusted input, read-only DOM inspection, and masked mock
   assert.match(runner, /webContents\.sendInputEvent/);
   assert.match(runner, /webContents\.capturePage/);
   assert.match(runner, /webContents\.executeJavaScript/);
+  assert.match(runner, /trusted click missed target/);
+  assert.match(runner, /hub-row-content-overflow/);
   assert.match(runner, /contextIsolation:\s*true/);
   assert.match(runner, /nodeIntegration:\s*false/);
   assert.match(preload, /contextBridge\.exposeInMainWorld\("promptLift"/);
@@ -49,8 +51,8 @@ test("UI visual QA locks the four prompt tiers and four right-click mode color s
   assert.match(runner, /new Set\(modeColors\)\.size !== WORK_MODES\.length/);
   assert.match(runner, /style-option\[data-style\].*strong/);
   assert.match(runner, /new Set\(tierLabelSets\.map\(\(labels\) => JSON\.stringify\(labels\)\)\)\.size !== WORK_MODES\.length/);
-  assert.match(runner, /mode-selection-returns-parent-menu/);
-  assert.match(runner, /visible:\s*\{\s*"#contextMenu":\s*true,\s*"#modePanel":\s*false\s*\}/s);
+  assert.match(runner, /scene-selection-stays-in-scene-hub/);
+  assert.match(runner, /hub:\s*"scenes"/);
 });
 
 test("UI visual QA verifies two decoded PNG mascots plus the semantic CSS green knight", async () => {
@@ -90,4 +92,19 @@ test("UI visual QA verifies fast auto-apply compacts while review mode exposes p
   assert.match(runner, /"#resultPanel": false/);
   assert.match(runner, /"#resultPanel": true/);
   assert.doesNotMatch(runner, /menuAction\("result"/);
+});
+
+test("UI visual QA records, saves, and restores a custom global shortcut", async () => {
+  const runner = await readFile(path.join(projectRoot, "scripts/qa-ui-visual.mjs"), "utf8");
+  const preload = await readFile(path.join(projectRoot, "scripts/qa-renderer-preload.mjs"), "utf8");
+
+  assert.match(runner, /custom-shortcut-record-and-reset/);
+  assert.match(runner, /modifiers:\s*\["control",\s*"alt"\]/);
+  assert.match(runner, /Control\+Alt\+P/);
+  assert.match(runner, /DoubleAlt/);
+  assert.match(runner, /summary-shortcut\.json/);
+  assert.match(runner, /UI_SHORTCUT_RESULTS\.md/);
+  assert.match(preload, /getShortcut\(\)/);
+  assert.match(preload, /setShortcut\(shortcut\)/);
+  assert.match(preload, /SHORTCUT_CONFLICT/);
 });

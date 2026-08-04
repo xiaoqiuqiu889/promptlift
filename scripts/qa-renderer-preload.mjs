@@ -18,6 +18,7 @@ const DEFAULT_SCENARIO = Object.freeze({
   restoreError: false,
   styleError: false,
   modeError: false,
+  shortcutError: false,
   startupError: false,
 });
 
@@ -40,6 +41,7 @@ const qaState = {
     storageAvailable: true,
   },
   startup: false,
+  shortcut: "DoubleAlt",
   capturedText: "QA captured prompt: keep URL https://example.test/path and number 42.",
   callSequence: 0,
   systemPrompts: {},
@@ -141,6 +143,7 @@ function scenarioError(name) {
     restoreError: ["REPLACE_NOT_CONFIRMED", "QA restore failed"],
     styleError: ["STYLE_INVALID", "QA style change failed"],
     modeError: ["MODE_INVALID", "QA mode change failed"],
+    shortcutError: ["SHORTCUT_CONFLICT", "QA shortcut conflict"],
     startupError: ["QA_STARTUP_ERROR", "QA startup change failed"],
   };
   const [code, message] = defaults[name] ?? ["QA_MOCK_ERROR", "QA mock operation failed"];
@@ -224,6 +227,37 @@ const promptLiftApi = Object.freeze({
   getModelConfig() {
     record("getModelConfig");
     return Promise.resolve({ ...qaState.model });
+  },
+
+  getShortcut() {
+    record("getShortcut");
+    return Promise.resolve({
+      shortcut: qaState.shortcut,
+      configuredShortcut: qaState.shortcut,
+      label: qaState.shortcut === "DoubleAlt" ? "双击左 Alt" : qaState.shortcut,
+      kind: qaState.shortcut === "DoubleAlt" ? "double-alt" : "accelerator",
+      warning: "",
+    });
+  },
+
+  setShortcut(shortcut) {
+    record("setShortcut", {
+      shortcut: typeof shortcut === "string" ? shortcut : "",
+    });
+    return delay(normalizeDelay("configureDelay")).then(() => {
+      const error = scenarioError("shortcutError");
+      if (error) {
+        throw error;
+      }
+      qaState.shortcut = shortcut;
+      return {
+        shortcut,
+        configuredShortcut: shortcut,
+        label: shortcut === "DoubleAlt" ? "双击左 Alt" : shortcut,
+        kind: shortcut === "DoubleAlt" ? "double-alt" : "accelerator",
+        warning: "",
+      };
+    });
   },
 
   getSystemPrompts() {

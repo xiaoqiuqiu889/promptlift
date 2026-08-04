@@ -38,7 +38,7 @@ test("round 7 turns the current-state overview into direct, accessible shortcuts
   );
 
   assert.equal((summary.match(/class="hub-summary-action"/g) ?? []).length, 3);
-  assert.match(summary, /data-menu-action="mode"/);
+  assert.match(summary, /data-menu-action="scenes"/);
   assert.match(summary, /data-menu-action="style"/);
   assert.match(summary, /data-menu-action="review"[^>]*role="switch"/);
   assert.match(css, /\.hub-summary-action:focus-visible/);

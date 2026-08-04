@@ -1,4 +1,14 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, safeStorage, screen, Tray } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  ipcMain,
+  Menu,
+  nativeImage,
+  safeStorage,
+  screen,
+  Tray,
+} from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,6 +27,13 @@ import {
 } from './core/promptEnhancer.mjs';
 import { createCapturedPayload, hasVisiblePromptText } from './core/capturePayload.mjs';
 import { createEncryptedModelConfigStore } from './core/modelConfigStore.mjs';
+import { createGlobalShortcutController } from './core/globalShortcutController.mjs';
+import {
+  DEFAULT_SHORTCUT,
+  normalizeShortcut,
+  shortcutDisplayLabel,
+} from './core/shortcutConfig.mjs';
+import { createShortcutConfigStore } from './core/shortcutConfigStore.mjs';
 import { createSystemPromptStore, normalizeSystemPromptOverrides } from './core/systemPromptStore.mjs';
 import { createReplacementTransactionStore } from './core/replacementTransactionStore.mjs';
 import { createWindowStateStore } from './core/windowStateStore.mjs';
@@ -52,7 +69,10 @@ let systemPromptStore;
 let windowStateStore;
 let windowStateSaveTimer;
 let persistedWindowBounds;
-let doubleAltListener;
+let shortcutConfigStore;
+let shortcutController;
+let shortcutPreference = DEFAULT_SHORTCUT;
+let shortcutWarning = '';
 let windowDragSession;
 let windowDragScheduled = false;
 const cancelledRequestIds = new Set();
@@ -197,6 +217,17 @@ async function loadPersistedModelConfig() {
   modelConfig.customPrompts = normalizeSystemPromptOverrides(persistedSystemPrompts.overrides);
 }
 
+async function loadPersistedShortcutConfig() {
+  shortcutConfigStore = createShortcutConfigStore({
+    userDataPath: app.getPath('userData'),
+  });
+  const persisted = await shortcutConfigStore.load();
+  shortcutPreference = normalizeShortcut(persisted.shortcut);
+  shortcutWarning = persisted.loadError
+    ? '原快捷键设置无效，已临时恢复为双击左 Alt。'
+    : '';
+}
+
 function getModelConfig() {
   return {
     endpoint: modelConfig.endpoint,
@@ -206,6 +237,61 @@ function getModelConfig() {
     targetWindowTitlePattern: modelConfig.targetWindowTitlePattern,
     apiKeySaved: modelConfig.apiKeySaved === true,
     storageAvailable: modelConfig.storageAvailable === true,
+  };
+}
+
+function shortcutTrigger() {
+  void captureFromTarget(undefined, { autoEnhance: true });
+}
+
+function ensureShortcutController() {
+  if (!shortcutController) {
+    shortcutController = createGlobalShortcutController({
+      globalShortcut,
+      createDoubleAltListener: createWindowsDoubleAltListener,
+      onTrigger: shortcutTrigger,
+      onError: (error) => {
+        console.warn(`Prompt Pet: 快捷键监听不可用（${error?.message ?? 'Windows 键盘监听启动失败'}）。`);
+      },
+    });
+  }
+  return shortcutController;
+}
+
+function getShortcutConfig() {
+  const active = shortcutController?.getActive() ?? {
+    shortcut: DEFAULT_SHORTCUT,
+    label: shortcutDisplayLabel(DEFAULT_SHORTCUT),
+    kind: 'double-alt',
+  };
+  return {
+    ...active,
+    configuredShortcut: shortcutPreference,
+    warning: shortcutWarning,
+  };
+}
+
+async function setShortcutConfig(_event, input = {}) {
+  const shortcut = normalizeShortcut(input.shortcut, { fallbackToDefault: false });
+  const controller = ensureShortcutController();
+  const previous = controller.getActive()?.shortcut ?? DEFAULT_SHORTCUT;
+  const activated = controller.activate(shortcut);
+  try {
+    await shortcutConfigStore.save(shortcut);
+  } catch (error) {
+    try {
+      controller.activate(previous);
+    } catch {
+      // The previous registration was active immediately before this request.
+    }
+    throw error;
+  }
+  shortcutPreference = shortcut;
+  shortcutWarning = '';
+  return {
+    ...activated,
+    configuredShortcut: shortcut,
+    warning: '',
   };
 }
 
@@ -234,7 +320,7 @@ function validateSystemPromptSelection(input = {}) {
   const mode = typeof input.mode === 'string' ? input.mode : '';
   const style = resolveModelStyle(input.style);
   if (!isPromptMode(mode)) {
-    throw createConfigError('MODE_INVALID', '工作模式无效。');
+    throw createConfigError('MODE_INVALID', '场景无效。');
   }
   if (!style) {
     throw createConfigError('STYLE_INVALID', '提示词风格无效。');
@@ -299,7 +385,7 @@ async function setPromptStyle(_event, input = {}) {
 async function setPromptMode(_event, input = {}) {
   const mode = typeof input.mode === 'string' ? input.mode : '';
   if (!isPromptMode(mode)) {
-    throw createConfigError('MODE_INVALID', '提示词工作模式无效。');
+    throw createConfigError('MODE_INVALID', '提示词场景无效。');
   }
   modelConfig.mode = mode;
   const persistence = await persistModelConfig();
@@ -490,16 +576,16 @@ function handleIpc(channel, handler) {
   });
 }
 
-function startDoubleAltListener() {
-  doubleAltListener = createWindowsDoubleAltListener({
-    onTrigger: () => {
-      void captureFromTarget(undefined, { autoEnhance: true });
-    },
-    onError: (error) => {
-      console.warn(`Prompt Pet: 双击 Alt 快捷键不可用（${error?.message ?? 'Windows 键盘监听启动失败'}）。`);
-    },
-  });
-  doubleAltListener.start();
+function startConfiguredShortcut() {
+  const controller = ensureShortcutController();
+  try {
+    controller.activate(shortcutPreference);
+  } catch (error) {
+    shortcutWarning = `${error?.message ?? '自定义快捷键注册失败'} 已临时恢复为双击左 Alt。`;
+    shortcutPreference = DEFAULT_SHORTCUT;
+    controller.activate(DEFAULT_SHORTCUT);
+    console.warn(`Prompt Pet: ${shortcutWarning}`);
+  }
 }
 
 function reuseSingleAssistantWindow() {
@@ -731,6 +817,8 @@ function registerIpc() {
   handleIpc('prompt:capture', captureFromTarget);
   handleIpc('prompt:configure', configureModel);
   handleIpc('prompt:model:get', getModelConfig);
+  handleIpc('prompt:shortcut:get', getShortcutConfig);
+  handleIpc('prompt:shortcut:set', setShortcutConfig);
   handleIpc('prompt:system-prompts:get', getSystemPrompts);
   handleIpc('prompt:system-prompts:save', saveSystemPrompt);
   handleIpc('prompt:system-prompts:reset', resetSystemPrompt);
@@ -912,6 +1000,7 @@ if (!gotSingleInstanceLock) {
 
   app.whenReady().then(async () => {
     await loadPersistedModelConfig();
+    await loadPersistedShortcutConfig();
     windowStateStore = createWindowStateStore({
       userDataPath: app.getPath('userData'),
     });
@@ -934,13 +1023,13 @@ if (!gotSingleInstanceLock) {
     }
     createTray();
 
-    startDoubleAltListener();
+    startConfiguredShortcut();
   });
 }
 
 app.on('will-quit', () => {
   isQuitting = true;
-  doubleAltListener?.stop();
+  shortcutController?.stop();
   tray?.destroy();
 });
 

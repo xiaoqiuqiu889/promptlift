@@ -68,7 +68,7 @@
             <span></span><span></span><span></span>
           </button>
         </header>
-        <span id="compactModeBadge" class="compact-mode-badge" aria-label="当前模式">P</span>
+        <span id="compactModeBadge" class="compact-mode-badge" aria-label="当前场景">P</span>
         <div id="compactFeedback" class="compact-feedback" role="status" aria-live="polite" hidden>
           <span id="compactFeedbackText" class="compact-feedback-text">处理中…</span>
           <button id="compactCancelButton" type="button" hidden>取消</button>
@@ -85,7 +85,7 @@
 
         <div class="status-bubble" role="status" aria-live="polite">
           <span id="statusDot" class="status-dot" aria-hidden="true"></span>
-          <p id="statusMessage">准备就绪。左键处理当前发言，右键切换工作模式。</p>
+          <p id="statusMessage">准备就绪。左键处理当前发言，右键切换场景。</p>
         </div>
 
         <section id="needsInputPanel" class="needs-input-panel" hidden aria-labelledby="needsInputHeading">
@@ -163,13 +163,12 @@
           <p id="hubPrivacyNote" class="hub-privacy-note">只处理当前输入 · 不保存表达历史 · 通过校验后安全回填</p>
           <div class="hub-summary" aria-label="当前处理状态">
             <button class="hub-summary-action" type="button" data-menu-action="style"><small>档位</small><strong id="hubStyleValue">清晰直达</strong></button>
-            <button class="hub-summary-action" type="button" data-menu-action="mode"><small>场景</small><strong id="hubModeValue">AI 提示词</strong></button>
+            <button class="hub-summary-action" type="button" data-menu-action="scenes"><small>场景</small><strong id="hubModeValue">AI 提示词</strong></button>
             <button id="hubReviewQuick" class="hub-summary-action" type="button" data-menu-action="review" role="switch" aria-checked="false"><small>应用</small><strong id="hubReviewValue">直接回填</strong></button>
           </div>
           <p class="hub-section-label">处理设置</p>
           <div class="hub-group">
             <button class="hub-row" type="button" data-menu-action="style"><span class="hub-row-icon">✦</span><span>优化档位<small>控制保真、简洁、专业与创意程度</small></span><span id="currentStyleLabel" class="menu-value">清晰直达</span></button>
-            <button class="hub-row" type="button" data-menu-action="mode"><span class="hub-row-icon">◇</span><span>工作模式<small>决定当前表达对象与优化目标</small></span><span id="currentModeLabel" class="menu-value">AI 提示词</span></button>
             <button id="reviewModeButton" class="hub-row" role="switch" type="button" data-menu-action="review" aria-checked="false"><span class="hub-row-icon">○</span><span>审阅后应用<small>开启后先看差异，再决定是否回填</small></span><span id="reviewModeLabel" class="menu-value">已关闭</span></button>
             <button id="systemPromptQuickAction" class="hub-row" type="button" data-menu-action="system-prompts"><span class="hub-row-icon">≡</span><span>系统提示词<small>查看当前档位约束，并编辑本机自定义补充规则</small></span><span class="menu-value">查看与编辑</span></button>
           </div>
@@ -226,6 +225,7 @@
           <p class="hub-section-label">偏好</p>
           <div class="hub-group">
             <button class="hub-row" type="button" data-menu-action="mascot"><span class="hub-row-icon">◉</span><span>小精灵形象<small>选择陪伴你的桌面角色</small></span><span id="currentMascotLabel" class="menu-value">可卡布犬 · 原风格</span></button>
+            <button class="hub-row" type="button" data-menu-action="shortcut"><span class="hub-row-icon">⌨</span><span>全局快捷键<small>在任意输入框里快速发起优化</small></span><span id="currentShortcutLabel" class="menu-value">双击左 Alt</span></button>
           </div>
           <p class="hub-section-label">帮助与安全</p>
           <div class="hub-group">
@@ -245,32 +245,6 @@
           <button id="hubTabProfile" class="hub-tab" type="button" role="tab" data-hub-target="profile" aria-controls="hubPageProfile" aria-selected="false"><span class="hub-tab-icon" aria-hidden="true">○</span><span class="hub-tab-label">我的</span></button>
         </div>
       </nav>
-
-      <section id="modePanel" class="floating-panel mode-panel" hidden aria-label="工作模式" role="dialog">
-        <div class="panel-heading">
-          <div>
-            <span class="panel-kicker">WORK MODE</span>
-            <strong>选择工作模式</strong>
-          </div>
-          <button class="panel-close" type="button" data-close-panel="modePanel" aria-label="关闭">×</button>
-        </div>
-        <button class="mode-option" type="button" data-mode="enhance">
-          <strong>AI 提示词</strong>
-          <span>明确目标、上下文、约束和输出格式，不执行原任务。</span>
-        </button>
-        <button class="mode-option" type="button" data-mode="upward-communication">
-          <strong>向上沟通</strong>
-          <span>结论前置，整理依据、风险、下一步和需要的支持。</span>
-        </button>
-        <button class="mode-option" type="button" data-mode="chat-polish">
-          <strong>用户沟通</strong>
-          <span>表达更安全、礼貌、清晰，避免扩大承诺并给出下一步。</span>
-        </button>
-        <button class="mode-option" type="button" data-mode="ppt-copy">
-          <strong>PPT 文案</strong>
-          <span>把当前整段文本整理为结论型标题和单页分层正文。</span>
-        </button>
-      </section>
 
       <section id="mascotPanel" class="floating-panel mascot-panel" hidden aria-label="小精灵形象" role="dialog">
         <div class="panel-heading">
@@ -292,6 +266,26 @@
           <span class="mascot-css-preview" aria-hidden="true">CSS</span>
           <span><strong>绿色骑士</strong><small>Prompt Pet 经典扁平小精灵</small></span>
         </button>
+      </section>
+
+      <section id="shortcutPanel" class="floating-panel shortcut-panel" hidden aria-label="全局快捷键" role="dialog">
+        <div class="panel-heading">
+          <div>
+            <span class="panel-kicker">GLOBAL SHORTCUT</span>
+            <strong>设置全局快捷键</strong>
+          </div>
+          <button class="panel-close" type="button" data-close-panel="shortcutPanel" aria-label="返回我的">‹</button>
+        </div>
+        <p class="panel-note">默认使用双击左 Alt。自定义组合键会在 Windows 全局生效，保存前先检查是否与系统或其他应用冲突。</p>
+        <label class="field-label" for="shortcutValue">当前准备使用</label>
+        <input id="shortcutValue" class="panel-input shortcut-value" type="text" value="双击左 Alt" readonly />
+        <button id="shortcutCaptureButton" class="shortcut-capture-button" type="button">录制新的组合键</button>
+        <p class="panel-note shortcut-scope-note">按下至少两个修饰键（Ctrl / Alt / Shift / Win）和一个字母、数字、Space 或 F1–F12；按 Esc 取消录制。</p>
+        <div class="panel-actions">
+          <button id="shortcutResetButton" class="text-button" type="button">恢复双击左 Alt</button>
+          <button id="shortcutSaveButton" class="small-primary" type="button" disabled>保存并启用</button>
+        </div>
+        <p id="shortcutStatus" class="panel-note" role="status" aria-live="polite">正在读取当前快捷键…</p>
       </section>
 
       <section id="settingsPanel" class="floating-panel" hidden aria-label="模型配置" role="dialog">
@@ -327,7 +321,7 @@
         </div>
         <div class="help-block">
           <strong>最快用法</strong>
-          <p>聚焦任意输入框，连续按两次 Alt；或直接单击桌面小精灵。</p>
+          <p>聚焦任意输入框，按下 <span id="helpShortcutLabel">双击左 Alt</span>；或直接单击桌面小精灵。</p>
         </div>
         <div class="help-block">
           <strong>安全边界</strong>
@@ -365,9 +359,9 @@
           <button class="panel-close" type="button" data-close-panel="systemPromptPanel" aria-label="返回">‹</button>
         </div>
         <div class="system-prompt-scroll">
-        <p class="panel-note system-prompt-safety-note">这里展示当前工作模式与优化档位实际使用的系统提示词。系统安全协议不可关闭；你的自定义规则只作为低优先级补充，不会覆盖事实保护、档位约束或输出协议。</p>
+        <p class="panel-note system-prompt-safety-note">这里展示当前场景与优化档位实际使用的系统提示词。系统安全协议不可关闭；你的自定义规则只作为低优先级补充，不会覆盖事实保护、档位约束或输出协议。</p>
         <div class="system-prompt-selectors">
-          <label class="field-label" for="systemPromptModeSelect">工作模式</label>
+          <label class="field-label" for="systemPromptModeSelect">场景</label>
           <select id="systemPromptModeSelect" class="panel-input">
             <option value="enhance">AI 提示词</option>
             <option value="upward-communication">向上沟通</option>

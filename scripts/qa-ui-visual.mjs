@@ -3,6 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
+import { writeTextArtifactWithRetry } from "./artifactWriter.mjs";
+
 const scriptPath = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(scriptPath), "..");
 const evidenceRoot = path.join(projectRoot, "qa", "evidence", "ui");
@@ -82,6 +84,7 @@ const DEFAULT_SCENARIO = Object.freeze({
   restoreError: false,
   styleError: false,
   modeError: false,
+  shortcutError: false,
   startupError: false,
 });
 
@@ -238,11 +241,11 @@ function geometryAudit() {
   const interactiveSelector = "button, input, textarea, [role=button], [role=menuitem]";
   const overlaySelectors = [
     "#contextMenu",
-    "#modePanel",
     "#settingsPanel",
     "#stylePanel",
     "#systemPromptPanel",
     "#mascotPanel",
+    "#shortcutPanel",
     "#helpPanel",
     "#resultPanel",
   ];
@@ -298,7 +301,7 @@ function geometryAudit() {
   const interactiveAncestor = (element) => element.closest(interactiveSelector);
   const failures = [];
   for (const item of visibleElements) {
-    const scrollContainer = item.element.closest(".pet-card");
+    const scrollContainer = item.element.closest(".hub-page, .floating-panel, .pet-card");
     const isVerticallyScrollableContent = scrollContainer
       && ["auto", "scroll"].includes(getComputedStyle(scrollContainer).overflowY);
     if (!(isVerticallyScrollableContent
@@ -312,7 +315,7 @@ function geometryAudit() {
       });
     }
   }
-  for (const selector of ["#contextMenu", "#modePanel", "#settingsPanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel", "#helpPanel"]) {
+  for (const selector of ["#contextMenu", "#settingsPanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel", "#shortcutPanel", "#helpPanel"]) {
     const element = document.querySelector(selector);
     if (isVisible(element) && !inHorizontalViewport(rectOf(element))) {
       failures.push({
@@ -337,7 +340,7 @@ function geometryAudit() {
       againstSelector: "document.clientBox",
     });
   }
-  for (const selector of ["#modePanel", "#settingsPanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel"]) {
+  for (const selector of ["#settingsPanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel", "#shortcutPanel"]) {
     const panel = document.querySelector(selector);
     if (!isVisible(panel)) {
       continue;
@@ -394,6 +397,26 @@ function geometryAudit() {
         selector: item.selector,
         rect: item.rect,
         againstSelector: item.selector + ".contentBox",
+      });
+    }
+  }
+  for (const row of document.querySelectorAll(".hub-row")) {
+    if (!isVisible(row)) {
+      continue;
+    }
+    const content = row.querySelector(":scope > span:nth-child(2)");
+    if (!content) {
+      continue;
+    }
+    const rowRect = rectOf(row);
+    const contentRect = rectOf(content);
+    if (contentRect.top < rowRect.top - 1 || contentRect.bottom > rowRect.bottom + 1) {
+      failures.push({
+        type: "hub-row-content-overflow",
+        selector: selectorOf(content),
+        rect: contentRect,
+        againstSelector: selectorOf(row),
+        againstRect: rowRect,
       });
     }
   }
@@ -574,7 +597,7 @@ function readPageState() {
     dragging: root?.dataset.dragging || "false",
     viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
     visible: Object.fromEntries([
-      "#contextMenu", "#modePanel", "#settingsPanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel", "#helpPanel", "#needsInputPanel", "#resultPanel",
+      "#contextMenu", "#settingsPanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel", "#shortcutPanel", "#helpPanel", "#needsInputPanel", "#resultPanel",
       "#compactFeedback", "#compactCancelButton", "#collapseButton", "#closeButton",
     ].map((selector) => [selector, visible(selector)])),
     controls: Object.fromEntries([
@@ -632,6 +655,10 @@ async function runElectron(electron, args) {
   const { app, BrowserWindow, ipcMain } = electron;
   const requestedScale = numericFlag(args, "--scale", 1);
   const shortcutOnly = args.includes("--shortcut-only");
+  const activeReportPath = shortcutOnly
+    ? path.join(projectRoot, "qa", "UI_SHORTCUT_RESULTS.md")
+    : reportPath;
+  const summaryFilename = shortcutOnly ? "summary-shortcut.json" : "summary.json";
   const runToken = String(Date.now()) + "-" + String(process.pid);
   const runRoot = path.join(
     evidenceRoot,
@@ -985,9 +1012,9 @@ async function runElectron(electron, args) {
         if (action) {
           return "[data-menu-action=\"" + action + "\"]";
         }
-        const mode = element.closest?.("[data-mode]")?.dataset.mode;
+        const mode = element.closest?.("[data-hub-mode]")?.dataset.hubMode;
         if (mode) {
-          return "[data-mode=\"" + mode + "\"]";
+          return "[data-hub-mode=\"" + mode + "\"]";
         }
         const style = element.closest?.("[data-style]")?.dataset.style;
         if (style) {
@@ -1013,14 +1040,14 @@ async function runElectron(electron, args) {
       `document.querySelector(${JSON.stringify(selector)})?.scrollIntoView({ block: "center", inline: "center" })`,
     );
     await sleep(30);
-    const info = await elementInfo(selector);
+    let info = await elementInfo(selector);
     if (!info || info.hidden || info.display === "none" || info.visibility === "hidden"
       || info.width <= 0 || info.height <= 0) {
       throw new Error("cannot click hidden element " + selector);
     }
-    const page = await state();
-    const x = Math.max(1, Math.min(Math.round(info.x + info.width / 2), Math.max(1, page.viewport.width - 1)));
-    const y = Math.max(1, Math.min(Math.round(info.y + info.height / 2), Math.max(1, page.viewport.height - 1)));
+    let page = await state();
+    let x = Math.max(1, Math.min(Math.round(info.x + info.width / 2), Math.max(1, page.viewport.width - 1)));
+    let y = Math.max(1, Math.min(Math.round(info.y + info.height / 2), Math.max(1, page.viewport.height - 1)));
     const button = options.button || "left";
     const source = function hitRead() {
       const target = document.elementFromPoint(__X__, __Y__);
@@ -1036,9 +1063,9 @@ async function runElectron(electron, args) {
         if (action) {
           return "[data-menu-action=\"" + action + "\"]";
         }
-        const mode = element.closest?.("[data-mode]")?.dataset.mode;
+        const mode = element.closest?.("[data-hub-mode]")?.dataset.hubMode;
         if (mode) {
-          return "[data-mode=\"" + mode + "\"]";
+          return "[data-hub-mode=\"" + mode + "\"]";
         }
         const style = element.closest?.("[data-style]")?.dataset.style;
         if (style) {
@@ -1056,10 +1083,28 @@ async function runElectron(electron, args) {
         closest: describe(closest),
       };
     };
-    const hit = await readOnly(source.toString()
+    const readHit = () => readOnly(source.toString()
       .replaceAll("__X__", String(x))
       .replaceAll("__Y__", String(y))
       .replaceAll("\"__SELECTOR__\"", JSON.stringify(selector)));
+    let hit = await readHit();
+    if (!hit.closestTarget) {
+      await qaWindow.webContents.executeJavaScript(
+        `document.querySelector(${JSON.stringify(selector)})?.scrollIntoView({ block: "nearest", inline: "nearest" })`,
+      );
+      await sleep(60);
+      info = await elementInfo(selector);
+      page = await state();
+      x = Math.max(1, Math.min(Math.round(info.x + info.width / 2), Math.max(1, page.viewport.width - 1)));
+      y = Math.max(1, Math.min(Math.round(info.y + info.height / 2), Math.max(1, page.viewport.height - 1)));
+      hit = await readHit();
+    }
+    if (!hit.closestTarget) {
+      throw new Error(
+        "trusted click missed target " + selector + ": "
+          + JSON.stringify({ hit: hit.element, rect: info, viewport: page.viewport }),
+      );
+    }
     const click = {
       label,
       selector,
@@ -1232,13 +1277,15 @@ async function runElectron(electron, args) {
   };
   const actionHubs = Object.freeze({
     style: "process",
-    mode: "process",
+    scenes: "process",
     review: "process",
+    "system-prompts": "process",
     configure: "services",
     check: "services",
     startup: "services",
     help: "profile",
     mascot: "profile",
+    shortcut: "profile",
     quit: "profile",
   });
   const menuAction = async (action, label) => {
@@ -1732,7 +1779,7 @@ async function runElectron(electron, args) {
 
     await runFlow("context-menu-complete", async () => {
       await assertAbsent("[data-menu-action=\"result\"]");
-      for (const action of ["mode", "mascot", "review", "configure", "style", "check", "startup", "help", "quit"]) {
+      for (const action of ["scenes", "mascot", "shortcut", "review", "configure", "style", "check", "startup", "help", "quit"]) {
         await compactReady(COMPACT_SIZES[1], {}, true);
         await rightClickAvatar("reopen context for " + action);
         await waitForState({ view: "expanded", visible: { "#contextMenu": true } });
@@ -1743,17 +1790,21 @@ async function runElectron(electron, args) {
           if (qaWindow.isDestroyed()) {
             throw new Error("mock quit unexpectedly destroyed QA window");
           }
+        } else if (action === "scenes") {
+          await waitForState({ view: "expanded", hub: "scenes", visible: { "#contextMenu": true } });
+          await takeSnapshot("context-scenes-visible", "context menu → scenes");
+          await pressEscape("close scenes context menu");
         } else if (action === "startup" || action === "review") {
           await waitForState({ view: "expanded", visible: { "#contextMenu": true } });
           await takeSnapshot("context-startup-visible", "context menu → startup");
           await pressEscape("close startup context menu");
         } else {
-          const panel = action === "mode"
-            ? "#modePanel"
-            : action === "style"
+          const panel = action === "style"
               ? "#stylePanel"
               : action === "mascot"
                 ? "#mascotPanel"
+                : action === "shortcut"
+                  ? "#shortcutPanel"
                 : action === "help"
                   ? "#helpPanel"
                 : "#settingsPanel";
@@ -1764,20 +1815,69 @@ async function runElectron(electron, args) {
       }
     });
 
+    await runFlow("custom-shortcut-record-and-reset", async () => {
+      await compactReady(COMPACT_SIZES[1], {}, true);
+      await rightClickAvatar("open personal shortcut settings");
+      await menuAction("shortcut", "context menu → shortcut");
+      await waitForState({ view: "expanded", visible: { "#shortcutPanel": true } });
+      await clickAt("#shortcutCaptureButton", "shortcut → start recording", { wait: 30 });
+      qaWindow.focus();
+      qaWindow.webContents.sendInputEvent({
+        type: "keyDown",
+        keyCode: "P",
+        modifiers: ["control", "alt"],
+      });
+      qaWindow.webContents.sendInputEvent({
+        type: "keyUp",
+        keyCode: "P",
+        modifiers: ["control", "alt"],
+      });
+      await sleep(80);
+      const capturedShortcut = await readOnly(function shortcutDraftRead() {
+        return {
+          value: document.querySelector("#shortcutValue")?.value || "",
+          saveDisabled: document.querySelector("#shortcutSaveButton")?.disabled === true,
+        };
+      });
+      if (capturedShortcut.value !== "Ctrl + Alt + P" || capturedShortcut.saveDisabled) {
+        throw new Error("shortcut recorder did not produce a savable Ctrl + Alt + P draft");
+      }
+      await takeSnapshot(
+        "shortcut-custom-recorded",
+        "shortcut settings → record Ctrl + Alt + P",
+      );
+      await clickAt("#shortcutSaveButton", "shortcut → save Ctrl + Alt + P", { wait: 80 });
+      const savedCall = await waitForCall("setShortcut");
+      if (savedCall.shortcut !== "Control+Alt+P") {
+        throw new Error("shortcut save did not use the canonical accelerator");
+      }
+      await setScenario({}, true);
+      await clickAt("#shortcutResetButton", "shortcut → restore double Alt", { wait: 80 });
+      const resetCall = await waitForCall("setShortcut");
+      if (resetCall.shortcut !== "DoubleAlt") {
+        throw new Error("shortcut reset did not restore DoubleAlt");
+      }
+      await takeSnapshot(
+        "shortcut-default-restored",
+        "shortcut settings → restore double Alt",
+      );
+    });
+
     await runFlow("right-click-mode-colors", async () => {
       await compactReady(COMPACT_SIZES[1], {}, true);
-      await rightClickAvatar("open mode panel for right-click baseline");
-      await menuAction("mode", "context menu → mode baseline");
-      await waitForState({ view: "expanded", visible: { "#modePanel": true } });
-      await clickAt("[data-mode=\"ppt-copy\"]", "set right-click baseline → ppt-copy");
+      await rightClickAvatar("open scenes hub for right-click baseline");
+      await menuAction("scenes", "context menu → scenes baseline");
+      await waitForState({ view: "expanded", hub: "scenes", visible: { "#contextMenu": true } });
+      await clickAt("[data-hub-mode=\"ppt-copy\"]", "set right-click baseline → ppt-copy");
       await waitForState({
         view: "expanded",
         mode: "ppt-copy",
-        visible: { "#contextMenu": true, "#modePanel": false },
+        hub: "scenes",
+        visible: { "#contextMenu": true },
       });
       await takeSnapshot(
-        "mode-selection-returns-parent-menu",
-        "mode option → parent menu remains open",
+        "scene-selection-stays-in-scene-hub",
+        "scene option → scenes hub remains open",
       );
       await clickAt("#collapseButton", "mode parent menu → compact");
       await waitForState({ view: "compact", mode: "ppt-copy" });
@@ -1819,14 +1919,15 @@ async function runElectron(electron, args) {
       const tierLabelSets = [];
       for (const mode of WORK_MODES) {
         await compactReady(COMPACT_SIZES[1], {}, true, { reviewMode: false });
-        await rightClickAvatar("open mode panel for tier labels: " + mode);
-        await menuAction("mode", "context menu → mode for tier labels: " + mode);
-        await waitForState({ view: "expanded", visible: { "#modePanel": true } });
-        await clickAt("[data-mode=\"" + mode + "\"]", "mode option for tier labels → " + mode);
+        await rightClickAvatar("open scenes hub for tier labels: " + mode);
+        await menuAction("scenes", "context menu → scenes for tier labels: " + mode);
+        await waitForState({ view: "expanded", hub: "scenes", visible: { "#contextMenu": true } });
+        await clickAt("[data-hub-mode=\"" + mode + "\"]", "scene option for tier labels → " + mode);
         await waitForState({
           view: "expanded",
           mode,
-          visible: { "#contextMenu": true, "#modePanel": false },
+          hub: "scenes",
+          visible: { "#contextMenu": true },
         });
         await menuAction("style", "context menu → style labels: " + mode);
         await waitForState({ view: "expanded", visible: { "#stylePanel": true } });
@@ -2244,8 +2345,11 @@ async function runElectron(electron, args) {
       command: "node scripts/qa-ui-visual.mjs --scale=" + requestedScale,
       verdict: allFailures.length + (fatalError ? 1 : 0) === 0 ? "pass" : "fail",
     };
-    const summaryPath = path.join(evidenceRoot, "summary.json");
-    await writeFile(summaryPath, JSON.stringify(jsonSafe(summary), null, 2) + "\n", "utf8");
+    const summaryPath = path.join(evidenceRoot, summaryFilename);
+    await writeTextArtifactWithRetry(
+      summaryPath,
+      JSON.stringify(jsonSafe(summary), null, 2) + "\n",
+    );
     const matrixLines = [
       "### Compact sizes",
       ...COMPACT_SIZES.map((size) => "- " + size.name + ": " + size.width + "x" + size.height + " logical px"),
@@ -2353,7 +2457,7 @@ async function runElectron(electron, args) {
       "- Summary JSON: " + path.relative(projectRoot, summaryPath).replaceAll("\\", "/"),
       "",
     ].join("\n");
-    await writeFile(reportPath, report, "utf8");
+    await writeTextArtifactWithRetry(activeReportPath, report);
     return summary;
   };
 

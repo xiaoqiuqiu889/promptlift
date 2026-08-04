@@ -1922,6 +1922,235 @@ textarea:focus-visible {
   background: var(--surface);
 }
 
+/* Readability pass: expanded surfaces favor a calm, conversational rhythm over
+   dense control panels. The content page scrolls while the four primary tabs
+   remain stable, so 360×520 fallbacks stay usable without shrinking text. */
+.pet-shell[data-view="expanded"] .pet-header {
+  min-height: 66px;
+  gap: 12px;
+}
+
+.pet-shell[data-view="expanded"] .pet-identity strong {
+  font-size: 20px;
+}
+
+.pet-shell[data-view="expanded"] .pet-identity span {
+  font-size: 12px;
+}
+
+.pet-shell[data-view="expanded"][data-surface="hub"] .pet-card {
+  overflow: hidden;
+}
+
+.app-hub {
+  height: calc(100% - 74px);
+  min-height: 0;
+}
+
+.hub-heading {
+  min-height: 58px;
+  padding: 11px 16px;
+}
+
+.hub-heading strong {
+  font-size: 18px;
+}
+
+.hub-heading-note,
+.hub-footnote {
+  font-size: 12px;
+}
+
+.hub-page {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 12px 16px;
+  scrollbar-width: thin;
+}
+
+.hub-primary-action,
+.context-menu .hub-primary-action {
+  min-height: 68px;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+}
+
+.hub-primary-action strong {
+  font-size: 16px;
+}
+
+.hub-primary-action small {
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.hub-primary-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  font-size: 16px;
+}
+
+.hub-primary-arrow {
+  font-size: 20px;
+}
+
+.hub-privacy-note {
+  margin: 7px 3px 11px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.hub-section-label {
+  margin: 14px 6px 7px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.hub-group {
+  border-radius: 10px;
+}
+
+.hub-row,
+.context-menu .hub-row {
+  min-height: 64px;
+  grid-template-columns: 36px minmax(0, 1fr) minmax(64px, auto);
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 0;
+  font-size: 14px;
+}
+
+.hub-row > span:nth-child(2) {
+  gap: 3px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hub-row small {
+  overflow: visible;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.hub-row-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.menu-value {
+  max-width: 106px;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: right;
+  white-space: normal;
+}
+
+.hub-summary-action,
+.context-menu .hub-summary-action {
+  min-height: 56px;
+  padding: 9px 7px;
+}
+
+.hub-summary small {
+  font-size: 11px;
+}
+
+.hub-summary strong {
+  font-size: 13px;
+}
+
+.profile-hero {
+  min-height: 86px;
+  gap: 14px;
+  padding: 12px 8px;
+}
+
+.profile-hero strong {
+  font-size: 17px;
+}
+
+.profile-hero small {
+  font-size: 12px;
+}
+
+.profile-avatar {
+  width: 58px;
+  height: 58px;
+  flex-basis: 58px;
+  border-radius: 12px;
+}
+
+.hub-tab {
+  min-height: 60px;
+  gap: 4px;
+}
+
+.hub-tab-icon {
+  font-size: 18px;
+}
+
+.hub-tab-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pet-shell[data-view="expanded"] .floating-panel {
+  padding: 16px;
+}
+
+.pet-shell[data-view="expanded"] .panel-heading strong {
+  font-size: 18px;
+}
+
+.pet-shell[data-view="expanded"] .panel-note,
+.pet-shell[data-view="expanded"] .field-label {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.pet-shell[data-view="expanded"] .panel-input {
+  min-height: 42px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.shortcut-capture-button {
+  width: 100%;
+  min-height: 64px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px dashed #b9b9b9;
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 650;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.shortcut-capture-button:hover,
+.shortcut-panel.is-recording .shortcut-capture-button {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.shortcut-value {
+  text-align: center;
+  font-weight: 700;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

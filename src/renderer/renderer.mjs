@@ -3,6 +3,11 @@ import {
   normalizeCapturedPrompt,
 } from "../core/capturePayload.mjs";
 import { withOperationDeadline } from "../core/operationDeadline.mjs";
+import {
+  DEFAULT_SHORTCUT,
+  normalizeShortcut,
+  shortcutDisplayLabel,
+} from "../core/shortcutConfig.mjs";
 
 const MAX_PROMPT_LENGTH = 1_000_000;
 const MODE_STAGE_TIMEOUT_MS = 5_000;
@@ -11,6 +16,8 @@ const MODEL_STAGE_TIMEOUT_MS = 20_000;
 const APPLY_STAGE_TIMEOUT_MS = 15_000;
 const DEFAULT_COMPACT_WIDTH = 120;
 const DEFAULT_COMPACT_HEIGHT = 140;
+const DEFAULT_EXPANDED_WIDTH = 420;
+const DEFAULT_EXPANDED_HEIGHT = 620;
 const MIN_COMPACT_WIDTH = 112;
 const MIN_COMPACT_HEIGHT = 112;
 const MAX_COMPACT_WIDTH = 700;
@@ -192,16 +199,21 @@ const applyEditedButton = document.querySelector("#applyEditedButton");
 const regenerateButton = document.querySelector("#regenerateButton");
 const contextMenu = document.querySelector("#contextMenu");
 const currentStyleLabel = document.querySelector("#currentStyleLabel");
-const currentModeLabel = document.querySelector("#currentModeLabel");
 const currentMascotLabel = document.querySelector("#currentMascotLabel");
+const currentShortcutLabel = document.querySelector("#currentShortcutLabel");
 const reviewModeButton = document.querySelector("#reviewModeButton");
 const reviewModeLabel = document.querySelector("#reviewModeLabel");
 const startupLabel = document.querySelector("#startupLabel");
 const settingsPanel = document.querySelector("#settingsPanel");
 const stylePanel = document.querySelector("#stylePanel");
 const systemPromptPanel = document.querySelector("#systemPromptPanel");
-const modePanel = document.querySelector("#modePanel");
 const mascotPanel = document.querySelector("#mascotPanel");
+const shortcutPanel = document.querySelector("#shortcutPanel");
+const shortcutValue = document.querySelector("#shortcutValue");
+const shortcutCaptureButton = document.querySelector("#shortcutCaptureButton");
+const shortcutResetButton = document.querySelector("#shortcutResetButton");
+const shortcutSaveButton = document.querySelector("#shortcutSaveButton");
+const shortcutStatus = document.querySelector("#shortcutStatus");
 const modelEndpoint = document.querySelector("#modelEndpoint");
 const modelName = document.querySelector("#modelName");
 const apiKeyInput = document.querySelector("#apiKey");
@@ -239,6 +251,7 @@ const hubStartupValue = document.querySelector("#hubStartupValue");
 const profileMascotImage = document.querySelector("#profileMascotImage");
 const profileMascotFallback = document.querySelector("#profileMascotFallback");
 const helpPanel = document.querySelector("#helpPanel");
+const helpShortcutLabel = document.querySelector("#helpShortcutLabel");
 const api = globalThis.promptLift;
 
 function readCompactSize() {
@@ -341,6 +354,9 @@ const state = {
   systemPromptMode: "enhance",
   systemPromptStyle: "concise",
   systemPromptDirty: false,
+  shortcut: DEFAULT_SHORTCUT,
+  shortcutDraft: DEFAULT_SHORTCUT,
+  shortcutRecording: false,
   hub: "process",
   view: "compact",
   compactWidth: initialCompactSize.width,
@@ -357,7 +373,7 @@ let compactFeedbackTimer;
 let targetSnapshotPromise;
 
 const messages = Object.freeze({
-  idle: "准备就绪。左键处理当前发言，右键切换工作模式。",
+  idle: "准备就绪。左键处理当前发言，右键切换场景。",
   loading: "正在读取当前输入框并调用模型，请稍候…",
   success: "处理完成，结果已回填。原文仍可恢复或复制。",
   error: "操作失败，原始输入框未被覆盖，请检查设置后重试。",
@@ -367,7 +383,7 @@ function compactFeedbackMessage(phase, message) {
   if (phase === "loading") {
     return state.applying ? "正在回填…" : "处理中…";
   }
-  if (phase === "success" && message.startsWith("工作模式已切换")) {
+  if (phase === "success" && message.startsWith("场景已切换")) {
     return `已切换：${MODE_LABELS[state.mode] ?? MODE_LABELS.enhance}`;
   }
   if (phase === "success") {
@@ -463,7 +479,7 @@ function expandAssistant() {
   }
   state.view = "expanded";
   root.dataset.view = "expanded";
-  void api.resize(360, 520, { persist: false });
+  void api.resize(DEFAULT_EXPANDED_WIDTH, DEFAULT_EXPANDED_HEIGHT, { persist: false });
 }
 
 function collapseAssistant() {
@@ -578,7 +594,7 @@ function openSystemPromptPanel() {
 
 function selectSystemPrompt(mode, style) {
   if (state.systemPromptDirty) {
-    systemPromptStatus.textContent = "请先保存或恢复当前编辑，再切换工作模式或优化档位。";
+    systemPromptStatus.textContent = "请先保存或恢复当前编辑，再切换场景或优化档位。";
     renderSystemPromptPanel();
     return;
   }
@@ -640,17 +656,128 @@ async function handleResetSystemPrompt() {
 function updateModeLabel() {
   const presentation = MODE_PRESENTATION[state.mode] ?? MODE_PRESENTATION.enhance;
   root.dataset.mode = state.mode;
-  currentModeLabel.textContent = MODE_LABELS[state.mode] ?? MODE_LABELS.enhance;
   petActionTitle.textContent = presentation.action;
   compactModeBadge.textContent = presentation.badge;
-  compactModeBadge.setAttribute("aria-label", "当前模式：" + (MODE_LABELS[state.mode] ?? MODE_LABELS.enhance));
-  document.querySelectorAll(".mode-option").forEach((button) => {
-    const selected = button.dataset.mode === state.mode;
-    button.classList.toggle("is-active", selected);
-    button.setAttribute("aria-pressed", String(selected));
-  });
+  compactModeBadge.setAttribute("aria-label", "当前场景：" + (MODE_LABELS[state.mode] ?? MODE_LABELS.enhance));
   updateStyleLabel();
   updateHubSummary();
+}
+
+function updateShortcutPresentation() {
+  const activeLabel = shortcutDisplayLabel(state.shortcut);
+  const draftLabel = shortcutDisplayLabel(state.shortcutDraft);
+  currentShortcutLabel.textContent = activeLabel;
+  helpShortcutLabel.textContent = activeLabel;
+  shortcutValue.value = draftLabel;
+  shortcutCaptureButton.textContent = state.shortcutRecording
+    ? "请按下新的组合键…"
+    : "录制新的组合键";
+  shortcutCaptureButton.setAttribute("aria-pressed", String(state.shortcutRecording));
+  shortcutPanel.classList.toggle("is-recording", state.shortcutRecording);
+  shortcutSaveButton.disabled = state.shortcutRecording || state.shortcutDraft === state.shortcut;
+  shortcutResetButton.disabled = state.shortcutRecording
+    || (state.shortcut === DEFAULT_SHORTCUT && state.shortcutDraft === DEFAULT_SHORTCUT);
+}
+
+function openShortcutPanel() {
+  state.shortcutDraft = state.shortcut;
+  state.shortcutRecording = false;
+  updateShortcutPresentation();
+  shortcutStatus.textContent = `当前已启用：${shortcutDisplayLabel(state.shortcut)}。`;
+  showPanel(shortcutPanel);
+}
+
+function beginShortcutCapture() {
+  state.shortcutRecording = true;
+  shortcutStatus.textContent = "正在录制：请按下至少两个修饰键和一个主按键。";
+  updateShortcutPresentation();
+}
+
+function shortcutFromKeyboardEvent(event) {
+  const modifiers = [];
+  if (event.ctrlKey) {
+    modifiers.push("Control");
+  }
+  if (event.altKey) {
+    modifiers.push("Alt");
+  }
+  if (event.shiftKey) {
+    modifiers.push("Shift");
+  }
+  if (event.metaKey) {
+    modifiers.push("Super");
+  }
+
+  const code = String(event.code ?? "");
+  let baseKey = "";
+  if (/^Key[A-Z]$/u.test(code)) {
+    baseKey = code.slice(3);
+  } else if (/^Digit[0-9]$/u.test(code)) {
+    baseKey = code.slice(5);
+  } else if (code === "Space") {
+    baseKey = "Space";
+  } else if (/^F(?:[1-9]|1[0-2])$/u.test(code)) {
+    baseKey = code;
+  }
+  return normalizeShortcut([...modifiers, baseKey].filter(Boolean).join("+"), {
+    fallbackToDefault: false,
+  });
+}
+
+function handleShortcutKeydown(event) {
+  if (!state.shortcutRecording) {
+    return false;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.key === "Escape") {
+    state.shortcutRecording = false;
+    state.shortcutDraft = state.shortcut;
+    shortcutStatus.textContent = "已取消录制，当前快捷键未改变。";
+    updateShortcutPresentation();
+    return true;
+  }
+  if (event.repeat || ["Control", "Alt", "Shift", "Meta"].includes(event.key)) {
+    shortcutStatus.textContent = "继续按住修饰键，再按一个字母、数字、Space 或 F1–F12。";
+    return true;
+  }
+  try {
+    state.shortcutDraft = shortcutFromKeyboardEvent(event);
+    state.shortcutRecording = false;
+    shortcutStatus.textContent = `已录制：${shortcutDisplayLabel(state.shortcutDraft)}。点击“保存并启用”后生效。`;
+  } catch (error) {
+    shortcutStatus.textContent = errorMessage(error, "这个组合键不受支持，请重新录制。");
+  }
+  updateShortcutPresentation();
+  return true;
+}
+
+async function applyShortcut(shortcut) {
+  shortcutCaptureButton.disabled = true;
+  shortcutResetButton.disabled = true;
+  shortcutSaveButton.disabled = true;
+  shortcutStatus.textContent = "正在检查占用并启用快捷键…";
+  try {
+    const result = await withOperationDeadline(api.setShortcut(shortcut), {
+      stage: "shortcut",
+      timeoutMs: CONFIGURE_STAGE_TIMEOUT_MS,
+    });
+    state.shortcut = normalizeShortcut(result?.shortcut ?? shortcut, {
+      fallbackToDefault: false,
+    });
+    state.shortcutDraft = state.shortcut;
+    state.shortcutRecording = false;
+    shortcutStatus.textContent = result?.warning
+      ? String(result.warning)
+      : `已启用：${shortcutDisplayLabel(state.shortcut)}。`;
+    setStatus("success", `全局快捷键已更新为“${shortcutDisplayLabel(state.shortcut)}”。`);
+  } catch (error) {
+    state.shortcutRecording = false;
+    shortcutStatus.textContent = errorMessage(error, "快捷键设置失败，原快捷键仍然有效。");
+  } finally {
+    shortcutCaptureButton.disabled = false;
+    updateShortcutPresentation();
+  }
 }
 
 function setMascot(mascot, { persist = true } = {}) {
@@ -896,7 +1023,15 @@ function errorMessage(error, fallback = messages.error) {
     case "STYLE_INVALID":
       return "提示词风格无效，请重新选择。";
     case "MODE_INVALID":
-      return "工作模式无效，请重新选择。";
+      return "场景无效，请重新选择。";
+    case "SHORTCUT_INVALID":
+      return "快捷键无效；请选择双击左 Alt，或至少包含两个修饰键的组合键。";
+    case "SHORTCUT_CONFLICT":
+      return "这个快捷键已被其他应用占用，原快捷键仍然有效。";
+    case "SHORTCUT_UNAVAILABLE":
+      return "快捷键监听暂不可用，原快捷键仍然有效。";
+    case "SHORTCUT_SAVE_FAILED":
+      return "快捷键未能保存，原快捷键仍然有效。";
     case "SYSTEM_PROMPT_SAVE_FAILED":
       return "系统提示词保存失败；默认规则仍会继续生效，请稍后重试。";
     case "WINDOW_SIZE_INVALID":
@@ -1004,6 +1139,8 @@ function assertApi() {
     || typeof api.getSystemPrompts !== "function"
     || typeof api.saveSystemPrompt !== "function"
     || typeof api.resetSystemPrompt !== "function"
+    || typeof api.getShortcut !== "function"
+    || typeof api.setShortcut !== "function"
     || typeof api.setMode !== "function"
     || typeof api.startDrag !== "function"
     || typeof api.updateDrag !== "function"
@@ -1017,13 +1154,18 @@ function assertApi() {
 
 function showPanel(panel) {
   expandAssistant();
+  if (panel !== shortcutPanel && state.shortcutRecording) {
+    state.shortcutRecording = false;
+    state.shortcutDraft = state.shortcut;
+    updateShortcutPresentation();
+  }
   root.dataset.surface = "panel";
   contextMenu.hidden = true;
   settingsPanel.hidden = panel !== settingsPanel;
   stylePanel.hidden = panel !== stylePanel;
   systemPromptPanel.hidden = panel !== systemPromptPanel;
-  modePanel.hidden = panel !== modePanel;
   mascotPanel.hidden = panel !== mascotPanel;
+  shortcutPanel.hidden = panel !== shortcutPanel;
   helpPanel.hidden = panel !== helpPanel;
   requestAnimationFrame(() => {
     panel.scrollIntoView({ block: "nearest" });
@@ -1033,14 +1175,19 @@ function showPanel(panel) {
 function showHub(hub = state.hub) {
   const normalizedHub = HUB_LABELS[hub] ? hub : "process";
   state.hub = normalizedHub;
+  if (state.shortcutRecording) {
+    state.shortcutRecording = false;
+    state.shortcutDraft = state.shortcut;
+    updateShortcutPresentation();
+  }
   expandAssistant();
   root.dataset.surface = "hub";
   contextMenu.hidden = false;
   settingsPanel.hidden = true;
   stylePanel.hidden = true;
   systemPromptPanel.hidden = true;
-  modePanel.hidden = true;
   mascotPanel.hidden = true;
+  shortcutPanel.hidden = true;
   helpPanel.hidden = true;
   hubHeading.textContent = HUB_LABELS[normalizedHub];
   document.querySelectorAll("[data-hub-page]").forEach((page) => {
@@ -1062,13 +1209,18 @@ function showContextMenu() {
 }
 
 function hidePanels({ collapse = true } = {}) {
+  if (state.shortcutRecording) {
+    state.shortcutRecording = false;
+    state.shortcutDraft = state.shortcut;
+    updateShortcutPresentation();
+  }
   root.dataset.surface = "task";
   contextMenu.hidden = true;
   settingsPanel.hidden = true;
   stylePanel.hidden = true;
   systemPromptPanel.hidden = true;
-  modePanel.hidden = true;
   mascotPanel.hidden = true;
+  shortcutPanel.hidden = true;
   helpPanel.hidden = true;
   if (collapse) {
     collapseAssistant();
@@ -1525,7 +1677,7 @@ async function handleStyle(style) {
 
 async function handleMode(mode, { returnToMenu = false } = {}) {
   if (state.requestId) {
-    setStatus("loading", "正在处理当前输入，本次使用的模式不会中途切换。");
+    setStatus("loading", "正在处理当前输入，本次使用的场景不会中途切换。");
     return;
   }
   try {
@@ -1537,10 +1689,10 @@ async function handleMode(mode, { returnToMenu = false } = {}) {
     } else {
       hidePanels();
     }
-    setStatus("success", "工作模式已切换为“"
+    setStatus("success", "场景已切换为“"
       + (MODE_LABELS[state.mode] ?? state.mode) + "”。");
   } catch (error) {
-    setStatus("error", errorMessage(error, "工作模式切换失败。"));
+    setStatus("error", errorMessage(error, "场景切换失败。"));
   }
 }
 
@@ -1597,8 +1749,7 @@ async function handleRestore() {
 }
 
 async function handleDiscardReview() {
-  if (state.requestId
-    || state.applying
+  if (state.applying
     || !state.reviewMode
     || !state.enhancedText.trim()
     || state.replacementConfirmed) {
@@ -1881,10 +2032,12 @@ contextMenu.addEventListener("click", (event) => {
   }
   if (action === "configure") {
     showPanel(settingsPanel);
-  } else if (action === "mode") {
-    showPanel(modePanel);
+  } else if (action === "scenes") {
+    showHub("scenes");
   } else if (action === "mascot") {
     showPanel(mascotPanel);
+  } else if (action === "shortcut") {
+    openShortcutPanel();
   } else if (action === "review") {
     handleReviewModeToggle();
   } else if (action === "style") {
@@ -1944,13 +2097,6 @@ systemPromptCustom.addEventListener("input", () => {
 saveSystemPromptButton.addEventListener("click", () => void handleSaveSystemPrompt());
 resetSystemPromptButton.addEventListener("click", () => void handleResetSystemPrompt());
 
-modePanel.addEventListener("click", (event) => {
-  const mode = event.target.closest("[data-mode]")?.dataset.mode;
-  if (mode) {
-    void handleMode(mode, { returnToMenu: true });
-  }
-});
-
 mascotPanel.addEventListener("click", (event) => {
   const mascot = event.target.closest("[data-mascot]")?.dataset.mascot;
   if (mascot) {
@@ -1959,6 +2105,15 @@ mascotPanel.addEventListener("click", (event) => {
     setStatus("success", `小精灵已切换为“${MASCOTS[state.mascot].label}”。`);
   }
 });
+
+shortcutCaptureButton.addEventListener("click", beginShortcutCapture);
+shortcutResetButton.addEventListener("click", () => {
+  state.shortcutDraft = DEFAULT_SHORTCUT;
+  state.shortcutRecording = false;
+  updateShortcutPresentation();
+  void applyShortcut(DEFAULT_SHORTCUT);
+});
+shortcutSaveButton.addEventListener("click", () => void applyShortcut(state.shortcutDraft));
 
 mascotImage.addEventListener("error", () => {
   const current = MASCOTS[state.mascot];
@@ -1978,11 +2133,14 @@ petCard.addEventListener("contextmenu", (event) => {
   void toggleWorkMode();
 });
 document.addEventListener("click", (event) => {
-  if (!event.target.closest("#contextMenu, #settingsPanel, #stylePanel, #systemPromptPanel, #modePanel, #mascotPanel, #helpPanel, #petCard")) {
+  if (!event.target.closest("#contextMenu, #settingsPanel, #stylePanel, #systemPromptPanel, #mascotPanel, #shortcutPanel, #helpPanel, #petCard")) {
     hidePanels();
   }
 });
 document.addEventListener("keydown", (event) => {
+  if (handleShortcutKeydown(event)) {
+    return;
+  }
   if (event.key === "Escape") {
     hidePanels();
   }
@@ -2031,6 +2189,13 @@ void (async () => {
       state.startup = startup?.enabled === true;
       updateStartupLabel();
     }
+    const shortcut = await api.getShortcut();
+    state.shortcut = normalizeShortcut(shortcut?.shortcut ?? DEFAULT_SHORTCUT);
+    state.shortcutDraft = state.shortcut;
+    updateShortcutPresentation();
+    shortcutStatus.textContent = shortcut?.warning
+      ? String(shortcut.warning)
+      : `当前已启用：${shortcutDisplayLabel(state.shortcut)}。`;
     const savedConfig = await api.getModelConfig();
     if (savedConfig?.endpoint) {
       modelEndpoint.value = savedConfig.endpoint;
@@ -2071,6 +2236,7 @@ updateMeta();
 updateModeLabel();
 setMascot(state.mascot, { persist: false });
 updateReviewModeLabel();
+updateShortcutPresentation();
 updateCompactScale();
 restoreCompactBounds();
 setStatus("idle");
