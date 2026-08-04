@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { hasVisiblePromptText } from './capturePayload.mjs';
 import {
   getRecipe,
@@ -8,6 +10,7 @@ import {
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_MODEL_OUTPUT_LENGTH = 1_000_000;
+const PROMPT_POLICY_FILE_URL = new URL('../../config/prompt-policy.json', import.meta.url);
 export const DEFAULT_MODEL_ENDPOINT = 'https://tokenhub.tencentmaas.com/v1';
 export const DEFAULT_MODEL = 'deepseek-v4-flash';
 export const PROMPT_PROTOCOL_VERSION = '2.0';
@@ -42,6 +45,57 @@ const MODEL_STYLE_TOKEN_FLOORS = Object.freeze({
   [MODEL_STYLES.professional]: 768,
   [MODEL_STYLES.creative]: 1_024,
 });
+
+function loadPromptPolicy() {
+  try {
+    const parsed = JSON.parse(readFileSync(PROMPT_POLICY_FILE_URL, 'utf8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizePolicyLines(value) {
+  const values = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
+  return values
+    .filter((item) => typeof item === 'string')
+    .map((item) => item.replace(/[\u0000-\u001f\u007f]/gu, ' ').trim().slice(0, 800))
+    .filter(Boolean)
+    .slice(0, 16);
+}
+
+function promotedPolicyLines(recipeId, style, language) {
+  const policy = loadPromptPolicy();
+  const containers = [
+    policy.constraints,
+    policy,
+  ].filter((value) => value && typeof value === 'object' && !Array.isArray(value));
+  const lines = [];
+  for (const container of containers) {
+    const global = container.global;
+    const modes = container.modes ?? container.modeConstraints;
+    const tiers = container.tiers ?? container.tierConstraints;
+    lines.push(...normalizePolicyLines(global?.[language] ?? global));
+    lines.push(...normalizePolicyLines(modes?.[recipeId]?.[language] ?? modes?.[recipeId]));
+    lines.push(...normalizePolicyLines(tiers?.[style]?.[language] ?? tiers?.[style]));
+  }
+  return [...new Set(lines)].map((line) => `Promoted policy constraint: ${line}`);
+}
+
+function getPromotedMaxExpansionRatio(style) {
+  const policy = loadPromptPolicy();
+  const constraints = policy.constraints && typeof policy.constraints === 'object'
+    ? policy.constraints
+    : policy;
+  const tier = constraints?.tiers?.[style] ?? constraints?.tierConstraints?.[style];
+  const value = Number(
+    tier?.maxExpansionRatio
+      ?? constraints?.maxExpansionRatios?.[style]
+      ?? constraints?.maxExpansionRatio
+      ?? policy.maxExpansionRatio,
+  );
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
 export const PROMPT_MODES = Object.freeze({
   enhance: RECIPE_IDS.enhance,
   chatPolish: RECIPE_IDS.chatPolish,
@@ -72,12 +126,13 @@ export function normalizeCustomSystemPrompt(value) {
 export function maxAllowedResultLength(source, style = MODEL_STYLES.concise) {
   const textLength = String(source ?? '').length;
   const resolvedStyle = resolveModelStyle(style) ?? MODEL_STYLES.concise;
-  const ratio = MODEL_STYLE_MAX_EXPANSION_RATIOS[resolvedStyle]
+  const baseRatio = MODEL_STYLE_MAX_EXPANSION_RATIOS[resolvedStyle]
     ?? MODEL_STYLE_MAX_EXPANSION_RATIOS[MODEL_STYLES.concise];
-  // Creative has a strict user-facing 350% ceiling. The other tiers keep the
-  // legacy safety floor for short prompts while their scope/semantic gates
-  // prevent invented scenarios or stronger commitments.
-  return resolvedStyle === MODEL_STYLES.creative
+  const promotedRatio = getPromotedMaxExpansionRatio(resolvedStyle);
+  const ratio = Math.min(baseRatio, promotedRatio ?? baseRatio);
+  // The legacy floor remains for the unpromoted policy. A promoted ratio
+  // becomes a strict budget for every tier so short prompts cannot bypass it.
+  return resolvedStyle === MODEL_STYLES.creative || promotedRatio !== null
     ? Math.max(1, Math.floor(textLength * ratio))
     : Math.max(1_200, Math.floor(textLength * ratio));
 }
@@ -821,12 +876,20 @@ export function buildModelInstruction(
   const normalizedCustomPrompt = normalizeCustomSystemPrompt(customPrompt);
   const styleContract = recipe.styleContracts[recipeLanguage][selectedStyle];
   const stylePolicy = PROMPT_STYLE_POLICIES[selectedStyle];
+  const effectiveMaxExpansionRatio = Math.min(
+    stylePolicy.maxExpansionRatio,
+    getPromotedMaxExpansionRatio(selectedStyle) ?? stylePolicy.maxExpansionRatio,
+  );
+  const effectiveStylePolicy = {
+    ...stylePolicy,
+    maxExpansionRatio: effectiveMaxExpansionRatio,
+  };
   const policyLinesEn = [
-    `Scope policy: ${stylePolicy.scopePolicy}`,
+    `Scope policy: ${effectiveStylePolicy.scopePolicy}`,
     selectedStyle === MODEL_STYLES.creative
-      ? `Hard maximum output length: ${stylePolicy.maxExpansionRatio}x the source character count (${stylePolicy.maxExpansionRatio * 100}%).`
-      : `Recommended expansion budget: ${stylePolicy.maxExpansionRatio}x the source character count (${stylePolicy.maxExpansionRatio * 100}%); do not use extra length to add new scope.`,
-    `New application scenarios: ${stylePolicy.allowNewScenarios ? 'only optional, clearly labeled creative directions' : 'forbidden; stay strictly within the source scope'}.`,
+      ? `Hard maximum output length: ${effectiveStylePolicy.maxExpansionRatio}x the source character count (${effectiveStylePolicy.maxExpansionRatio * 100}%).`
+      : `Recommended expansion budget: ${effectiveStylePolicy.maxExpansionRatio}x the source character count (${effectiveStylePolicy.maxExpansionRatio * 100}%); do not use extra length to add new scope.`,
+    `New application scenarios: ${effectiveStylePolicy.allowNewScenarios ? 'only optional, clearly labeled creative directions' : 'forbidden; stay strictly within the source scope'}.`,
     'The user payload provides sourceCharacterCount and maxResultCharacters; treat maxResultCharacters as a hard output budget and count characters before returning.',
     'All tiers: never invent a product, platform, tool, diagnostic premise, evidence source, or capability that is not literally grounded in sourceText; creative additions may be abstract optional directions only.',
     'Preserve immutable anchors and commitment strength: suggestions remain suggestions, possibilities remain possibilities, and explicit negatives remain explicit negatives.',
@@ -839,11 +902,11 @@ export function buildModelInstruction(
       : []),
   ];
   const policyLinesZh = [
-    `范围策略：${stylePolicy.scopePolicy === 'strict-source-only' ? '严格限定在原文范围' : '受控的创意扩展'}`,
+    `范围策略：${effectiveStylePolicy.scopePolicy === 'strict-source-only' ? '严格限定在原文范围' : '受控的创意扩展'}`,
     selectedStyle === MODEL_STYLES.creative
-      ? `输出长度硬上限：原文字符数的 ${stylePolicy.maxExpansionRatio} 倍（${stylePolicy.maxExpansionRatio * 100}%）。`
-      : `建议扩写预算：原文字符数的 ${stylePolicy.maxExpansionRatio} 倍（${stylePolicy.maxExpansionRatio * 100}%）；额外长度不得用于增加新范围。`,
-    `新增应用场景：${stylePolicy.allowNewScenarios ? '仅允许清楚标为建议的可选创意方向' : '禁止，必须严格停留在原文范围内'}。`,
+      ? `输出长度硬上限：原文字符数的 ${effectiveStylePolicy.maxExpansionRatio} 倍（${effectiveStylePolicy.maxExpansionRatio * 100}%）。`
+      : `建议扩写预算：原文字符数的 ${effectiveStylePolicy.maxExpansionRatio} 倍（${effectiveStylePolicy.maxExpansionRatio * 100}%）；额外长度不得用于增加新范围。`,
+    `新增应用场景：${effectiveStylePolicy.allowNewScenarios ? '仅允许清楚标为建议的可选创意方向' : '禁止，必须严格停留在原文范围内'}。`,
     '用户载荷会提供 sourceCharacterCount 和 maxResultCharacters；maxResultCharacters 是硬性输出预算，返回前必须按字符数检查。',
     '所有档位都不得虚构 sourceText 未明确支持的产品、平台、工具、诊断前提、证据来源或能力；创意内容也只能是抽象的可选方向。',
     '保留不可变事实锚点和承诺强度：建议仍是建议，可能性仍是可能性，明确否定仍须明确保留。',
@@ -914,6 +977,7 @@ export function buildModelInstruction(
       `Recipe 长度策略：${recipe.lengthPolicy[recipeLanguage]}`,
       `Recipe 输出合同：${recipe.outputContract[recipeLanguage]}`,
       ...modeRules,
+      ...promotedPolicyLines(recipe.id, selectedStyle, recipeLanguage),
       '保留原意，不把建议升级为要求，不把可能性改成确定结论。',
       '忠实保留人名、组织名、数字、日期、金额、链接、文件路径、代码、命令、专有名词、范围、优先级以及明确的否定条件。',
       '跟随原文主要语言；保留必要的英文技术词、代码和专有名词，不擅自混用无关语言。',
@@ -980,6 +1044,7 @@ export function buildModelInstruction(
     `Recipe length policy: ${recipe.lengthPolicy[recipeLanguage]}`,
     `Recipe output contract: ${recipe.outputContract[recipeLanguage]}`,
     ...modeRules,
+    ...promotedPolicyLines(recipe.id, selectedStyle, recipeLanguage),
     'Preserve the original intent. Do not turn suggestions into requirements or possibilities into certain conclusions.',
     'Faithfully preserve names, organizations, numbers, dates, amounts, links, file paths, code, commands, technical terms, scope, priority, and explicit negative constraints.',
     'Follow the source language. Keep necessary technical terms, code, and proper nouns, but do not introduce unrelated language mixing.',
