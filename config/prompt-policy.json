@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0",
+  "revision": 0,
+  "constraints": {
+    "global": {
+      "zh": [],
+      "en": []
+    },
+    "modes": {},
+    "tiers": {}
+  }
+}

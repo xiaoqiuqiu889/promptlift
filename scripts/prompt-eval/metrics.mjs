@@ -12,7 +12,10 @@ export const DEFAULT_PROTOCOL_VERSION = '2.0';
 export const DEFAULT_MAX_EXPANSION_RATIO = 3;
 export const DEFAULT_RELATIVE_IMPROVEMENT_PERCENT = 3;
 export const DEFAULT_MIN_ABSOLUTE_GAIN = 1;
-export const DEFAULT_MIN_RATE_ABSOLUTE_GAIN = 0.01;
+// Promotion is defined by relative uplift. Callers may opt into an absolute
+// noise floor, but the default must not silently turn a 3% gain into a larger
+// requirement for low-valued scores.
+export const DEFAULT_MIN_RATE_ABSOLUTE_GAIN = 0;
 
 const REQUIRED_PROTOCOL_FIELDS = Object.freeze([
   'protocol',
@@ -280,6 +283,29 @@ function aggregateScore(parts) {
   };
 }
 
+function numericMetric(group, keys) {
+  for (const key of keys) {
+    const value = Number(group?.[key]);
+    if (Number.isFinite(value)) return Math.max(0, Math.min(1, value));
+  }
+  return null;
+}
+
+function reportQualityScore(report) {
+  const hardScore = Number(report?.aggregateScore);
+  const hard = Number.isFinite(hardScore)
+    ? Math.max(0, Math.min(1, hardScore / 100))
+    : Number(report?.qualityScore);
+  const semantic = numericMetric(report?.semantic, ['fidelity', 'semanticFidelity', 'score'])
+    ?? numericMetric(report, ['semanticFidelity']);
+  const task = numericMetric(report?.task, ['utility', 'taskScore', 'score'])
+    ?? numericMetric(report, ['taskScore', 'utility']);
+  const hardValue = Number.isFinite(hard) ? hard : 0;
+  const semanticValue = semantic ?? hardValue;
+  const taskValue = task ?? hardValue;
+  return Number((hardValue * 0.6 + semanticValue * 0.25 + taskValue * 0.15).toFixed(6));
+}
+
 /**
  * Evaluate one model response. The input may contain sourceText and response
  * as either a protocol JSON string or parsed envelope. The output is safe to
@@ -318,10 +344,18 @@ export function evaluateModelOutput(input = {}) {
   if (!anchors.passed) failures.push('ANCHOR_LOSS');
   if (!scope.passed) failures.push('SCOPE_EXPANSION');
   if (!modality.passed) failures.push('SEMANTIC_MODALITY_DRIFT');
-  return {
+  const report = {
     schemaVersion: EVALUATION_SCHEMA_VERSION,
     hardGatePassed,
     aggregateScore: aggregate.score,
+    qualityScore: reportQualityScore({
+      aggregateScore: aggregate.score,
+      semantic: input.semantic,
+      task: input.task,
+      semanticFidelity: input.semanticFidelity,
+      taskScore: input.taskScore,
+      utility: input.utility,
+    }),
     scoreBreakdown: aggregate.componentScores,
     metrics: {
       protocol,
@@ -337,6 +371,12 @@ export function evaluateModelOutput(input = {}) {
       containsRawResult: false,
     },
   };
+  for (const group of ['hard', 'semantic', 'task']) {
+    if (input[group] && typeof input[group] === 'object' && !Array.isArray(input[group])) {
+      report[group] = sanitizeMetricGroup(input[group]);
+    }
+  }
+  return report;
 }
 
 /**
@@ -408,6 +448,7 @@ export function aggregateMetrics(cases = []) {
   const scoreValues = finiteValues(reports.map((report) => Number(
     report?.aggregateScore ?? report?.qualityScore,
   )));
+  const qualityValues = finiteValues(reports.map((report) => reportQualityScore(report)));
   const metricKeys = ['protocol', 'status', 'length', 'anchors', 'scope', 'modality'];
   const passRates = Object.fromEntries(metricKeys.map((key) => [
     key,
@@ -418,6 +459,14 @@ export function aggregateMetrics(cases = []) {
   const averageAggregateScore = scoreValues.length === 0
     ? 0
     : Number((scoreValues.reduce((sum, value) => sum + value, 0) / scoreValues.length).toFixed(4));
+  const averageQualityScore = qualityValues.length === 0
+    ? 0
+    : Number((qualityValues.reduce((sum, value) => sum + value, 0) / qualityValues.length).toFixed(6));
+  const groupedMetrics = {
+    hard: aggregateScalarGroup(reports, 'hard'),
+    semantic: aggregateScalarGroup(reports, 'semantic'),
+    task: aggregateScalarGroup(reports, 'task'),
+  };
   const failureCounts = {};
   for (const report of reports) {
     for (const failure of report?.failures ?? []) {
@@ -430,7 +479,20 @@ export function aggregateMetrics(cases = []) {
     hardGatePassCount: passCount,
     hardGatePassRate: count === 0 ? 0 : passCount / count,
     averageAggregateScore,
-    qualityScore: averageAggregateScore,
+    qualityScore: averageQualityScore,
+    semanticFidelity: Number(
+      groupedMetrics.semantic.fidelity
+        ?? groupedMetrics.semantic.semanticFidelity
+        ?? 0,
+    ),
+    scopeInventionRate: Number(groupedMetrics.semantic.scopeInventionRate ?? 0),
+    utility: Number(
+      groupedMetrics.task.utility
+        ?? groupedMetrics.task.taskScore
+        ?? 0,
+    ),
+    repairRate: Number(groupedMetrics.hard.repairRate ?? 0),
+    lengthViolationRate: count === 0 ? 0 : 1 - passRates.length,
     averageAnchorRecall: anchorRecalls.length === 0
       ? 0
       : Number((anchorRecalls.reduce((sum, value) => sum + value, 0) / anchorRecalls.length).toFixed(4)),
@@ -438,11 +500,7 @@ export function aggregateMetrics(cases = []) {
       ? 0
       : Number((ratios.reduce((sum, value) => sum + value, 0) / ratios.length).toFixed(4)),
     passRates,
-    groupedMetrics: {
-      hard: aggregateScalarGroup(reports, 'hard'),
-      semantic: aggregateScalarGroup(reports, 'semantic'),
-      task: aggregateScalarGroup(reports, 'task'),
-    },
+    groupedMetrics,
     failureCounts,
     privacy: {
       containsRawSource: false,
@@ -482,7 +540,9 @@ export function compareMetric(baseline, candidate, options = {}) {
   const lowBaseline = absoluteBaseline < minAbsoluteGain;
   const denominator = lowBaseline ? minAbsoluteGain : absoluteBaseline;
   const gain = direction === 'higher' ? next - base : base - next;
-  const relativeImprovementPercent = Number(((gain / denominator) * 100).toFixed(4));
+  const relativeImprovementPercent = denominator === 0
+    ? (gain > 0 ? Infinity : 0)
+    : Number(((gain / denominator) * 100).toFixed(4));
   const meetsThreshold = gain >= minAbsoluteGain
     && relativeImprovementPercent >= threshold;
   return {
@@ -508,8 +568,8 @@ export function compareEvaluations(baseline, candidate, options = {}) {
     : (Number.isFinite(options.threshold)
       ? options.threshold * 100
       : DEFAULT_RELATIVE_IMPROVEMENT_PERCENT);
-  const baselineScore = baseline?.aggregateScore ?? baseline?.averageAggregateScore ?? baseline?.qualityScore;
-  const candidateScore = candidate?.aggregateScore ?? candidate?.averageAggregateScore ?? candidate?.qualityScore;
+  const baselineScore = baseline?.qualityScore ?? baseline?.averageAggregateScore ?? baseline?.aggregateScore;
+  const candidateScore = candidate?.qualityScore ?? candidate?.averageAggregateScore ?? candidate?.aggregateScore;
   const scoreScale = Math.max(Math.abs(Number(baselineScore) || 0), Math.abs(Number(candidateScore) || 0)) <= 1
     ? 'rate'
     : 'score';
@@ -546,8 +606,8 @@ export function evaluatePromotion(baseline, candidate, options = {}) {
       ? options.thresholdPercent / 100
       : DEFAULT_RELATIVE_IMPROVEMENT_PERCENT / 100);
   const thresholdPercent = threshold * 100;
-  const baselineScore = baseline?.averageAggregateScore ?? baseline?.aggregateScore ?? baseline?.qualityScore;
-  const candidateScore = candidate?.averageAggregateScore ?? candidate?.aggregateScore ?? candidate?.qualityScore;
+  const baselineScore = baseline?.qualityScore ?? baseline?.averageAggregateScore ?? baseline?.aggregateScore;
+  const candidateScore = candidate?.qualityScore ?? candidate?.averageAggregateScore ?? candidate?.aggregateScore;
   const scoreScale = Math.max(Math.abs(Number(baselineScore) || 0), Math.abs(Number(candidateScore) || 0)) <= 1
     ? 'rate'
     : 'score';

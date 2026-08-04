@@ -174,6 +174,24 @@ test('aggregate comparison requires a three percent relative gain and blocks har
   assert.equal(blocked.eligibleForPromotion, false);
 });
 
+test('quality score includes optional semantic and task judge metrics without weakening hard gates', () => {
+  const report = evaluateModelOutput({
+    sourceText: 'Rewrite this request clearly.',
+    response: response({ result: 'Rewrite this request in a clear, direct form.' }),
+  });
+  const withJudge = evaluateModelOutput({
+    sourceText: 'Rewrite this request clearly.',
+    response: response({ result: 'Rewrite this request in a clear, direct form.' }),
+    semantic: { fidelity: 0.9 },
+    task: { utility: 0.8 },
+  });
+
+  assert.equal(report.hardGatePassed, true);
+  assert.equal(withJudge.hardGatePassed, true);
+  assert.notEqual(withJudge.qualityScore, report.qualityScore);
+  assert.ok(withJudge.qualityScore > 0.5);
+});
+
 test('public promotion APIs use ratio threshold and handle low-valued quality scores', () => {
   const baseline = { qualityScore: 0.8, hardGatePassRate: 1, hardGatePassed: true };
   const candidate = { qualityScore: 0.824, hardGatePassRate: 1, hardGatePassed: true };
