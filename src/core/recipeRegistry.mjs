@@ -1,10 +1,51 @@
-export const RECIPE_SCHEMA_VERSION = '1.1';
+export const RECIPE_SCHEMA_VERSION = '1.2';
 
 export const RECIPE_IDS = Object.freeze({
   enhance: 'enhance',
   upwardCommunication: 'upward-communication',
   chatPolish: 'chat-polish',
   pptCopy: 'ppt-copy',
+});
+
+// These policies are shared by all recipes so the four visible tiers have
+// one auditable meaning instead of four loosely worded prompts.
+export const PROMPT_STYLE_POLICIES = Object.freeze({
+  faithful: Object.freeze({
+    scopePolicy: 'strict-source-only',
+    maxExpansionRatio: 1.25,
+    allowNewScenarios: false,
+    preserveAnchors: true,
+    preserveCommitmentStrength: true,
+    preserveSuggestionModality: true,
+    singleResult: true,
+  }),
+  concise: Object.freeze({
+    scopePolicy: 'strict-source-only',
+    maxExpansionRatio: 1.5,
+    allowNewScenarios: false,
+    preserveAnchors: true,
+    preserveCommitmentStrength: true,
+    preserveSuggestionModality: true,
+    singleResult: true,
+  }),
+  professional: Object.freeze({
+    scopePolicy: 'strict-source-only',
+    maxExpansionRatio: 2.25,
+    allowNewScenarios: false,
+    preserveAnchors: true,
+    preserveCommitmentStrength: true,
+    preserveSuggestionModality: true,
+    singleResult: true,
+  }),
+  creative: Object.freeze({
+    scopePolicy: 'bounded-creative-expansion',
+    maxExpansionRatio: 3.5,
+    allowNewScenarios: true,
+    preserveAnchors: true,
+    preserveCommitmentStrength: true,
+    preserveSuggestionModality: true,
+    singleResult: true,
+  }),
 });
 
 function deepFreeze(value) {
@@ -21,8 +62,28 @@ function tier(name, goal, changeBudget, structure, forbidden) {
   return { name, goal, changeBudget, structure, forbidden };
 }
 
+function decorateStyleContracts(styleContracts) {
+  return Object.fromEntries(
+    Object.entries(styleContracts).map(([language, contracts]) => [
+      language,
+      Object.fromEntries(
+        Object.entries(contracts).map(([style, contract]) => [
+          style,
+          {
+            ...contract,
+            ...PROMPT_STYLE_POLICIES[style],
+          },
+        ]),
+      ),
+    ]),
+  );
+}
+
 function freezeRecipe(recipe) {
-  return deepFreeze(recipe);
+  return deepFreeze({
+    ...recipe,
+    styleContracts: decorateStyleContracts(recipe.styleContracts),
+  });
 }
 
 const RECIPES = Object.freeze([
@@ -52,7 +113,7 @@ const RECIPES = Object.freeze([
         professional: tier(
           '专业展开',
           '形成可交付给专业执行者的完整任务简报。',
-          '可在原意支持范围内展开执行细节、质量标准、边界情况和风险，并对缺失信息保留待确认项。',
+          '只可重组原文已提供的执行细节、质量标准、边界情况和风险；缺失信息保留为待确认，不得根据常识补造。',
           '按目标、背景、要求、约束、输出格式、验收标准形成分层结构。',
           '不得把待确认项写成事实，不得擅自指定产品、平台、技术栈、参数或期限。',
         ),
@@ -82,7 +143,7 @@ const RECIPES = Object.freeze([
         professional: tier(
           'Professional Expansion',
           'Create a complete task brief for a skilled executor.',
-          'Where supported by intent, expand execution details, quality criteria, edge cases, and risks while marking missing information To Confirm.',
+          'Reorganize only execution details, quality criteria, edge cases, and risks already provided by the source; keep missing information To Confirm and never fill it from common knowledge.',
           'Use a hierarchy of objective, background, requirements, constraints, output format, and acceptance criteria.',
           'Do not present unknowns as facts or choose a product, platform, stack, parameter, or deadline without source support.',
         ),

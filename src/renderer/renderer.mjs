@@ -36,7 +36,7 @@ const MODE_STYLE_PRESENTATION = Object.freeze({
     }),
     professional: Object.freeze({
       label: "专业展开",
-      description: "补充执行背景、步骤、标准与专业输出结构",
+      description: "重组原文已有步骤、标准与边界，缺失项保持待确认",
     }),
     creative: Object.freeze({
       label: "创意策划",
@@ -150,6 +150,12 @@ const MODE_PRESENTATION = Object.freeze({
     success: "PPT 文案优化完成。",
   }),
 });
+const HUB_LABELS = Object.freeze({
+  process: "处理",
+  scenes: "场景",
+  services: "服务",
+  profile: "我的",
+});
 
 const root = document.querySelector(".pet-shell");
 const petCard = document.querySelector("#petCard");
@@ -175,6 +181,10 @@ const enhancedPrompt = document.querySelector("#enhancedPrompt");
 const originalPreview = document.querySelector("#originalPreview");
 const diffPreview = document.querySelector("#diffPreview");
 const resultMeta = document.querySelector("#resultMeta");
+const expressionSummaryMode = document.querySelector("#expressionSummaryMode");
+const expressionSummaryStyle = document.querySelector("#expressionSummaryStyle");
+const expressionSummaryLength = document.querySelector("#expressionSummaryLength");
+const expressionSummarySafety = document.querySelector("#expressionSummarySafety");
 const cancelButton = document.querySelector("#cancelButton");
 const restoreButton = document.querySelector("#restoreButton");
 const copyButton = document.querySelector("#copyButton");
@@ -189,6 +199,7 @@ const reviewModeLabel = document.querySelector("#reviewModeLabel");
 const startupLabel = document.querySelector("#startupLabel");
 const settingsPanel = document.querySelector("#settingsPanel");
 const stylePanel = document.querySelector("#stylePanel");
+const systemPromptPanel = document.querySelector("#systemPromptPanel");
 const modePanel = document.querySelector("#modePanel");
 const mascotPanel = document.querySelector("#mascotPanel");
 const modelEndpoint = document.querySelector("#modelEndpoint");
@@ -198,11 +209,36 @@ const modelStorageStatus = document.querySelector("#modelStorageStatus");
 const targetWindowTitlePattern = document.querySelector("#targetWindowTitlePattern");
 const checkModelButton = document.querySelector("#checkModelButton");
 const saveModelButton = document.querySelector("#saveModelButton");
+const viewSystemPromptButton = document.querySelector("#viewSystemPromptButton");
+const systemPromptModeSelect = document.querySelector("#systemPromptModeSelect");
+const systemPromptDefault = document.querySelector("#systemPromptDefault");
+const systemPromptEffective = document.querySelector("#systemPromptEffective");
+const systemPromptCustom = document.querySelector("#systemPromptCustom");
+const saveSystemPromptButton = document.querySelector("#saveSystemPromptButton");
+const resetSystemPromptButton = document.querySelector("#resetSystemPromptButton");
+const systemPromptStatus = document.querySelector("#systemPromptStatus");
 const resizeHandle = document.querySelector("#resizeHandle");
 const compactModeBadge = document.querySelector("#compactModeBadge");
 const compactFeedback = document.querySelector("#compactFeedback");
 const compactFeedbackText = document.querySelector("#compactFeedbackText");
 const compactCancelButton = document.querySelector("#compactCancelButton");
+const hubHeading = document.querySelector("#hubHeading");
+const hubModeValue = document.querySelector("#hubModeValue");
+const hubStyleValue = document.querySelector("#hubStyleValue");
+const hubReviewValue = document.querySelector("#hubReviewValue");
+const hubReviewQuick = document.querySelector("#hubReviewQuick");
+const hubPrimaryAction = document.querySelector("#hubPrimaryAction");
+const hubPrimaryActionTitle = document.querySelector("#hubPrimaryActionTitle");
+const hubPrimaryActionHint = document.querySelector("#hubPrimaryActionHint");
+const hubPrivacyNote = document.querySelector("#hubPrivacyNote");
+const hubTaskState = document.querySelector("#hubTaskState");
+const hubModelStateLabel = document.querySelector("#hubModelStateLabel");
+const hubModelCheckLabel = document.querySelector("#hubModelCheckLabel");
+const hubMascotValue = document.querySelector("#hubMascotValue");
+const hubStartupValue = document.querySelector("#hubStartupValue");
+const profileMascotImage = document.querySelector("#profileMascotImage");
+const profileMascotFallback = document.querySelector("#profileMascotFallback");
+const helpPanel = document.querySelector("#helpPanel");
 const api = globalThis.promptLift;
 
 function readCompactSize() {
@@ -291,11 +327,21 @@ const state = {
   startup: false,
   apiKeySaved: false,
   storageAvailable: true,
+  modelConnection: "unchecked",
+  modelConfigDirty: false,
   applying: false,
   replacementConfirmed: false,
   appliedText: "",
   generationOperationId: undefined,
+  validatedText: "",
+  resultMode: undefined,
+  resultStyle: undefined,
   reviewMode: readReviewMode(),
+  systemPrompts: [],
+  systemPromptMode: "enhance",
+  systemPromptStyle: "concise",
+  systemPromptDirty: false,
+  hub: "process",
   view: "compact",
   compactWidth: initialCompactSize.width,
   compactHeight: initialCompactSize.height,
@@ -356,6 +402,7 @@ function setStatus(phase, message = messages[phase]) {
   petActionHint.textContent = phase === "loading"
     ? "正在生成，原文保持不变"
     : (MODE_PRESENTATION[state.mode] ?? MODE_PRESENTATION.enhance).hint;
+  updateHubOperationState();
   clearTimeout(compactFeedbackTimer);
   compactFeedback.hidden = phase === "idle";
   compactCancelButton.hidden = phase !== "loading" || state.applying;
@@ -374,6 +421,21 @@ function updateMeta() {
   resultMeta.textContent = state.enhancedText.length > 0
     ? state.enhancedText.length + " 字符"
     : "尚未生成";
+  updateExpressionSummary();
+}
+
+function updateExpressionSummary() {
+  const resultMode = state.resultMode ?? state.mode;
+  const resultStyle = state.resultStyle ?? state.style;
+  expressionSummaryMode.textContent = MODE_LABELS[resultMode] ?? MODE_LABELS.enhance;
+  expressionSummaryStyle.textContent = MODE_STYLE_PRESENTATION[resultMode]?.[resultStyle]?.label
+    ?? STYLE_LABELS[resultStyle]
+    ?? STYLE_LABELS.concise;
+  expressionSummaryLength.textContent = `${state.originalText.length} → ${state.enhancedText.length}`;
+  expressionSummarySafety.textContent = state.validatedText
+    && state.enhancedText !== state.validatedText
+    ? "用户已编辑"
+    : "安全校验通过";
 }
 
 function updateCompactScale() {
@@ -431,6 +493,148 @@ function updateStyleLabel() {
     button.classList.toggle("is-active", selected);
     button.setAttribute("aria-pressed", String(selected));
   });
+  updateHubSummary();
+}
+
+function systemPromptEntryKey(mode, style) {
+  return `${mode}:${style}`;
+}
+
+function findSystemPromptEntry(mode = state.systemPromptMode, style = state.systemPromptStyle) {
+  return state.systemPrompts.find((entry) => entry?.mode === mode && entry?.style === style);
+}
+
+function renderSystemPromptPanel() {
+  if (!systemPromptPanel || !systemPromptModeSelect || !systemPromptDefault
+    || !systemPromptEffective || !systemPromptCustom) {
+    return;
+  }
+  const presentation = MODE_STYLE_PRESENTATION[state.systemPromptMode]
+    ?? MODE_STYLE_PRESENTATION.enhance;
+  systemPromptModeSelect.value = state.systemPromptMode;
+  document.querySelectorAll("[data-system-style]").forEach((button) => {
+    const style = button.dataset.systemStyle;
+    const item = presentation[style] ?? MODE_STYLE_PRESENTATION.enhance[style];
+    const selected = style === state.systemPromptStyle;
+    const heading = button.querySelector("strong");
+    const description = button.querySelector("small");
+    if (heading) {
+      heading.textContent = item?.label ?? style;
+    }
+    if (description) {
+      description.textContent = item?.description ?? "";
+    }
+    button.setAttribute("aria-selected", String(selected));
+    button.classList.toggle("is-active", selected);
+  });
+  const entry = findSystemPromptEntry();
+  if (!entry) {
+    systemPromptDefault.value = "正在读取当前档位的默认系统提示词…";
+    systemPromptEffective.value = "";
+    if (!state.systemPromptDirty) {
+      systemPromptCustom.value = "";
+    }
+    systemPromptStatus.textContent = "暂时无法读取系统提示词，请稍后重试。";
+    saveSystemPromptButton.disabled = true;
+    resetSystemPromptButton.disabled = true;
+    return;
+  }
+  systemPromptDefault.value = entry.defaultPrompt ?? "";
+  systemPromptEffective.value = entry.effectivePrompt ?? entry.defaultPrompt ?? "";
+  if (!state.systemPromptDirty) {
+    systemPromptCustom.value = entry.customPrompt ?? "";
+  }
+  saveSystemPromptButton.disabled = !state.systemPromptDirty;
+  resetSystemPromptButton.disabled = !state.systemPromptDirty && !entry.customPrompt;
+  systemPromptStatus.textContent = state.systemPromptDirty
+    ? "已修改但尚未保存；保存后仅影响本机当前用户。"
+    : entry.customPrompt
+      ? "当前档位已使用本机自定义补充规则。"
+      : "当前使用默认系统提示词。";
+}
+
+async function loadSystemPrompts() {
+  if (typeof api?.getSystemPrompts !== "function") {
+    return;
+  }
+  const result = await api.getSystemPrompts();
+  state.systemPrompts = Array.isArray(result?.entries) ? result.entries : [];
+  renderSystemPromptPanel();
+}
+
+function openSystemPromptPanel() {
+  state.systemPromptMode = state.mode;
+  state.systemPromptStyle = state.style;
+  state.systemPromptDirty = false;
+  showPanel(systemPromptPanel);
+  renderSystemPromptPanel();
+  if (!state.systemPrompts.length) {
+    systemPromptStatus.textContent = "正在读取当前档位…";
+    void loadSystemPrompts().catch((error) => {
+      systemPromptStatus.textContent = errorMessage(error, "系统提示词读取失败，请稍后重试。" );
+    });
+  }
+}
+
+function selectSystemPrompt(mode, style) {
+  if (state.systemPromptDirty) {
+    systemPromptStatus.textContent = "请先保存或恢复当前编辑，再切换工作模式或优化档位。";
+    renderSystemPromptPanel();
+    return;
+  }
+  state.systemPromptMode = mode;
+  state.systemPromptStyle = style;
+  renderSystemPromptPanel();
+}
+
+async function handleSaveSystemPrompt() {
+  const entry = findSystemPromptEntry();
+  if (!entry || typeof api?.saveSystemPrompt !== "function") {
+    return;
+  }
+  saveSystemPromptButton.disabled = true;
+  systemPromptStatus.textContent = "正在保存本机自定义规则…";
+  try {
+    const saved = await api.saveSystemPrompt({
+      mode: state.systemPromptMode,
+      style: state.systemPromptStyle,
+      customPrompt: systemPromptCustom.value,
+    });
+    state.systemPrompts = state.systemPrompts.map((item) => (
+      item?.mode === saved?.mode && item?.style === saved?.style ? saved : item
+    ));
+    state.systemPromptDirty = false;
+    renderSystemPromptPanel();
+    systemPromptStatus.textContent = saved?.customPrompt
+      ? "已保存；这条规则只会作用于本机当前用户和该模式×档位。"
+      : "已恢复默认；这条档位不再使用自定义规则。";
+  } catch (error) {
+    renderSystemPromptPanel();
+    systemPromptStatus.textContent = errorMessage(error, "系统提示词保存失败，请稍后重试。" );
+  }
+}
+
+async function handleResetSystemPrompt() {
+  if (typeof api?.resetSystemPrompt !== "function") {
+    return;
+  }
+  resetSystemPromptButton.disabled = true;
+  systemPromptStatus.textContent = "正在恢复默认规则…";
+  try {
+    const reset = await api.resetSystemPrompt({
+      mode: state.systemPromptMode,
+      style: state.systemPromptStyle,
+    });
+    state.systemPrompts = state.systemPrompts.map((item) => (
+      item?.mode === reset?.mode && item?.style === reset?.style ? reset : item
+    ));
+    state.systemPromptDirty = false;
+    renderSystemPromptPanel();
+    systemPromptStatus.textContent = "已恢复默认系统提示词。";
+  } catch (error) {
+    renderSystemPromptPanel();
+    systemPromptStatus.textContent = errorMessage(error, "默认规则恢复失败，请稍后重试。" );
+  }
 }
 
 function updateModeLabel() {
@@ -446,6 +650,7 @@ function updateModeLabel() {
     button.setAttribute("aria-pressed", String(selected));
   });
   updateStyleLabel();
+  updateHubSummary();
 }
 
 function setMascot(mascot, { persist = true } = {}) {
@@ -458,8 +663,13 @@ function setMascot(mascot, { persist = true } = {}) {
   const usesCssSprite = presentation.kind === "css";
   mascotImageFrame.hidden = usesCssSprite;
   mascotSprite.hidden = !usesCssSprite;
+  profileMascotImage.hidden = usesCssSprite;
+  profileMascotFallback.hidden = !usesCssSprite;
   if (!usesCssSprite && mascotImage.getAttribute("src") !== presentation.asset) {
     mascotImage.setAttribute("src", presentation.asset);
+  }
+  if (!usesCssSprite && profileMascotImage.getAttribute("src") !== presentation.asset) {
+    profileMascotImage.setAttribute("src", presentation.asset);
   }
   document.querySelectorAll(".mascot-option").forEach((button) => {
     const selected = button.dataset.mascot === normalized;
@@ -469,32 +679,147 @@ function setMascot(mascot, { persist = true } = {}) {
   if (persist) {
     persistMascot(normalized);
   }
+  updateHubSummary();
 }
 
 function updateReviewModeLabel() {
   reviewModeLabel.textContent = state.reviewMode ? "已开启" : "已关闭";
   reviewModeButton.setAttribute("aria-checked", String(state.reviewMode));
   reviewModeButton.classList.toggle("is-active", state.reviewMode);
+  if (hubReviewQuick) {
+    hubReviewQuick.setAttribute("aria-checked", String(state.reviewMode));
+    hubReviewQuick.classList.toggle("is-active", state.reviewMode);
+  }
+  updateHubSummary();
 }
 
 function updateStartupLabel() {
   startupLabel.textContent = state.startup ? "已开启" : "已关闭";
+  updateHubSummary();
+}
+
+function updateHubSummary() {
+  const modeLabel = MODE_LABELS[state.mode] ?? MODE_LABELS.enhance;
+  const styleLabel = MODE_STYLE_PRESENTATION[state.mode]?.[state.style]?.label
+    ?? STYLE_LABELS[state.style]
+    ?? STYLE_LABELS.concise;
+  const reviewLabel = state.reviewMode ? "审阅后应用" : "直接回填";
+  const mascotLabel = MASCOTS[state.mascot]?.label ?? MASCOTS.cockapoo.label;
+  const startupText = state.startup ? "已开启" : "已关闭";
+  if (hubModeValue) {
+    hubModeValue.textContent = modeLabel;
+  }
+  if (hubStyleValue) {
+    hubStyleValue.textContent = styleLabel;
+  }
+  if (hubReviewValue) {
+    hubReviewValue.textContent = reviewLabel;
+  }
+  if (hubMascotValue) {
+    hubMascotValue.textContent = `小精灵：${mascotLabel}`;
+  }
+  if (hubStartupValue) {
+    hubStartupValue.textContent = `开机自启动：${startupText}`;
+  }
+  document.querySelectorAll("[data-hub-mode]").forEach((button) => {
+    const selected = button.dataset.hubMode === state.mode;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+  updateHubOperationState();
+}
+
+function updateHubOperationState() {
+  if (!hubPrimaryAction
+    || !hubPrimaryActionTitle
+    || !hubPrimaryActionHint
+    || !hubPrivacyNote
+    || !hubTaskState) {
+    return;
+  }
+  const modeLabel = MODE_LABELS[state.mode] ?? MODE_LABELS.enhance;
+  const styleLabel = MODE_STYLE_PRESENTATION[state.mode]?.[state.style]?.label
+    ?? STYLE_LABELS[state.style]
+    ?? STYLE_LABELS.concise;
+  const pendingReview = hasPendingReview();
+  const phaseLabels = {
+    idle: "就绪",
+    loading: "处理中",
+    success: pendingReview ? "待审阅" : "已完成",
+    error: "需处理",
+  };
+  hubTaskState.textContent = phaseLabels[state.phase] ?? phaseLabels.idle;
+  hubTaskState.dataset.state = state.phase;
+  hubPrimaryAction.disabled = state.phase === "loading";
+  hubPrimaryAction.setAttribute("aria-busy", String(state.phase === "loading"));
+  hubPrimaryActionTitle.textContent = state.phase === "loading"
+    ? "正在优化…"
+    : pendingReview
+      ? "继续审阅"
+      : state.phase === "error"
+        ? "重试当前输入"
+        : state.phase === "success"
+          ? "继续优化当前输入"
+          : "优化当前输入";
+  hubPrimaryActionHint.textContent = state.phase === "loading"
+    ? "原文保持不变，请稍候"
+    : pendingReview
+      ? "返回本次结果，不会重新生成"
+      : `${modeLabel} · ${styleLabel}`;
+  hubPrivacyNote.textContent = state.reviewMode
+    ? "只处理当前输入 · 不保存表达历史 · 先审阅再决定回填"
+    : "只处理当前输入 · 不保存表达历史 · 通过校验后安全回填";
+}
+
+function hasPendingReview() {
+  return state.reviewMode
+    && state.enhancedText.trim().length > 0
+    && !state.replacementConfirmed;
 }
 
 function updateModelStorageLabel() {
-  if (state.apiKeySaved) {
+  if (state.modelConfigDirty) {
+    modelStorageStatus.textContent = "配置已修改，保存或检查后生效。";
+    modelStorageStatus.dataset.state = "pending";
+    if (hubModelStateLabel) {
+      hubModelStateLabel.textContent = "待保存";
+    }
+  } else if (state.apiKeySaved) {
     modelStorageStatus.textContent = "API Key 已加密保存，可留空复用；不会显示明文。";
     modelStorageStatus.dataset.state = "saved";
     apiKeyInput.placeholder = "已保存，可留空不修改";
+    if (hubModelStateLabel) {
+      hubModelStateLabel.textContent = "已配置";
+    }
   } else if (state.storageAvailable) {
     modelStorageStatus.textContent = "填写 API Key 后点击保存配置，将使用 Windows 加密存储。";
     modelStorageStatus.dataset.state = "pending";
     apiKeyInput.placeholder = "请输入你的 API Key";
+    if (hubModelStateLabel) {
+      hubModelStateLabel.textContent = "待配置";
+    }
   } else {
     modelStorageStatus.textContent = "当前系统无法启用加密存储，Key 只能保存在本次运行内存中。";
     modelStorageStatus.dataset.state = "warning";
     apiKeyInput.placeholder = "请输入本次运行使用的 API Key";
+    if (hubModelStateLabel) {
+      hubModelStateLabel.textContent = "仅本次";
+    }
   }
+}
+
+function updateModelConnectionLabel() {
+  if (!hubModelCheckLabel) {
+    return;
+  }
+  const labels = {
+    unchecked: "未检查",
+    checking: "检查中",
+    connected: "已连接",
+    error: "检查失败",
+  };
+  hubModelCheckLabel.textContent = labels[state.modelConnection] ?? labels.unchecked;
+  hubModelCheckLabel.dataset.state = state.modelConnection;
 }
 
 function makeRequestId() {
@@ -572,6 +897,8 @@ function errorMessage(error, fallback = messages.error) {
       return "提示词风格无效，请重新选择。";
     case "MODE_INVALID":
       return "工作模式无效，请重新选择。";
+    case "SYSTEM_PROMPT_SAVE_FAILED":
+      return "系统提示词保存失败；默认规则仍会继续生效，请稍后重试。";
     case "WINDOW_SIZE_INVALID":
       return "窗口尺寸无效，请重新拖动右上角控制点。";
     case "NETWORK_ERROR":
@@ -589,7 +916,10 @@ function errorMessage(error, fallback = messages.error) {
     case "MODEL_OUTPUT_TRUNCATED":
     case "MODEL_OUTPUT_TOO_LONG":
     case "MODEL_OUTPUT_FACT_LOSS":
-      return "模型结果未通过安全校验，原文未被覆盖；请重试或切换“严格保真”。";
+    case "MODEL_OUTPUT_SCOPE_INVENTION":
+    case "MODEL_OUTPUT_MULTIPLE_CANDIDATES":
+    case "MODEL_OUTPUT_SEMANTIC_ESCALATION":
+      return "模型结果未通过安全校验，原文未被覆盖；请重试或切换“原意守护”。";
     case "MODEL_NEEDS_INPUT":
       return clarificationQuestion(error)
         || "原始内容信息不足，请补充任务对象或必要上下文后重试。";
@@ -652,6 +982,10 @@ function inferErrorCode(error) {
     return code;
   }
   const detail = typeof error?.message === "string" ? error.message : "";
+  const serializedStableCode = detail.match(/\b(MODEL_NEEDS_INPUT)\b/u)?.[1];
+  if (serializedStableCode) {
+    return serializedStableCode;
+  }
   if (/missing (?:a )?result,?\s*(?:text|or content)|响应缺少\s*result[、,，]?\s*text/iu.test(detail)) {
     return "MISSING_RESULT";
   }
@@ -667,6 +1001,9 @@ function assertApi() {
     || typeof api.enhance !== "function"
     || typeof api.configure !== "function"
     || typeof api.getModelConfig !== "function"
+    || typeof api.getSystemPrompts !== "function"
+    || typeof api.saveSystemPrompt !== "function"
+    || typeof api.resetSystemPrompt !== "function"
     || typeof api.setMode !== "function"
     || typeof api.startDrag !== "function"
     || typeof api.updateDrag !== "function"
@@ -680,34 +1017,59 @@ function assertApi() {
 
 function showPanel(panel) {
   expandAssistant();
-  contextMenu.hidden = false;
+  root.dataset.surface = "panel";
+  contextMenu.hidden = true;
   settingsPanel.hidden = panel !== settingsPanel;
   stylePanel.hidden = panel !== stylePanel;
+  systemPromptPanel.hidden = panel !== systemPromptPanel;
   modePanel.hidden = panel !== modePanel;
   mascotPanel.hidden = panel !== mascotPanel;
+  helpPanel.hidden = panel !== helpPanel;
   requestAnimationFrame(() => {
     panel.scrollIntoView({ block: "nearest" });
   });
 }
 
-function showContextMenu() {
+function showHub(hub = state.hub) {
+  const normalizedHub = HUB_LABELS[hub] ? hub : "process";
+  state.hub = normalizedHub;
   expandAssistant();
+  root.dataset.surface = "hub";
   contextMenu.hidden = false;
   settingsPanel.hidden = true;
   stylePanel.hidden = true;
+  systemPromptPanel.hidden = true;
   modePanel.hidden = true;
   mascotPanel.hidden = true;
+  helpPanel.hidden = true;
+  hubHeading.textContent = HUB_LABELS[normalizedHub];
+  document.querySelectorAll("[data-hub-page]").forEach((page) => {
+    page.hidden = page.dataset.hubPage !== normalizedHub;
+  });
+  document.querySelectorAll("[data-hub-target]").forEach((tab) => {
+    const selected = tab.dataset.hubTarget === normalizedHub;
+    tab.classList.toggle("is-active", selected);
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  });
   requestAnimationFrame(() => {
     contextMenu.scrollIntoView({ block: "nearest" });
   });
 }
 
+function showContextMenu() {
+  showHub(state.hub);
+}
+
 function hidePanels({ collapse = true } = {}) {
+  root.dataset.surface = "task";
   contextMenu.hidden = true;
   settingsPanel.hidden = true;
   stylePanel.hidden = true;
+  systemPromptPanel.hidden = true;
   modePanel.hidden = true;
   mascotPanel.hidden = true;
+  helpPanel.hidden = true;
   if (collapse) {
     collapseAssistant();
   }
@@ -787,6 +1149,7 @@ function acceptCapturedPayload(payload) {
   state.replacementConfirmed = false;
   state.appliedText = "";
   state.generationOperationId = undefined;
+  state.validatedText = "";
   enhancedPrompt.value = "";
   hideNeedsInput();
   renderDiff();
@@ -856,6 +1219,7 @@ async function configureModel() {
     style: state.style,
     targetWindowTitlePattern: targetWindowTitlePattern.value.trim(),
   });
+  state.modelConfigDirty = false;
   apiKeyInput.value = "";
   if (result?.style) {
     state.style = normalizeStyle(result.style);
@@ -881,7 +1245,7 @@ async function captureSource() {
   return captured.text;
 }
 
-async function handleEnhance({ capturedSource } = {}) {
+async function handleEnhance({ capturedSource, clarification } = {}) {
   if (state.requestId) {
     return;
   }
@@ -893,12 +1257,17 @@ async function handleEnhance({ capturedSource } = {}) {
   hidePanels();
   hideNeedsInput();
   const requestId = makeRequestId();
+  const generationMode = state.mode;
+  const generationStyle = state.style;
   state.requestId = requestId;
   state.cancelled = false;
   state.enhancedText = "";
   state.replacementConfirmed = false;
   state.appliedText = "";
   state.generationOperationId = undefined;
+  state.validatedText = "";
+  state.resultMode = undefined;
+  state.resultStyle = undefined;
   enhancedPrompt.value = "";
   resultPanel.hidden = true;
   updateMeta();
@@ -924,6 +1293,7 @@ async function handleEnhance({ capturedSource } = {}) {
     const result = await withOperationDeadline(api.enhance({
       requestId,
       prompt: sourceText,
+      clarification,
       target: state.target,
       replace: !state.reviewMode,
     }), {
@@ -942,6 +1312,9 @@ async function handleEnhance({ capturedSource } = {}) {
     }
     state.enhancedText = enhanced.text.slice(0, MAX_PROMPT_LENGTH);
     state.generationOperationId = requestId;
+    state.validatedText = state.enhancedText;
+    state.resultMode = generationMode;
+    state.resultStyle = generationStyle;
     enhancedPrompt.value = state.enhancedText;
     renderDiff();
     updateMeta();
@@ -1060,18 +1433,13 @@ async function handleClarificationRegenerate() {
     clarificationInput.focus();
     return;
   }
-  const sourceWithClarification = [
-    state.originalText,
-    "",
-    "--- 用户补充信息（仅用于消解歧义）---",
-    supplement,
-  ].join("\n");
   const previousReviewMode = state.reviewMode;
   state.reviewMode = true;
   updateReviewModeLabel();
   try {
     await handleEnhance({
-      capturedSource: { text: sourceWithClarification, target: state.target },
+      capturedSource: { text: state.originalText, target: state.target },
+      clarification: supplement,
     });
   } finally {
     state.reviewMode = previousReviewMode;
@@ -1114,6 +1482,8 @@ async function handleCheckModel() {
     setStatus("loading", "正在处理当前输入，完成后再检查模型配置。");
     return;
   }
+  state.modelConnection = "checking";
+  updateModelConnectionLabel();
   try {
     setStatus("loading", "正在请求模型进行 Key 有效性检查…");
     const result = await api.checkModel({
@@ -1123,9 +1493,13 @@ async function handleCheckModel() {
       targetWindowTitlePattern: targetWindowTitlePattern.value.trim(),
     });
     await configureModel();
+    state.modelConnection = "connected";
+    updateModelConnectionLabel();
     setStatus("success", "模型 Key 有效，已连接并保存 "
       + (result?.model ?? modelName.value.trim()) + "。");
   } catch (error) {
+    state.modelConnection = "error";
+    updateModelConnectionLabel();
     setStatus("error", errorMessage(error, "模型检查失败，请检查 Key、模型和网络。"));
   }
 }
@@ -1139,7 +1513,7 @@ async function handleStyle(style) {
     const result = await api.setStyle(style);
     state.style = normalizeStyle(result?.style ?? style);
     updateStyleLabel();
-    hidePanels();
+    showContextMenu();
     setStatus("success", "提示词风格已切换为“"
       + (MODE_STYLE_PRESENTATION[state.mode]?.[state.style]?.label
         ?? STYLE_LABELS[state.style]
@@ -1192,9 +1566,9 @@ async function handleCopy() {
   }
   try {
     await api.copy(enhancedPrompt.value);
-    setStatus("success", "增强结果已复制到剪贴板。");
+    setStatus("success", "优化结果已复制到剪贴板。");
   } catch (error) {
-    setStatus("error", errorMessage(error, "复制失败，增强结果仍保留在助手中。"));
+    setStatus("error", errorMessage(error, "复制失败，优化结果仍保留在助手中。"));
   }
 }
 
@@ -1211,6 +1585,7 @@ async function handleRestore() {
     state.enhancedText = "";
     state.appliedText = "";
     state.generationOperationId = undefined;
+    state.validatedText = "";
     enhancedPrompt.value = "";
     renderDiff();
     resultPanel.hidden = true;
@@ -1240,6 +1615,7 @@ async function handleDiscardReview() {
   state.enhancedText = "";
   state.appliedText = "";
   state.generationOperationId = undefined;
+  state.validatedText = "";
   state.replacementConfirmed = false;
   enhancedPrompt.value = "";
   renderDiff();
@@ -1276,9 +1652,24 @@ async function handleCancel() {
 }
 
 function markModelChanged() {
+  state.modelConfigDirty = true;
+  state.modelConnection = "unchecked";
+  updateModelStorageLabel();
+  updateModelConnectionLabel();
   if (state.phase !== "loading") {
     statusMessage.textContent = "模型配置已修改，保存或检查后再增强。";
   }
+}
+
+function handleHubPrimaryAction() {
+  if (hasPendingReview()) {
+    hidePanels({ collapse: false });
+    resultPanel.hidden = false;
+    expandAssistant();
+    enhancedPrompt.focus();
+    return;
+  }
+  handleEnhance().catch((error) => setStatus("error", errorMessage(error)));
 }
 
 function scheduleResize(width, height) {
@@ -1429,6 +1820,9 @@ petAvatar.addEventListener("pointercancel", finishAvatarDrag);
 petAction.addEventListener("click", () => {
   handleEnhance().catch((error) => setStatus("error", errorMessage(error)));
 });
+hubPrimaryAction.addEventListener("click", () => {
+  handleHubPrimaryAction();
+});
 petAvatar.addEventListener("click", () => {
   if (Date.now() < suppressAvatarClickUntil) {
     return;
@@ -1466,9 +1860,24 @@ saveModelButton.addEventListener("click", () => void handleSaveModel());
 checkModelButton.addEventListener("click", () => void handleCheckModel());
 
 contextMenu.addEventListener("click", (event) => {
+  const hubTarget = event.target.closest("[data-hub-target]")?.dataset.hubTarget;
+  if (hubTarget) {
+    showHub(hubTarget);
+    return;
+  }
+  const hubMode = event.target.closest("[data-hub-mode]")?.dataset.hubMode;
+  if (hubMode) {
+    state.hub = "scenes";
+    void handleMode(hubMode, { returnToMenu: true });
+    return;
+  }
   const action = event.target.closest("[data-menu-action]")?.dataset.menuAction;
   if (!action) {
     return;
+  }
+  const parentHub = event.target.closest("[data-hub-page]")?.dataset.hubPage;
+  if (parentHub && HUB_LABELS[parentHub]) {
+    state.hub = parentHub;
   }
   if (action === "configure") {
     showPanel(settingsPanel);
@@ -1480,14 +1889,33 @@ contextMenu.addEventListener("click", (event) => {
     handleReviewModeToggle();
   } else if (action === "style") {
     showPanel(stylePanel);
+  } else if (action === "system-prompts") {
+    openSystemPromptPanel();
   } else if (action === "check") {
     showPanel(settingsPanel);
     void handleCheckModel();
   } else if (action === "startup") {
     void handleStartupToggle();
+  } else if (action === "help") {
+    showPanel(helpPanel);
   } else if (action === "quit") {
     void api.quit();
   }
+});
+
+contextMenu.addEventListener("keydown", (event) => {
+  const movesRight = event.key === "ArrowRight";
+  const movesLeft = event.key === "ArrowLeft";
+  if (!movesRight && !movesLeft) {
+    return;
+  }
+  const tabs = [...contextMenu.querySelectorAll("[data-hub-target]")];
+  const currentIndex = tabs.findIndex((tab) => tab.dataset.hubTarget === state.hub);
+  const direction = movesRight ? 1 : -1;
+  const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
+  event.preventDefault();
+  showHub(tabs[nextIndex].dataset.hubTarget);
+  tabs[nextIndex].focus();
 });
 
 stylePanel.addEventListener("click", (event) => {
@@ -1496,6 +1924,25 @@ stylePanel.addEventListener("click", (event) => {
     void handleStyle(style);
   }
 });
+
+viewSystemPromptButton.addEventListener("click", openSystemPromptPanel);
+systemPromptModeSelect.addEventListener("change", () => {
+  selectSystemPrompt(systemPromptModeSelect.value, state.systemPromptStyle);
+});
+systemPromptPanel.addEventListener("click", (event) => {
+  const style = event.target.closest("[data-system-style]")?.dataset.systemStyle;
+  if (style) {
+    selectSystemPrompt(state.systemPromptMode, style);
+  }
+});
+systemPromptCustom.addEventListener("input", () => {
+  state.systemPromptDirty = true;
+  saveSystemPromptButton.disabled = false;
+  resetSystemPromptButton.disabled = false;
+  systemPromptStatus.textContent = "已修改但尚未保存；保存后仅影响本机当前用户。";
+});
+saveSystemPromptButton.addEventListener("click", () => void handleSaveSystemPrompt());
+resetSystemPromptButton.addEventListener("click", () => void handleResetSystemPrompt());
 
 modePanel.addEventListener("click", (event) => {
   const mode = event.target.closest("[data-mode]")?.dataset.mode;
@@ -1508,7 +1955,7 @@ mascotPanel.addEventListener("click", (event) => {
   const mascot = event.target.closest("[data-mascot]")?.dataset.mascot;
   if (mascot) {
     setMascot(mascot);
-    hidePanels();
+    showContextMenu();
     setStatus("success", `小精灵已切换为“${MASCOTS[state.mascot].label}”。`);
   }
 });
@@ -1531,7 +1978,7 @@ petCard.addEventListener("contextmenu", (event) => {
   void toggleWorkMode();
 });
 document.addEventListener("click", (event) => {
-  if (!event.target.closest("#contextMenu, #settingsPanel, #stylePanel, #modePanel, #mascotPanel, #petCard")) {
+  if (!event.target.closest("#contextMenu, #settingsPanel, #stylePanel, #systemPromptPanel, #modePanel, #mascotPanel, #helpPanel, #petCard")) {
     hidePanels();
   }
 });
@@ -1602,9 +2049,15 @@ void (async () => {
     }
     state.apiKeySaved = savedConfig?.apiKeySaved === true;
     state.storageAvailable = savedConfig?.storageAvailable !== false;
+    state.modelConfigDirty = false;
     updateModelStorageLabel();
+    updateModelConnectionLabel();
     updateStyleLabel();
     updateModeLabel();
+    state.systemPromptMode = state.mode;
+    state.systemPromptStyle = state.style;
+    await loadSystemPrompts();
+    renderSystemPromptPanel();
   } catch (error) {
     setStatus("error", errorMessage(error, "Prompt Pet 尚未连接到 Electron 主进程。"));
   }
@@ -1613,6 +2066,7 @@ void (async () => {
 updateStyleLabel();
 updateStartupLabel();
 updateModelStorageLabel();
+updateModelConnectionLabel();
 updateMeta();
 updateModeLabel();
 setMascot(state.mascot, { persist: false });

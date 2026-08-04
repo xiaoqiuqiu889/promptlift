@@ -60,7 +60,8 @@ test("desktop assistant exposes left-click, right-click settings, and non-destru
   assert.doesNotMatch(renderer, /dataset\.layer/);
   assert.match(
     renderer,
-    /function showPanel\(panel\)[\s\S]*contextMenu\.hidden\s*=\s*false/,
+    /function showPanel\(panel\)[\s\S]*contextMenu\.hidden\s*=\s*true/,
+    "child settings should replace the parent hub instead of creating a long stacked page",
   );
   assert.match(
     renderer,
@@ -68,7 +69,7 @@ test("desktop assistant exposes left-click, right-click settings, and non-destru
   );
   assert.match(
     html,
-    /id="resultPanel"[\s\S]*?<\/section>\s*<nav id="contextMenu"[\s\S]*id="stylePanel"[\s\S]*<\/section>\s*<\/section>\s*<\/main>/,
+    /id="resultPanel"[\s\S]*?<\/section>\s*<nav id="contextMenu"[\s\S]*id="stylePanel"[\s\S]*id="systemPromptPanel"[\s\S]*<\/section>\s*<\/main>/,
   );
   assert.match(renderer, /api\.setMode/);
   assert.match(main, /isPromptMode\(mode\)/);
@@ -108,7 +109,7 @@ test("desktop assistant exposes left-click, right-click settings, and non-destru
   assert.match(html, /检查并保存/);
   assert.match(renderer, /faithful:\s*"原意守护"/);
   assert.match(renderer, /setAttribute\("aria-pressed"/);
-  assert.match(html, /role="menu"/);
+  assert.match(html, /role="tablist"/);
   assert.match(html, /role="dialog"/);
   assert.match(read("src/renderer/styles.css"), /prefers-reduced-motion/);
   assert.match(read("src/renderer/styles.css"), /:focus-visible/);

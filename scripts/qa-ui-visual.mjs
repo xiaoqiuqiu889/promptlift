@@ -116,13 +116,37 @@ function geometryAudit() {
   const round = (value) => Math.round(Number(value) * 100) / 100;
   const rectOf = (element) => {
     const rect = element.getBoundingClientRect();
+    let left = rect.left;
+    let top = rect.top;
+    let right = rect.right;
+    let bottom = rect.bottom;
+    let ancestor = element.parentElement;
+    while (ancestor && ancestor !== document.documentElement) {
+      const style = getComputedStyle(ancestor);
+      const clipsX = [style.overflow, style.overflowX].some((value) =>
+        ["hidden", "clip", "auto", "scroll"].includes(value));
+      const clipsY = [style.overflow, style.overflowY].some((value) =>
+        ["hidden", "clip", "auto", "scroll"].includes(value));
+      if (clipsX || clipsY) {
+        const clip = ancestor.getBoundingClientRect();
+        if (clipsX) {
+          left = Math.max(left, clip.left);
+          right = Math.min(right, clip.right);
+        }
+        if (clipsY) {
+          top = Math.max(top, clip.top);
+          bottom = Math.min(bottom, clip.bottom);
+        }
+      }
+      ancestor = ancestor.parentElement;
+    }
     return {
-      x: round(rect.x),
-      y: round(rect.y),
-      width: round(rect.width),
-      height: round(rect.height),
-      right: round(rect.right),
-      bottom: round(rect.bottom),
+      x: round(left),
+      y: round(top),
+      width: round(Math.max(0, right - left)),
+      height: round(Math.max(0, bottom - top)),
+      right: round(right),
+      bottom: round(bottom),
     };
   };
   const area = (rect) => Math.max(0, rect.width) * Math.max(0, rect.height);
@@ -217,7 +241,9 @@ function geometryAudit() {
     "#modePanel",
     "#settingsPanel",
     "#stylePanel",
+    "#systemPromptPanel",
     "#mascotPanel",
+    "#helpPanel",
     "#resultPanel",
   ];
   const viewport = {
@@ -286,7 +312,7 @@ function geometryAudit() {
       });
     }
   }
-  for (const selector of ["#contextMenu", "#modePanel", "#settingsPanel", "#stylePanel", "#mascotPanel"]) {
+  for (const selector of ["#contextMenu", "#modePanel", "#settingsPanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel", "#helpPanel"]) {
     const element = document.querySelector(selector);
     if (isVisible(element) && !inHorizontalViewport(rectOf(element))) {
       failures.push({
@@ -311,7 +337,7 @@ function geometryAudit() {
       againstSelector: "document.clientBox",
     });
   }
-  for (const selector of ["#modePanel", "#settingsPanel", "#stylePanel", "#mascotPanel"]) {
+  for (const selector of ["#modePanel", "#settingsPanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel"]) {
     const panel = document.querySelector(selector);
     if (!isVisible(panel)) {
       continue;
@@ -541,12 +567,14 @@ function readPageState() {
     view: root?.dataset.view || "unknown",
     mode: root?.dataset.mode || "unknown",
     mascot: root?.dataset.mascot || "unknown",
+    hub: document.querySelector("[data-hub-target][aria-selected=true]")?.dataset.hubTarget
+      || "none",
     reviewMode: document.querySelector("#reviewModeButton")?.getAttribute("aria-checked") === "true",
     resizing: root?.dataset.resizing || "false",
     dragging: root?.dataset.dragging || "false",
     viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
     visible: Object.fromEntries([
-      "#contextMenu", "#modePanel", "#settingsPanel", "#stylePanel", "#mascotPanel", "#resultPanel",
+      "#contextMenu", "#modePanel", "#settingsPanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel", "#helpPanel", "#needsInputPanel", "#resultPanel",
       "#compactFeedback", "#compactCancelButton", "#collapseButton", "#closeButton",
     ].map((selector) => [selector, visible(selector)])),
     controls: Object.fromEntries([
@@ -1202,11 +1230,32 @@ async function runElectron(electron, args) {
     await waitForState({ phase: "idle", view: "expanded", visible: { "#contextMenu": true } });
     await setWindowSize(viewport.width, viewport.height);
   };
-  const menuAction = (action, label) => clickAt(
-    "[data-menu-action=\"" + action + "\"]",
-    label || "menu:" + action,
-    { wait: 120 },
-  );
+  const actionHubs = Object.freeze({
+    style: "process",
+    mode: "process",
+    review: "process",
+    configure: "services",
+    check: "services",
+    startup: "services",
+    help: "profile",
+    mascot: "profile",
+    quit: "profile",
+  });
+  const menuAction = async (action, label) => {
+    const hub = actionHubs[action];
+    if (hub) {
+      await clickAt(
+        "[data-hub-target=\"" + hub + "\"]",
+        "hub → " + hub,
+        { wait: 40 },
+      );
+    }
+    return clickAt(
+      "[data-menu-action=\"" + action + "\"]",
+      label || "menu:" + action,
+      { wait: 120 },
+    );
+  };
   const ensureReviewMode = async (enabled) => {
     let current = await state();
     if (current.reviewMode === enabled) {
@@ -1530,6 +1579,43 @@ async function runElectron(electron, args) {
       );
     });
 
+    await runFlow("needs-input-clarification-boundary", async () => {
+      await compactReady(COMPACT_SIZES[1], {
+        enhanceError: {
+          code: "MODEL_NEEDS_INPUT",
+          message: "MODEL_NEEDS_INPUT: QA clarification required",
+          details: {
+            question: "“这个方案”具体指哪一个方案？",
+            missingFields: ["方案名称"],
+          },
+        },
+      }, true, { reviewMode: false });
+      await clickAt("#petAvatar", "model needs input → clarification panel", { wait: 50 });
+      await waitForState({
+        phase: "error",
+        view: "expanded",
+        visible: { "#needsInputPanel": true, "#resultPanel": false },
+      });
+      const clarificationBoundary = await readOnly(function clarificationBoundaryRead() {
+        return {
+          note: document.querySelector(".clarification-note")?.textContent?.trim() || "",
+          button: document.querySelector("#clarifyRegenerateButton")?.textContent?.trim() || "",
+          fieldCount: document.querySelectorAll("#missingFields li").length,
+        };
+      });
+      if (!clarificationBoundary.note.includes("不会并入原文")
+        || clarificationBoundary.button !== "补充后重新生成"
+        || clarificationBoundary.fieldCount < 1) {
+        throw new Error(
+          "clarification boundary copy is incomplete: " + JSON.stringify(clarificationBoundary),
+        );
+      }
+      await takeSnapshot(
+        "expanded-needs-input-clarification-boundary",
+        "model needs input → bounded clarification panel",
+      );
+    });
+
     await runFlow("review-mode-result-actions-and-topbar-menu", async () => {
       await compactReady(COMPACT_SIZES[1], {}, true, { reviewMode: true });
       await assertAbsent("[data-menu-action=\"result\"]");
@@ -1555,6 +1641,44 @@ async function runElectron(electron, args) {
         || topbarMenu.disabled !== false) {
         throw new Error("topbar menu entry must be visible and usable");
       }
+      const enhanceCallsBeforeResume = apiCalls.filter((call) => call.name === "enhance").length;
+      await clickAt("#resizeHandle", "pending review result → open product hub", { wait: 80 });
+      await waitForState({
+        view: "expanded",
+        reviewMode: true,
+        visible: { "#contextMenu": true, "#resultPanel": false },
+      });
+      const pendingHub = await readOnly(function pendingReviewHubRead() {
+        return {
+          title: document.querySelector("#hubPrimaryActionTitle")?.textContent?.trim() || "",
+          subtitle: document.querySelector("#hubPrimaryActionHint")?.textContent?.trim() || "",
+          policy: document.querySelector("#hubPrivacyNote")?.textContent?.trim() || "",
+        };
+      });
+      if (pendingHub.title !== "继续审阅"
+        || !pendingHub.subtitle.includes("不会重新生成")
+        || !pendingHub.policy.includes("先审阅再决定回填")) {
+        throw new Error("pending review hub did not expose the safe resume path: " + JSON.stringify(pendingHub));
+      }
+      await takeSnapshot(
+        "expanded-review-hub-continue",
+        "pending review result → product hub → continue review",
+      );
+      await clickAt("#hubPrimaryAction", "product hub → continue pending review", { wait: 80 });
+      await waitForState({
+        phase: "success",
+        view: "expanded",
+        reviewMode: true,
+        visible: { "#contextMenu": false, "#resultPanel": true },
+      });
+      const enhanceCallsAfterResume = apiCalls.filter((call) => call.name === "enhance").length;
+      if (enhanceCallsAfterResume !== enhanceCallsBeforeResume) {
+        throw new Error("continue review started a duplicate enhancement");
+      }
+      await takeSnapshot(
+        "expanded-review-resumed-without-regenerate",
+        "product hub → continue review → existing result",
+      );
       await clickAt("#copyButton", "review result → copy", { wait: 80 });
       await clickAt("#applyEditedButton", "review result → explicit apply", { wait: 50 });
       await waitForCall("apply");
@@ -1573,7 +1697,7 @@ async function runElectron(electron, args) {
       await waitForState({
         view: "expanded",
         reviewMode: true,
-        visible: { "#contextMenu": true, "#resultPanel": true },
+        visible: { "#contextMenu": true, "#resultPanel": false },
       });
       await takeSnapshot(
         "expanded-review-topbar-menu-open",
@@ -1584,9 +1708,31 @@ async function runElectron(electron, args) {
   };
 
   const runMenusAndPanels = async () => {
+    await runFlow("wechat-like-hub-navigation", async () => {
+      await compactReady(COMPACT_SIZES[1], {}, true);
+      await rightClickAvatar("open four-area product hub");
+      for (const hub of ["process", "scenes", "services", "profile"]) {
+        await clickAt(
+          "[data-hub-target=\"" + hub + "\"]",
+          "hub navigation → " + hub,
+          { wait: 60 },
+        );
+        await waitForState({
+          view: "expanded",
+          hub,
+          visible: { "#contextMenu": true },
+        });
+        await takeSnapshot(
+          "hub-page-" + hub,
+          "four-area hub → " + hub,
+        );
+      }
+      await pressEscape("close four-area product hub");
+    });
+
     await runFlow("context-menu-complete", async () => {
       await assertAbsent("[data-menu-action=\"result\"]");
-      for (const action of ["mode", "mascot", "review", "configure", "style", "check", "startup", "quit"]) {
+      for (const action of ["mode", "mascot", "review", "configure", "style", "check", "startup", "help", "quit"]) {
         await compactReady(COMPACT_SIZES[1], {}, true);
         await rightClickAvatar("reopen context for " + action);
         await waitForState({ view: "expanded", visible: { "#contextMenu": true } });
@@ -1608,6 +1754,8 @@ async function runElectron(electron, args) {
               ? "#stylePanel"
               : action === "mascot"
                 ? "#mascotPanel"
+                : action === "help"
+                  ? "#helpPanel"
                 : "#settingsPanel";
           await waitForState({ view: "expanded", visible: { [panel]: true } });
           await takeSnapshot("context-" + action + "-panel", "context menu → " + action);
@@ -1708,6 +1856,54 @@ async function runElectron(electron, args) {
       }));
     });
 
+    await runFlow("system-prompt-editor", async () => {
+      await compactReady(COMPACT_SIZES[1], {}, true, { reviewMode: false });
+      await rightClickAvatar("open system prompt editor");
+      await menuAction("system-prompts", "context menu → system prompts");
+      await waitForState({ view: "expanded", visible: { "#systemPromptPanel": true } });
+      const initial = await readOnly(function systemPromptEditorInitialRead() {
+        return {
+          styleTabs: document.querySelectorAll("[data-system-style]").length,
+          defaultReadOnly: document.querySelector("#systemPromptDefault")?.readOnly === true,
+          effectiveReadOnly: document.querySelector("#systemPromptEffective")?.readOnly === true,
+          maxLength: document.querySelector("#systemPromptCustom")?.getAttribute("maxlength"),
+          mode: document.querySelector("#systemPromptModeSelect")?.value,
+        };
+      });
+      if (initial.styleTabs !== PROMPT_TIERS.length
+        || !initial.defaultReadOnly
+        || !initial.effectiveReadOnly
+        || initial.maxLength !== "6000") {
+        throw new Error("system prompt editor did not expose bounded read-only defaults and four tiers: " + JSON.stringify(initial));
+      }
+      await typeInto("#systemPromptCustom", "先给结论，再列出两条依据。", { wait: 20 });
+      await takeSnapshot("system-prompt-editor-dirty", "system prompt editor → local custom rule");
+      await clickAt("#saveSystemPromptButton", "save local system prompt override", { wait: 60 });
+      const saved = await readOnly(function systemPromptSavedRead() {
+        return {
+          custom: document.querySelector("#systemPromptCustom")?.value || "",
+          effective: document.querySelector("#systemPromptEffective")?.value || "",
+          saveDisabled: document.querySelector("#saveSystemPromptButton")?.disabled === true,
+        };
+      });
+      if (!saved.custom.includes("先给结论") || !saved.effective.includes("先给结论") || !saved.saveDisabled) {
+        throw new Error("system prompt override was not reflected in the effective preview: " + JSON.stringify(saved));
+      }
+      await takeSnapshot("system-prompt-editor-saved", "system prompt editor → saved effective preview");
+      await clickAt("#resetSystemPromptButton", "restore default system prompt", { wait: 60 });
+      const reset = await readOnly(function systemPromptResetRead() {
+        return {
+          custom: document.querySelector("#systemPromptCustom")?.value || "",
+          effective: document.querySelector("#systemPromptEffective")?.value || "",
+        };
+      });
+      if (reset.custom || reset.effective.includes("先给结论")) {
+        throw new Error("system prompt reset did not remove the local override: " + JSON.stringify(reset));
+      }
+      await takeSnapshot("system-prompt-editor-reset", "system prompt editor → restore default");
+      await clickAt("[data-close-panel=\"systemPromptPanel\"]", "system prompt editor → parent hub");
+    });
+
     await runFlow("model-settings", async () => {
       await compactReady(COMPACT_SIZES[1], {}, true);
       await rightClickAvatar("open settings panel");
@@ -1726,11 +1922,48 @@ async function runElectron(electron, args) {
       if (typed.inputs["#apiKey"]?.valueMasked !== "••••••••") {
         throw new Error("API Key evidence was not masked");
       }
+      const dirtySettings = await readOnly(function dirtyModelSettingsRead() {
+        return {
+          note: document.querySelector("#modelStorageStatus")?.textContent?.trim() || "",
+        };
+      });
+      if (!dirtySettings.note.includes("配置已修改")) {
+        throw new Error("edited model configuration did not expose a pending-save state");
+      }
+      await clickAt("[data-close-panel=\"settingsPanel\"]", "edited settings → services hub");
+      const dirtyServiceState = await readOnly(function dirtyModelServiceStateRead() {
+        return {
+          storage: document.querySelector("#hubModelStateLabel")?.textContent?.trim() || "",
+          connection: document.querySelector("#hubModelCheckLabel")?.textContent?.trim() || "",
+        };
+      });
+      if (dirtyServiceState.storage !== "待保存" || dirtyServiceState.connection !== "未检查") {
+        throw new Error("services hub did not expose edited configuration state: " + JSON.stringify(dirtyServiceState));
+      }
+      await takeSnapshot(
+        "services-model-config-dirty",
+        "edited settings → services hub → pending save",
+      );
+      await menuAction("configure", "services hub → reopen model settings");
+      await waitForState({ view: "expanded", visible: { "#settingsPanel": true } });
       await setScenario({}, false);
       await clickAt("#checkModelButton", "settings → check and save success", { wait: 80 });
       await waitForState({ phase: "success", view: "expanded", visible: { "#settingsPanel": true } });
       await takeSnapshot("settings-check-save-success", "settings → 检查并保存 → success");
       await clickAt("[data-close-panel=\"settingsPanel\"]", "settings → close");
+      const connectedServiceState = await readOnly(function connectedModelServiceStateRead() {
+        return {
+          storage: document.querySelector("#hubModelStateLabel")?.textContent?.trim() || "",
+          connection: document.querySelector("#hubModelCheckLabel")?.textContent?.trim() || "",
+        };
+      });
+      if (connectedServiceState.storage !== "已配置" || connectedServiceState.connection !== "已连接") {
+        throw new Error("services hub did not expose connected model state: " + JSON.stringify(connectedServiceState));
+      }
+      await takeSnapshot(
+        "services-model-connected",
+        "checked settings → services hub → connected",
+      );
 
       await compactReady(COMPACT_SIZES[1], {
         checkError: { code: "AUTH_ERROR", message: "QA check error" },
@@ -1740,6 +1973,21 @@ async function runElectron(electron, args) {
       await clickAt("#checkModelButton", "settings → check and save error", { wait: 80 });
       await waitForState({ phase: "error", view: "expanded", visible: { "#settingsPanel": true } });
       await takeSnapshot("settings-check-error", "settings → 检查并保存 → error");
+      await clickAt("[data-close-panel=\"settingsPanel\"]", "failed check → services hub");
+      const failedServiceState = await readOnly(function failedModelServiceStateRead() {
+        return {
+          connection: document.querySelector("#hubModelCheckLabel")?.textContent?.trim() || "",
+        };
+      });
+      if (failedServiceState.connection !== "检查失败") {
+        throw new Error("services hub did not expose failed connection state: " + JSON.stringify(failedServiceState));
+      }
+      await takeSnapshot(
+        "services-model-check-failed",
+        "failed check → services hub → check failed",
+      );
+      await menuAction("configure", "services hub → reopen settings after failed check");
+      await waitForState({ view: "expanded", visible: { "#settingsPanel": true } });
 
       await setScenario({
         checkError: false,
@@ -1762,8 +2010,11 @@ async function runElectron(electron, args) {
         await menuAction("style", "context menu → style (" + style + ")");
         await waitForState({ view: "expanded", visible: { "#stylePanel": true } });
         await clickAt("[data-style=\"" + style + "\"]", "style option → " + style);
-        await waitForState({ view: "compact", visible: { "#stylePanel": false } });
-        await takeSnapshot("style-selected-" + style, "style option → " + style + " → close");
+        await waitForState({
+          view: "expanded",
+          visible: { "#contextMenu": true, "#stylePanel": false },
+        });
+        await takeSnapshot("style-selected-" + style, "style option → " + style + " → parent hub");
       }
     });
 
@@ -1778,12 +2029,45 @@ async function runElectron(electron, args) {
           ".mascot-option[data-mascot=\"" + mascot + "\"]",
           "mascot option → " + mascot,
         );
-        await waitForState({ view: "compact", mascot, visible: { "#mascotPanel": false } });
+        await waitForState({
+          view: "expanded",
+          mascot,
+          visible: { "#contextMenu": true, "#mascotPanel": false },
+        });
         observations.push(
           PNG_MASCOTS.includes(mascot)
             ? await waitForMascotImage(mascot)
             : await waitForCssMascot(mascot),
         );
+        const profileIdentity = await readOnly(function profileMascotIdentityRead() {
+          const image = document.querySelector("#profileMascotImage");
+          const fallback = document.querySelector("#profileMascotFallback");
+          return {
+            imageHidden: image?.hidden,
+            imageSrc: image?.getAttribute("src") || "",
+            imageReady: image ? image.complete && image.naturalWidth > 0 : false,
+            fallbackHidden: fallback?.hidden,
+            fallbackText: fallback?.textContent?.trim() || "",
+          };
+        });
+        if (PNG_MASCOTS.includes(mascot)) {
+          const expectedAsset = mascot === "cockapoo" ? "cockapoo.png" : "green-knight-pup.png";
+          if (profileIdentity.imageHidden !== false
+            || profileIdentity.imageReady !== true
+            || !profileIdentity.imageSrc.endsWith(expectedAsset)
+            || profileIdentity.fallbackHidden !== true) {
+            throw new Error(
+              "profile identity did not mirror the selected image mascot: "
+                + JSON.stringify({ mascot, profileIdentity }),
+            );
+          }
+        } else if (profileIdentity.imageHidden !== true
+          || profileIdentity.fallbackHidden !== false) {
+          throw new Error(
+            "profile identity did not mirror the selected CSS mascot: "
+              + JSON.stringify({ mascot, profileIdentity }),
+          );
+        }
         await takeSnapshot("mascot-selected-" + mascot, "mascot option → " + mascot);
       }
       qaResult.mascots = observations;

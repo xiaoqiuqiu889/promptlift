@@ -42,7 +42,44 @@ const qaState = {
   startup: false,
   capturedText: "QA captured prompt: keep URL https://example.test/path and number 42.",
   callSequence: 0,
+  systemPrompts: {},
 };
+
+const QA_SYSTEM_PROMPT_MODES = Object.freeze([
+  "enhance",
+  "upward-communication",
+  "chat-polish",
+  "ppt-copy",
+]);
+const QA_SYSTEM_PROMPT_STYLES = Object.freeze([
+  "faithful",
+  "concise",
+  "professional",
+  "creative",
+]);
+
+function systemPromptKey(mode, style) {
+  return `${mode}:${style}`;
+}
+
+function createQaSystemPromptEntry(mode, style, customPrompt = "") {
+  const defaultPrompt = `QA default system prompt for ${mode}/${style}. Preserve source facts and return one final result.`;
+  const normalizedCustom = typeof customPrompt === "string" ? customPrompt.trim().slice(0, 6_000) : "";
+  return {
+    mode,
+    style,
+    defaultPrompt,
+    customPrompt: normalizedCustom,
+    effectivePrompt: normalizedCustom ? `${defaultPrompt}\n${normalizedCustom}` : defaultPrompt,
+    customPromptMaxLength: 6_000,
+  };
+}
+
+for (const mode of QA_SYSTEM_PROMPT_MODES) {
+  for (const style of QA_SYSTEM_PROMPT_STYLES) {
+    qaState.systemPrompts[systemPromptKey(mode, style)] = createQaSystemPromptEntry(mode, style);
+  }
+}
 
 const capturedListeners = new Set();
 const statusListeners = new Set();
@@ -57,9 +94,12 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, duration));
 }
 
-function makeError(code, message) {
+function makeError(code, message, details) {
   const error = new Error(message);
   error.code = code;
+  if (details && typeof details === "object" && !Array.isArray(details)) {
+    error.details = details;
+  }
   return error;
 }
 
@@ -88,6 +128,7 @@ function scenarioError(name) {
     return makeError(
       typeof value.code === "string" ? value.code : "QA_MOCK_ERROR",
       typeof value.message === "string" ? value.message : "QA mock operation failed",
+      value.details,
     );
   }
   const defaults = {
@@ -183,6 +224,37 @@ const promptLiftApi = Object.freeze({
   getModelConfig() {
     record("getModelConfig");
     return Promise.resolve({ ...qaState.model });
+  },
+
+  getSystemPrompts() {
+    record("getSystemPrompts");
+    return Promise.resolve({
+      version: 1,
+      entries: Object.values(qaState.systemPrompts),
+    });
+  },
+
+  saveSystemPrompt(input = {}) {
+    record("saveSystemPrompt", {
+      mode: typeof input.mode === "string" ? input.mode : "",
+      style: typeof input.style === "string" ? input.style : "",
+      customPromptLength: typeof input.customPrompt === "string" ? input.customPrompt.length : 0,
+    });
+    const key = systemPromptKey(input.mode, input.style);
+    const previous = qaState.systemPrompts[key] ?? createQaSystemPromptEntry(input.mode, input.style);
+    const next = createQaSystemPromptEntry(input.mode, input.style, input.customPrompt);
+    qaState.systemPrompts[key] = { ...previous, ...next };
+    return Promise.resolve(qaState.systemPrompts[key]);
+  },
+
+  resetSystemPrompt(input = {}) {
+    record("resetSystemPrompt", {
+      mode: typeof input.mode === "string" ? input.mode : "",
+      style: typeof input.style === "string" ? input.style : "",
+    });
+    const key = systemPromptKey(input.mode, input.style);
+    qaState.systemPrompts[key] = createQaSystemPromptEntry(input.mode, input.style);
+    return Promise.resolve(qaState.systemPrompts[key]);
   },
 
   setStyle(style) {

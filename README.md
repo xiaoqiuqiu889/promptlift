@@ -29,6 +29,7 @@ Prompt Lift 当前把“表达目标”分成四类，每一类都有自己的�
 - **安全替换**：应用前会核对目标窗口、进程、原始文本和操作令牌；输入框内容被别人改过时，不会盲目覆盖。
 - **可撤销可恢复**：原文只保留在当前操作链路中，取消或恢复都不会悄悄丢字。
 - **模式与档位联动**：四种沟通模式分别使用自己的提示策略和推荐档位。
+- **系统提示词透明可调**：在“优化档位”页点击“查看当前档位系统提示词”，可查看 4 种模式 × 4 个档位的默认规则，并为当前模式/档位保存本机自定义补充规则。
 - **三个小精灵**：原始可卡布犬、绿色骑士小狗、CSS 绿色骑士。绿色骑士小狗使用透明无边框切图，可以自然融入深色或浅色背景。
 - **极简扁平界面**：轻量的中性底色、克制的绿色强调和清楚的层级，不用厚重渐变或花哨动画抢走输入焦点。
 
@@ -36,14 +37,14 @@ Prompt Lift 当前把“表达目标”分成四类，每一类都有自己的�
 
 ### 推荐：下载完整 ZIP
 
-1. 在仓库的 Releases/文件列表中下载 [Prompt-Lift-20260804-r4-win32-x64.zip](deliverables/Prompt-Lift-20260804-r4-win32-x64.zip)。
+1. 在仓库的 Releases/文件列表中下载 [Prompt-Lift-20260804-r5-win32-x64.zip](deliverables/Prompt-Lift-20260804-r5-win32-x64.zip)。
 2. 将 ZIP 解压到一个有写入权限的目录。
 3. 先退出系统托盘里已经运行的旧版 Prompt Lift。
 4. 双击解压目录中的 `Prompt Lift-win32-x64/Prompt Lift.exe`。
 
 这是一个 Windows x64 便携包，已经包含运行时，不需要额外安装 Node.js、npm 或命令行工具。**不要只把 EXE 单独拎出来运行**，请保留它旁边的整个 `Prompt Lift-win32-x64` 文件夹。
 
-仓库里也保留了可直接查看和下载的 [Prompt Lift.exe](deliverables/Prompt-Lift-20260804-r4/Prompt%20Lift-win32-x64/Prompt%20Lift.exe)。如果浏览器提示大文件由 Git LFS 管理，下载 ZIP 会更稳妥。
+仓库里也保留了可直接查看和下载的 [Prompt Lift.exe](deliverables/Prompt-Lift-20260804-r5/Prompt%20Lift-win32-x64/Prompt%20Lift.exe)。如果浏览器提示大文件由 Git LFS 管理，下载 ZIP 会更稳妥。
 
 ### 第一次使用
 
@@ -80,13 +81,13 @@ npm run check
 npm run package:win
 ```
 
-当前版本的自动化回归为 **154/154 通过**，Windows 界面验收覆盖 67 个状态，包含双击 Alt、取消、审阅、恢复、模式切换、档位差异、三种小精灵和拖拽命中测试。
+当前版本的自动化回归为 **190/190 通过**，Windows 界面验收覆盖 82 个状态，包含双击 Alt、取消、审阅、恢复、模式切换、档位差异、系统提示词查看/编辑、三种小精灵和拖拽命中测试。
 
 打包结果默认写入 `deliverables/`。本仓库当前发布包为：
 
 ```text
-deliverables/Prompt-Lift-20260804-r4-win32-x64.zip
-deliverables/Prompt-Lift-20260804-r4/Prompt Lift-win32-x64/Prompt Lift.exe
+deliverables/Prompt-Lift-20260804-r5-win32-x64.zip
+deliverables/Prompt-Lift-20260804-r5/Prompt Lift-win32-x64/Prompt Lift.exe
 ```
 
 ## 目录速览

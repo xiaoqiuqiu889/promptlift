@@ -8,12 +8,13 @@
   "main": "src/main.mjs",
   "scripts": {
     "start": "electron .",
-    "prepackage:win": "npm test && npm run check && npm run qa:model-contract && npm run qa:double-alt",
+    "prepackage:win": "npm test && npm run check && npm run qa:prompt-loop && npm run qa:model-contract && npm run qa:double-alt",
     "package:win": "node scripts/package-win.mjs",
     "qa:double-alt": "node scripts/qa-ui-visual.mjs --shortcut-only",
     "qa:model-contract": "electron scripts/qa-model-contract.mjs",
+    "qa:prompt-loop": "node scripts/qa-prompt-loop.mjs",
     "test": "node --test",
-    "check": "node --check src/main.mjs && node --check src/preload.mjs && node --check src/core/promptEnhancer.mjs && node --check src/core/capturePayload.mjs && node --check src/core/ipcProtocol.mjs && node --check src/core/modelConfigStore.mjs && node --check src/core/operationDeadline.mjs && node --check src/core/recipeRegistry.mjs && node --check src/core/replacementTransactionStore.mjs && node --check src/core/windowDrag.mjs && node --check src/core/windowStateStore.mjs && node --check src/platform/windowsBridge.mjs && node --check src/platform/windowsAltShortcut.mjs && node --check src/renderer/renderer.mjs && node --check scripts/package-win.mjs && node --check scripts/packageSurfaceAudit.mjs && node --check scripts/qa-model-contract.mjs && node --check scripts/qa-ui-visual.mjs"
+    "check": "node --check src/main.mjs && node --check src/preload.mjs && node --check src/core/promptEnhancer.mjs && node --check src/core/systemPromptStore.mjs && node --check src/core/capturePayload.mjs && node --check src/core/ipcProtocol.mjs && node --check src/core/modelConfigStore.mjs && node --check src/core/operationDeadline.mjs && node --check src/core/recipeRegistry.mjs && node --check src/core/replacementTransactionStore.mjs && node --check src/core/windowDrag.mjs && node --check src/core/windowStateStore.mjs && node --check src/platform/windowsBridge.mjs && node --check src/platform/windowsAltShortcut.mjs && node --check src/renderer/renderer.mjs && node --check scripts/package-win.mjs && node --check scripts/packageSurfaceAudit.mjs && node --check scripts/qa-model-contract.mjs && node --check scripts/qa-renderer-preload.mjs && node --check scripts/qa-ui-visual.mjs && node --check scripts/qa-prompt-loop.mjs"
   },
   "devDependencies": {
     "@electron/packager": "^20.0.4",

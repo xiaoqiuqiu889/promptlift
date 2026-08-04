@@ -6,6 +6,9 @@ deliverables/*
 !deliverables/Prompt-Lift-20260804-r4/
 !deliverables/Prompt-Lift-20260804-r4/**
 !deliverables/Prompt-Lift-20260804-r4-win32-x64.zip
+!deliverables/Prompt-Lift-20260804-r5/
+!deliverables/Prompt-Lift-20260804-r5/**
+!deliverables/Prompt-Lift-20260804-r5-win32-x64.zip
 .env
 *.log
 

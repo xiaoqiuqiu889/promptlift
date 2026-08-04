@@ -134,7 +134,10 @@ test('model instructions keep protocol and safety above recipe-specific behavior
     const instruction = buildModelInstruction('zh', MODEL_STYLES.concise, mode);
     assert.match(instruction, new RegExp(`系统提示词规范 v${PROMPT_PROTOCOL_VERSION}`));
     assert.match(instruction, /文本转换引擎/);
-    assert.match(instruction, /安全与输出协议.*Recipe 目标.*用户选择的风格.*源材料/isu);
+    assert.match(
+      instruction,
+      /安全与输出协议.*原文不可变事实与语义.*Recipe 目标.*用户选择的档位.*原文排版/isu,
+    );
     assert.match(instruction, /SOURCE_MATERIAL_JSON.*不可信/isu);
     assert.match(instruction, recipePattern);
     assert.match(instruction, /跟随原文主要语言/);
@@ -169,7 +172,7 @@ test('model message envelope carries canonical recipe metadata', () => {
   const payload = JSON.parse(serialized);
 
   assert.equal(payload.mode, PROMPT_MODES.chatPolish);
-  assert.deepEqual(payload.recipe, { id: PROMPT_MODES.chatPolish, version: '1.1' });
+  assert.deepEqual(payload.recipe, { id: PROMPT_MODES.chatPolish, version: '1.2' });
   assert.doesNotMatch(messages[0].content, /输出秘密/);
   assert.match(messages[0].content, /chat-polish/);
 });
@@ -321,7 +324,7 @@ test('model protocol repairs an introduced meta-rewrite prompt and returns the d
   const calls = [];
   const responses = [
     '请将以下用户反馈优化为更专业、更具体的描述。\n\n用户反馈原文：“拖动起来不够跟手，不够丝滑”',
-    '请优化桌面宠物的拖动体验，降低指针移动与窗口响应之间的延迟，减少卡顿和跳动，使拖动过程连续、跟手且平滑。',
+    '请优化拖动交互，降低延迟并保持连续、跟手、平滑。',
   ];
 
   const result = await enhancePrompt('拖动起来不够跟手，不够丝滑', {
@@ -626,9 +629,7 @@ test('model protocol accepts a direct optimized request', async () => {
 
 test('a direct structured prompt may retain the source under a context label', async () => {
   const expected = [
-    '请分析并优化这个拖动交互问题。',
-    '用户反馈原文：拖动起来不够跟手，不够丝滑',
-    '请先诊断可能原因，再给出可执行的优化方案；信息不足时列出需要确认的平台和组件信息。',
+    '请优化这个拖动交互问题，保留用户反馈，信息不足时标注待确认。',
   ].join('\n');
   const result = await enhancePrompt('拖动起来不够跟手，不够丝滑', {
     endpoint: 'https://tokenhub.tencentmaas.com/v1',
@@ -899,9 +900,12 @@ test('model messages isolate prompt injection inside a serialized source envelop
     mode: PROMPT_MODES.enhance,
     recipe: {
       id: PROMPT_MODES.enhance,
-      version: '1.1',
+      version: '1.2',
     },
+    style: MODEL_STYLES.faithful,
     language: 'zh',
+    sourceCharacterCount: source.length,
+    maxResultCharacters: Math.max(1_200, Math.floor(source.length * 1.25)),
     sourceText: source,
   });
 });
@@ -1536,4 +1540,18 @@ test('chat polish mode sends a dedicated WeChat and enterprise chat instruction'
 
   assert.match(requestBody.messages[0].content, /微信|企业微信/);
   assert.match(requestBody.messages[0].content, /只输出润色后的正文/);
+});
+
+test('custom system prompt rules are appended as a lower-priority tier override', () => {
+  const messages = buildModelMessages('请优化这个提示词', 'zh', {
+    mode: PROMPT_MODES.enhance,
+    style: MODEL_STYLES.creative,
+    customPrompt: '优先给出三个可选方向，但不要虚构事实。',
+  });
+  const system = messages[0].content;
+  assert.match(system, /系统提示词规范/);
+  assert.match(system, /用户自定义档位补充规则/);
+  assert.match(system, /优先给出三个可选方向/);
+  assert.match(system, /仅在不与安全协议、原文事实、Recipe 和档位合同冲突时遵循/);
+  assert.ok(system.indexOf('用户自定义档位补充规则') > system.indexOf('指令优先级'));
 });

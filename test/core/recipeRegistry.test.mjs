@@ -14,7 +14,7 @@ import {
 test('recipe registry exposes four complete versioned expression recipes', () => {
   const recipes = listRecipes();
 
-  assert.equal(RECIPE_SCHEMA_VERSION, '1.1');
+  assert.equal(RECIPE_SCHEMA_VERSION, '1.2');
   assert.deepEqual(
     recipes.map((recipe) => recipe.id),
     [

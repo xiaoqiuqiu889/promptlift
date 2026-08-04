@@ -16,6 +16,7 @@
       class="pet-shell"
       data-state="idle"
       data-view="compact"
+      data-surface="task"
       data-mode="enhance"
       data-mascot="cockapoo"
       data-resizing="false"
@@ -59,7 +60,7 @@
           </button>
           <div class="pet-identity">
             <strong>Prompt Pet</strong>
-            <span id="petHint">左键处理 · 右键切换模式</span>
+            <span id="petHint">一起让表达变好</span>
           </div>
           <button id="collapseButton" class="pet-collapse" type="button" aria-label="收起为小宠物" title="收起为小宠物">⌄</button>
           <button id="closeButton" class="pet-close" type="button" aria-label="隐藏助手">×</button>
@@ -97,8 +98,9 @@
           <ol id="missingFields" class="missing-fields"></ol>
           <label class="result-label" for="clarificationInput">补充信息</label>
           <textarea id="clarificationInput" rows="3" maxlength="2000" placeholder="只需补充上面必要的信息"></textarea>
+          <p class="clarification-note">只用于消解歧义，不会并入原文；重新生成后仍需审阅。</p>
           <div class="panel-actions">
-            <button id="clarifyRegenerateButton" class="small-primary" type="button">带补充信息重新生成</button>
+            <button id="clarifyRegenerateButton" class="small-primary" type="button">补充后重新生成</button>
           </div>
         </section>
 
@@ -115,6 +117,12 @@
             </div>
             <span id="resultMeta">0 字符</span>
           </div>
+          <section id="expressionSummary" class="expression-summary" aria-label="本次优化摘要">
+            <span><small>场景</small><strong id="expressionSummaryMode">AI 提示词</strong></span>
+            <span><small>档位</small><strong id="expressionSummaryStyle">清晰直达</strong></span>
+            <span><small>长度</small><strong id="expressionSummaryLength">0 → 0</strong></span>
+            <span class="summary-safe"><small>校验</small><strong id="expressionSummarySafety">安全校验通过</strong></span>
+          </section>
           <details class="source-disclosure">
             <summary>查看原文</summary>
             <pre id="originalPreview" class="original-preview"></pre>
@@ -134,16 +142,108 @@
           </div>
         </section>
 
-      <nav id="contextMenu" class="context-menu" hidden aria-label="助手功能菜单" role="menu">
-        <button role="menuitem" type="button" data-menu-action="style"><span>✦</span><span>优化档位</span><span id="currentStyleLabel" class="menu-value">清晰直达</span></button>
-        <button role="menuitem" type="button" data-menu-action="mode"><span>◇</span><span>工作模式</span><span id="currentModeLabel" class="menu-value">提示词增强</span></button>
-        <button role="menuitem" type="button" data-menu-action="mascot"><span>◉</span><span>小精灵形象</span><span id="currentMascotLabel" class="menu-value">可卡布犬 · 原风格</span></button>
-        <button id="reviewModeButton" role="menuitemcheckbox" type="button" data-menu-action="review" aria-checked="false"><span>○</span><span>审阅后应用</span><span id="reviewModeLabel" class="menu-value">已关闭</span></button>
-        <button role="menuitem" type="button" data-menu-action="configure"><span>⚙</span><span>模型与 Key 配置</span></button>
-        <button role="menuitem" type="button" data-menu-action="check"><span>✓</span><span>检查模型配置</span></button>
-        <button role="menuitem" type="button" data-menu-action="startup"><span>◉</span><span>开机自启动</span><span id="startupLabel" class="menu-value">已关闭</span></button>
-        <span class="menu-divider" aria-hidden="true"></span>
-        <button role="menuitem" type="button" data-menu-action="quit"><span>×</span><span>退出 Prompt Pet</span></button>
+      <nav id="contextMenu" class="context-menu app-hub" hidden aria-labelledby="hubHeading">
+        <header class="hub-heading">
+          <div>
+            <span class="panel-kicker">PROMPT LIFT</span>
+            <strong id="hubHeading">处理</strong>
+          </div>
+          <span id="hubTaskState" class="hub-heading-note hub-task-state" aria-live="polite" data-state="idle">就绪</span>
+        </header>
+
+        <section id="hubPageProcess" class="hub-page" data-hub-page="process" role="tabpanel" aria-labelledby="hubTabProcess">
+          <button id="hubPrimaryAction" class="hub-primary-action" type="button" aria-busy="false">
+            <span class="hub-primary-icon" aria-hidden="true">✦</span>
+            <span>
+              <strong id="hubPrimaryActionTitle">优化当前输入</strong>
+              <small id="hubPrimaryActionHint">AI 提示词 · 清晰直达</small>
+            </span>
+            <span class="hub-primary-arrow" aria-hidden="true">→</span>
+          </button>
+          <p id="hubPrivacyNote" class="hub-privacy-note">只处理当前输入 · 不保存表达历史 · 通过校验后安全回填</p>
+          <div class="hub-summary" aria-label="当前处理状态">
+            <button class="hub-summary-action" type="button" data-menu-action="style"><small>档位</small><strong id="hubStyleValue">清晰直达</strong></button>
+            <button class="hub-summary-action" type="button" data-menu-action="mode"><small>场景</small><strong id="hubModeValue">AI 提示词</strong></button>
+            <button id="hubReviewQuick" class="hub-summary-action" type="button" data-menu-action="review" role="switch" aria-checked="false"><small>应用</small><strong id="hubReviewValue">直接回填</strong></button>
+          </div>
+          <p class="hub-section-label">处理设置</p>
+          <div class="hub-group">
+            <button class="hub-row" type="button" data-menu-action="style"><span class="hub-row-icon">✦</span><span>优化档位<small>控制保真、简洁、专业与创意程度</small></span><span id="currentStyleLabel" class="menu-value">清晰直达</span></button>
+            <button class="hub-row" type="button" data-menu-action="mode"><span class="hub-row-icon">◇</span><span>工作模式<small>决定当前表达对象与优化目标</small></span><span id="currentModeLabel" class="menu-value">AI 提示词</span></button>
+            <button id="reviewModeButton" class="hub-row" role="switch" type="button" data-menu-action="review" aria-checked="false"><span class="hub-row-icon">○</span><span>审阅后应用<small>开启后先看差异，再决定是否回填</small></span><span id="reviewModeLabel" class="menu-value">已关闭</span></button>
+            <button id="systemPromptQuickAction" class="hub-row" type="button" data-menu-action="system-prompts"><span class="hub-row-icon">≡</span><span>系统提示词<small>查看当前档位约束，并编辑本机自定义补充规则</small></span><span class="menu-value">查看与编辑</span></button>
+          </div>
+        </section>
+
+        <section id="hubPageScenes" class="hub-page" data-hub-page="scenes" role="tabpanel" aria-labelledby="hubTabScenes" hidden>
+          <p class="hub-section-label">选择表达场景</p>
+          <div class="hub-group">
+            <button class="hub-row hub-scene-row" type="button" data-hub-mode="enhance"><span class="hub-row-icon">AI</span><span>AI 提示词<small>明确目标、上下文、约束与输出格式</small></span><span class="menu-value">优化</span></button>
+            <button class="hub-row hub-scene-row" type="button" data-hub-mode="upward-communication"><span class="hub-row-icon">上</span><span>向上沟通<small>结论前置，整理依据、风险与下一步</small></span><span class="menu-value">汇报</span></button>
+            <button class="hub-row hub-scene-row" type="button" data-hub-mode="chat-polish"><span class="hub-row-icon">客</span><span>用户沟通<small>表达更安全、礼貌、清晰</small></span><span class="menu-value">沟通</span></button>
+            <button class="hub-row hub-scene-row" type="button" data-hub-mode="ppt-copy"><span class="hub-row-icon">P</span><span>PPT 文案<small>提炼结论型标题与单页分层正文</small></span><span class="menu-value">演示</span></button>
+          </div>
+          <p class="hub-footnote">单击切换后停留在本页，便于确认当前场景。</p>
+        </section>
+
+        <section id="hubPageServices" class="hub-page" data-hub-page="services" role="tabpanel" aria-labelledby="hubTabServices" hidden>
+          <p class="hub-section-label">模型与系统</p>
+          <div class="hub-group">
+            <button class="hub-row" type="button" data-menu-action="configure"><span class="hub-row-icon">⚙</span><span>模型与 Key<small>配置服务地址、模型和加密凭据</small></span><span id="hubModelStateLabel" class="menu-value" aria-live="polite">检查中</span></button>
+            <button class="hub-row" type="button" data-menu-action="check"><span class="hub-row-icon">✓</span><span>检查模型配置<small>验证连接并安全保存当前设置</small></span><span id="hubModelCheckLabel" class="menu-value" aria-live="polite">未检查</span></button>
+            <button class="hub-row" type="button" data-menu-action="startup"><span class="hub-row-icon">○</span><span>开机自启动<small>登录 Windows 后自动唤起小精灵</small></span><span id="startupLabel" class="menu-value">已关闭</span></button>
+          </div>
+          <span id="hubStartupValue" class="hub-state-sentinel" aria-live="polite">开机自启动：已关闭</span>
+        </section>
+
+        <section id="hubPageProfile" class="hub-page" data-hub-page="profile" role="tabpanel" aria-labelledby="hubTabProfile" hidden>
+          <div class="profile-hero">
+            <span class="profile-avatar" aria-hidden="true">
+              <img id="profileMascotImage" src="./assets/mascots/cockapoo.png" alt="" draggable="false" />
+              <span id="profileMascotFallback" hidden>
+                <span class="pet-sprite profile-knight-sprite">
+                  <span class="pet-flame pet-flame-left"><i></i></span>
+                  <span class="pet-flame pet-flame-right"><i></i></span>
+                  <span class="pet-cape pet-cape-left"></span>
+                  <span class="pet-cape pet-cape-right"></span>
+                  <span class="pet-shoulder pet-shoulder-left"></span>
+                  <span class="pet-shoulder pet-shoulder-right"></span>
+                  <span class="pet-helmet">
+                    <i class="pet-helmet-ridge"></i>
+                    <span class="pet-visor"><i></i><i></i></span>
+                    <i class="pet-gem"></i>
+                    <span class="pet-mouth"><i></i><i></i><i></i></span>
+                  </span>
+                  <span class="pet-arm pet-arm-left"><i></i></span>
+                  <span class="pet-arm pet-arm-right"><i></i></span>
+                  <span class="pet-boot pet-boot-left"></span>
+                  <span class="pet-boot pet-boot-right"></span>
+                </span>
+              </span>
+            </span>
+            <span><strong>Prompt Pet</strong><small>一起让表达变好 · Windows 任意输入框里的安全表达助手</small></span>
+          </div>
+          <p class="hub-section-label">偏好</p>
+          <div class="hub-group">
+            <button class="hub-row" type="button" data-menu-action="mascot"><span class="hub-row-icon">◉</span><span>小精灵形象<small>选择陪伴你的桌面角色</small></span><span id="currentMascotLabel" class="menu-value">可卡布犬 · 原风格</span></button>
+          </div>
+          <p class="hub-section-label">帮助与安全</p>
+          <div class="hub-group">
+            <button class="hub-row" type="button" data-menu-action="help"><span class="hub-row-icon">i</span><span>隐私与安全<small>查看数据边界、快捷操作与故障恢复</small></span><span class="menu-value">本地保护</span></button>
+          </div>
+          <p class="hub-section-label">应用</p>
+          <div class="hub-group">
+            <button class="hub-row hub-row-danger" type="button" data-menu-action="quit"><span class="hub-row-icon">×</span><span>退出 Prompt Pet</span><span class="menu-value"></span></button>
+          </div>
+          <span id="hubMascotValue" class="hub-state-sentinel" aria-live="polite">小精灵：可卡布犬 · 原风格</span>
+        </section>
+
+        <div class="hub-tabbar" role="tablist" aria-label="主要功能">
+          <button id="hubTabProcess" class="hub-tab" type="button" role="tab" data-hub-target="process" aria-controls="hubPageProcess" aria-selected="true"><span class="hub-tab-icon" aria-hidden="true">◎</span><span class="hub-tab-label">处理</span></button>
+          <button id="hubTabScenes" class="hub-tab" type="button" role="tab" data-hub-target="scenes" aria-controls="hubPageScenes" aria-selected="false"><span class="hub-tab-icon" aria-hidden="true">◇</span><span class="hub-tab-label">场景</span></button>
+          <button id="hubTabServices" class="hub-tab" type="button" role="tab" data-hub-target="services" aria-controls="hubPageServices" aria-selected="false"><span class="hub-tab-icon" aria-hidden="true">＋</span><span class="hub-tab-label">服务</span></button>
+          <button id="hubTabProfile" class="hub-tab" type="button" role="tab" data-hub-target="profile" aria-controls="hubPageProfile" aria-selected="false"><span class="hub-tab-icon" aria-hidden="true">○</span><span class="hub-tab-label">我的</span></button>
+        </div>
       </nav>
 
       <section id="modePanel" class="floating-panel mode-panel" hidden aria-label="工作模式" role="dialog">
@@ -217,6 +317,29 @@
         </div>
       </section>
 
+      <section id="helpPanel" class="floating-panel help-panel" hidden aria-label="安全与使用说明" role="dialog">
+        <div class="panel-heading">
+          <div>
+            <span class="panel-kicker">SAFE BY DEFAULT</span>
+            <strong>安全与使用说明</strong>
+          </div>
+          <button class="panel-close" type="button" data-close-panel="helpPanel" aria-label="返回我的">‹</button>
+        </div>
+        <div class="help-block">
+          <strong>最快用法</strong>
+          <p>聚焦任意输入框，连续按两次 Alt；或直接单击桌面小精灵。</p>
+        </div>
+        <div class="help-block">
+          <strong>安全边界</strong>
+          <ul>
+            <li>不保存输入内容或优化历史</li>
+            <li>应用前校验目标窗口与原文</li>
+            <li>API Key 使用 Windows 加密存储</li>
+          </ul>
+        </div>
+        <p class="panel-note">遇到异常时不会盲目覆盖输入；结果会保留在助手中供复制或重试。</p>
+      </section>
+
       <section id="stylePanel" class="floating-panel style-panel" hidden aria-label="优化档位" role="dialog">
         <div class="panel-heading">
           <div>
@@ -230,7 +353,47 @@
         <button class="style-option" type="button" data-style="concise"><strong>清晰直达</strong><span>去除重复，补齐关键约束，用更短路径表达</span></button>
         <button class="style-option" type="button" data-style="professional"><strong>专业展开</strong><span>补充执行背景、步骤、标准与专业输出结构</span></button>
         <button class="style-option" type="button" data-style="creative"><strong>创意策划</strong><span>在专业完整基础上增加可控创意方向与备选方案</span></button>
+        <button id="viewSystemPromptButton" class="panel-link-button" type="button">查看当前档位系统提示词</button>
       </section>
+
+      <section id="systemPromptPanel" class="floating-panel system-prompt-panel" hidden aria-label="系统提示词" role="dialog">
+        <div class="panel-heading">
+          <div>
+            <span class="panel-kicker">SYSTEM PROMPT</span>
+            <strong>查看与编辑系统提示词</strong>
+          </div>
+          <button class="panel-close" type="button" data-close-panel="systemPromptPanel" aria-label="返回">‹</button>
+        </div>
+        <div class="system-prompt-scroll">
+        <p class="panel-note system-prompt-safety-note">这里展示当前工作模式与优化档位实际使用的系统提示词。系统安全协议不可关闭；你的自定义规则只作为低优先级补充，不会覆盖事实保护、档位约束或输出协议。</p>
+        <div class="system-prompt-selectors">
+          <label class="field-label" for="systemPromptModeSelect">工作模式</label>
+          <select id="systemPromptModeSelect" class="panel-input">
+            <option value="enhance">AI 提示词</option>
+            <option value="upward-communication">向上沟通</option>
+            <option value="chat-polish">用户沟通</option>
+            <option value="ppt-copy">PPT 文案</option>
+          </select>
+          <div id="systemPromptStyleTabs" class="system-prompt-style-tabs" role="tablist" aria-label="优化档位">
+            <button class="system-prompt-style-tab" type="button" data-system-style="faithful" aria-selected="false"><strong>原意守护</strong><small></small></button>
+            <button class="system-prompt-style-tab" type="button" data-system-style="concise" aria-selected="false"><strong>清晰直达</strong><small></small></button>
+            <button class="system-prompt-style-tab" type="button" data-system-style="professional" aria-selected="false"><strong>专业展开</strong><small></small></button>
+            <button class="system-prompt-style-tab" type="button" data-system-style="creative" aria-selected="false"><strong>创意策划</strong><small></small></button>
+          </div>
+        </div>
+        <label class="field-label" for="systemPromptDefault">默认系统提示词（只读）</label>
+        <textarea id="systemPromptDefault" class="system-prompt-editor" rows="9" readonly spellcheck="false"></textarea>
+        <label class="field-label" for="systemPromptEffective">当前生效预览（只读）</label>
+        <textarea id="systemPromptEffective" class="system-prompt-editor" rows="5" readonly spellcheck="false"></textarea>
+        <label class="field-label" for="systemPromptCustom">自定义补充规则</label>
+        <textarea id="systemPromptCustom" class="system-prompt-editor system-prompt-custom-editor" rows="4" maxlength="6000" spellcheck="false" placeholder="例如：先给结论，再列出两条依据。"></textarea>
+        <p class="panel-note">自定义补充规则仅在不与安全协议、原文事实、Recipe 和档位合同冲突时生效；留空即可恢复默认。</p>
+        <div class="panel-actions">
+          <button id="resetSystemPromptButton" class="text-button" type="button">恢复默认</button>
+          <button id="saveSystemPromptButton" class="small-primary" type="button" disabled>保存自定义规则</button>
+        </div>
+        <p id="systemPromptStatus" class="panel-note" role="status" aria-live="polite">正在读取当前档位…</p>
+        </div>
       </section>
     </main>
     <script type="module" src="./renderer.mjs"></script>

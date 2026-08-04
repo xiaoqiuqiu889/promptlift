@@ -7,6 +7,7 @@ const MAX_REQUEST_ID_LENGTH = 128;
 const MAX_API_KEY_LENGTH = 4_096;
 const MAX_ENDPOINT_LENGTH = 2_000;
 const MAX_MODEL_LENGTH = 200;
+const MAX_CUSTOM_SYSTEM_PROMPT_LENGTH = 6_000;
 
 export const PROMPT_LIFT_CHANNELS = Object.freeze({
   capture: "prompt:capture",
@@ -22,6 +23,9 @@ export const PROMPT_LIFT_CHANNELS = Object.freeze({
   restore: "prompt:restore",
   configure: "prompt:configure",
   modelGet: "prompt:model:get",
+  systemPromptsGet: "prompt:system-prompts:get",
+  systemPromptsSave: "prompt:system-prompts:save",
+  systemPromptsReset: "prompt:system-prompts:reset",
   styleSet: "prompt:style:set",
   modeSet: "prompt:mode:set",
   resize: "prompt:resize",
@@ -47,6 +51,13 @@ function requireString(value, field, { allowEmpty = true, maxLength = MAX_PROMPT
     throw new RangeError(`${field} is too large`);
   }
   return value;
+}
+
+function optionalString(value, field, { maxLength = MAX_PROMPT_LENGTH } = {}) {
+  if (value === undefined || value === null || value === "") {
+    return "";
+  }
+  return requireString(value, field, { maxLength });
 }
 
 function normalizeRequestId(value) {
@@ -89,6 +100,28 @@ function normalizeModelConfig(config = {}) {
       { maxLength: MAX_ENDPOINT_LENGTH },
     ),
   };
+}
+
+function normalizeSystemPromptSelection(input = {}, { includeCustom = false } = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new TypeError("system prompt selection must be an object");
+  }
+  const normalized = {
+    mode: requireString(input.mode ?? "", "mode", {
+      allowEmpty: false,
+      maxLength: 40,
+    }),
+    style: requireString(input.style ?? "", "style", {
+      allowEmpty: false,
+      maxLength: 40,
+    }),
+  };
+  if (includeCustom) {
+    normalized.customPrompt = requireString(input.customPrompt ?? "", "customPrompt", {
+      maxLength: MAX_CUSTOM_SYSTEM_PROMPT_LENGTH,
+    });
+  }
+  return normalized;
 }
 
 function normalizeTarget(target) {
@@ -157,6 +190,9 @@ function normalizeEnhancePayload(promptOrPayload, options = {}) {
     // Existing main.mjs reads `text`; `prompt` is retained for the documented
     // channel contract and for future main-process adapters.
     text: requireString(source.prompt, "prompt", { allowEmpty: false }),
+    clarification: optionalString(source.clarification, "clarification", {
+      maxLength: 2_000,
+    }),
     target: normalizeTarget(source.target),
     // The main-process handler must only replace the source window after the
     // existing enhancer returns a non-empty successful result.
@@ -189,6 +225,24 @@ const promptLiftApi = Object.freeze({
 
   getModelConfig() {
     return invoke(PROMPT_LIFT_CHANNELS.modelGet);
+  },
+
+  getSystemPrompts() {
+    return invoke(PROMPT_LIFT_CHANNELS.systemPromptsGet);
+  },
+
+  saveSystemPrompt(input) {
+    return invoke(
+      PROMPT_LIFT_CHANNELS.systemPromptsSave,
+      normalizeSystemPromptSelection(input, { includeCustom: true }),
+    );
+  },
+
+  resetSystemPrompt(input) {
+    return invoke(
+      PROMPT_LIFT_CHANNELS.systemPromptsReset,
+      normalizeSystemPromptSelection(input),
+    );
   },
 
   setStyle(style) {

@@ -286,7 +286,8 @@ test("needs_input is bounded, inline, and clarification regenerates in review mo
   assert.match(renderer, /error\?\.details/);
   assert.match(renderer, /\.slice\(0,\s*3\)/);
   assert.match(renderer, /state\.reviewMode\s*=\s*true/);
-  assert.match(renderer, /--- 用户补充信息（仅用于消解歧义）---/);
+  assert.match(renderer, /clarification:\s*supplement/);
+  assert.doesNotMatch(renderer, /sourceWithClarification|--- 用户补充信息/);
 });
 
 test("expanded UI uses a light flat palette and no decorative effects", () => {

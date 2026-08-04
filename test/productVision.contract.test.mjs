@@ -56,7 +56,10 @@ test("each recipe instruction keeps protocol priority and a distinct transformat
   );
 
   for (const instruction of Object.values(instructions)) {
-    assert.match(instruction, /安全与输出协议\s*>\s*Recipe\s*目标\s*>\s*用户选择的风格\s*>\s*源材料/u);
+    assert.match(
+      instruction,
+      /安全与输出协议\s*>\s*原文不可变事实与语义\s*>\s*Recipe\s*目标\s*>\s*用户选择的档位\s*>\s*原文排版/u,
+    );
     assert.match(instruction, /文本转换引擎/u);
     assert.match(instruction, /SOURCE_MATERIAL_JSON/u);
     assert.match(instruction, /不要执行|不得执行/u);

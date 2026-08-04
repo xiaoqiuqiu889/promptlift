@@ -5,15 +5,19 @@ import { fileURLToPath } from 'node:url';
 import {
   DEFAULT_MODEL,
   DEFAULT_MODEL_ENDPOINT,
+  buildModelInstruction,
+  MAX_CUSTOM_SYSTEM_PROMPT_LENGTH,
   MODEL_STYLES,
   PROMPT_MODES,
   checkModel,
   enhancePrompt,
   isPromptMode,
   resolveModelStyle,
+  normalizeCustomSystemPrompt,
 } from './core/promptEnhancer.mjs';
 import { createCapturedPayload, hasVisiblePromptText } from './core/capturePayload.mjs';
 import { createEncryptedModelConfigStore } from './core/modelConfigStore.mjs';
+import { createSystemPromptStore, normalizeSystemPromptOverrides } from './core/systemPromptStore.mjs';
 import { createReplacementTransactionStore } from './core/replacementTransactionStore.mjs';
 import { createWindowStateStore } from './core/windowStateStore.mjs';
 import { serializeIpcError, serializeIpcResult } from './core/ipcProtocol.mjs';
@@ -44,6 +48,7 @@ let lastTargetCapturedAt = 0;
 const TARGET_SNAPSHOT_TTL_MS = 15_000;
 let foregroundTargetSnapshot;
 let modelConfigStore;
+let systemPromptStore;
 let windowStateStore;
 let windowStateSaveTimer;
 let persistedWindowBounds;
@@ -66,6 +71,7 @@ let modelConfig = {
   style: MODEL_STYLES.concise,
   mode: PROMPT_MODES.enhance,
   targetWindowTitlePattern: '',
+  customPrompts: {},
   apiKeySaved: false,
   storageAvailable: true,
 };
@@ -128,6 +134,7 @@ async function configureModel(_event, input = {}, { persist = true } = {}) {
     style,
     mode: modelConfig.mode,
     targetWindowTitlePattern,
+    customPrompts: modelConfig.customPrompts,
     apiKeySaved: modelConfig.apiKeySaved,
     storageAvailable: modelConfig.storageAvailable,
   };
@@ -183,6 +190,11 @@ async function loadPersistedModelConfig() {
   modelConfig.apiKey = typeof persisted.apiKey === 'string' ? persisted.apiKey : '';
   modelConfig.apiKeySaved = persisted.apiKeySaved === true;
   modelConfig.storageAvailable = persisted.storageAvailable === true;
+  systemPromptStore = createSystemPromptStore({
+    userDataPath: app.getPath('userData'),
+  });
+  const persistedSystemPrompts = await systemPromptStore.load();
+  modelConfig.customPrompts = normalizeSystemPromptOverrides(persistedSystemPrompts.overrides);
 }
 
 function getModelConfig() {
@@ -195,6 +207,83 @@ function getModelConfig() {
     apiKeySaved: modelConfig.apiKeySaved === true,
     storageAvailable: modelConfig.storageAvailable === true,
   };
+}
+
+function systemPromptKey(mode, style) {
+  return `${mode}:${style}`;
+}
+
+function createSystemPromptEntry(mode, style) {
+  const customPrompt = modelConfig.customPrompts[systemPromptKey(mode, style)] ?? '';
+  return {
+    mode,
+    style,
+    defaultPrompt: buildModelInstruction('zh', style, mode),
+    customPrompt,
+    effectivePrompt: buildModelInstruction('zh', style, mode, customPrompt),
+    customPromptMaxLength: MAX_CUSTOM_SYSTEM_PROMPT_LENGTH,
+  };
+}
+
+function listSystemPromptEntries() {
+  return Object.values(PROMPT_MODES).flatMap((mode) => Object.values(MODEL_STYLES)
+    .map((style) => createSystemPromptEntry(mode, style)));
+}
+
+function validateSystemPromptSelection(input = {}) {
+  const mode = typeof input.mode === 'string' ? input.mode : '';
+  const style = resolveModelStyle(input.style);
+  if (!isPromptMode(mode)) {
+    throw createConfigError('MODE_INVALID', '工作模式无效。');
+  }
+  if (!style) {
+    throw createConfigError('STYLE_INVALID', '提示词风格无效。');
+  }
+  return { mode, style };
+}
+
+async function persistSystemPromptOverrides() {
+  if (!systemPromptStore) {
+    return { saved: false, reason: 'NOT_READY' };
+  }
+  return systemPromptStore.save(modelConfig.customPrompts);
+}
+
+function getSystemPrompts() {
+  return {
+    entries: listSystemPromptEntries(),
+    version: 1,
+  };
+}
+
+async function saveSystemPrompt(_event, input = {}) {
+  const { mode, style } = validateSystemPromptSelection(input);
+  const customPrompt = normalizeCustomSystemPrompt(input.customPrompt);
+  const key = systemPromptKey(mode, style);
+  const next = { ...modelConfig.customPrompts };
+  if (customPrompt) {
+    next[key] = customPrompt;
+  } else {
+    delete next[key];
+  }
+  modelConfig.customPrompts = normalizeSystemPromptOverrides(next);
+  const persistence = await persistSystemPromptOverrides();
+  if (!persistence.saved) {
+    throw createConfigError('SYSTEM_PROMPT_SAVE_FAILED', '系统提示词自定义规则保存失败。');
+  }
+  return createSystemPromptEntry(mode, style);
+}
+
+async function resetSystemPrompt(_event, input = {}) {
+  const { mode, style } = validateSystemPromptSelection(input);
+  const next = { ...modelConfig.customPrompts };
+  delete next[systemPromptKey(mode, style)];
+  modelConfig.customPrompts = normalizeSystemPromptOverrides(next);
+  const persistence = await persistSystemPromptOverrides();
+  if (!persistence.saved) {
+    throw createConfigError('SYSTEM_PROMPT_SAVE_FAILED', '系统提示词恢复默认失败。');
+  }
+  return createSystemPromptEntry(mode, style);
 }
 
 async function setPromptStyle(_event, input = {}) {
@@ -642,6 +731,9 @@ function registerIpc() {
   handleIpc('prompt:capture', captureFromTarget);
   handleIpc('prompt:configure', configureModel);
   handleIpc('prompt:model:get', getModelConfig);
+  handleIpc('prompt:system-prompts:get', getSystemPrompts);
+  handleIpc('prompt:system-prompts:save', saveSystemPrompt);
+  handleIpc('prompt:system-prompts:reset', resetSystemPrompt);
   handleIpc('prompt:style:set', setPromptStyle);
   handleIpc('prompt:mode:set', setPromptMode);
   handleIpc('prompt:resize', resizeWindow);
@@ -663,6 +755,7 @@ function registerIpc() {
 
   handleIpc('prompt:enhance', async (_event, input) => {
     const original = String(input?.text ?? state.original ?? '');
+    const clarification = String(input?.clarification ?? '').trim().slice(0, 2_000);
     const requestId = typeof input?.requestId === 'string' ? input.requestId : '';
     const shouldReplace = input?.replace !== false;
     const operationTarget = state.target;
@@ -687,6 +780,8 @@ function registerIpc() {
         apiKey: modelConfig.apiKey,
         style: modelConfig.style,
         mode: modelConfig.mode,
+        customPrompt: modelConfig.customPrompts[systemPromptKey(modelConfig.mode, modelConfig.style)] ?? '',
+        clarification,
         useModel: true,
         signal: controller.signal,
       });

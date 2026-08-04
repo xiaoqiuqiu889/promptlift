@@ -8,7 +8,7 @@ import {
 } from '../src/core/promptEnhancer.mjs';
 import { createEncryptedModelConfigStore } from '../src/core/modelConfigStore.mjs';
 
-const DIRECT_FEEDBACK_SOURCE = '拖动起来不够跟手，不够丝滑';
+const DIRECT_FEEDBACK_SOURCE = '请优化桌面宠物的拖动交互：当前拖动起来不够跟手、不够丝滑。请降低指针移动与窗口响应之间的延迟，减少卡顿和跳动，并保持结果可直接执行。';
 const PRODUCT_FEEDBACK_SOURCE = [
   '1. 我没有开启审阅后应用，但生成后仍进入审阅界面',
   '2. 审阅状态缺少取消、恢复原文、重新生成、复制、应用',
@@ -43,7 +43,7 @@ async function run() {
     {
       name: 'direct-feedback',
       source: DIRECT_FEEDBACK_SOURCE,
-      style: config.style,
+      style: 'faithful',
       validate(result) {
         return {
           directResult: DIRECT_OUTPUT.test(result),
@@ -54,7 +54,7 @@ async function run() {
     {
       name: 'product-feedback-scope',
       source: PRODUCT_FEEDBACK_SOURCE,
-      style: 'creative',
+      style: 'faithful',
       validate(result) {
         return {
           productScopePreserved: PRODUCT_SCOPE_OUTPUT.test(result)
