@@ -5,6 +5,7 @@ import {
   buildModelInstruction,
   buildModelMessages,
   enhancePrompt,
+  MAX_MODEL_REPAIR_RETRIES,
   MODEL_STYLES,
   MODEL_STYLE_MAX_EXPANSION_RATIOS,
   maxAllowedResultLength,
@@ -307,7 +308,7 @@ test('model output cannot replace the requested task intent with another task', 
     }),
     (error) => error.code === 'MODEL_OUTPUT_TASK_INTENT_DRIFT',
   );
-  assert.equal(calls, 2);
+  assert.equal(calls, MAX_MODEL_REPAIR_RETRIES + 1);
 });
 
 test('model output cannot replace an explicit deliverable with another output object', async () => {
@@ -331,7 +332,7 @@ test('model output cannot replace an explicit deliverable with another output ob
     }),
     (error) => error.code === 'MODEL_OUTPUT_OBJECT_DRIFT',
   );
-  assert.equal(calls, 2);
+  assert.equal(calls, MAX_MODEL_REPAIR_RETRIES + 1);
 });
 
 test('evidence inputs are not misclassified as requested output objects', async () => {
@@ -371,7 +372,7 @@ test('model output cannot invent a unit-bearing acceptance target', async () => 
     }),
     (error) => error.code === 'MODEL_OUTPUT_UNSUPPORTED_FACT',
   );
-  assert.equal(calls, 2);
+  assert.equal(calls, MAX_MODEL_REPAIR_RETRIES + 1);
 });
 
 test('model output deterministically restores a safe month abbreviation', async () => {

@@ -15,6 +15,7 @@ export const DEFAULT_MODEL_ENDPOINT = 'https://tokenhub.tencentmaas.com/v1';
 export const DEFAULT_MODEL = 'deepseek-v4-flash';
 export const PROMPT_PROTOCOL_VERSION = '2.0';
 export const MAX_CUSTOM_SYSTEM_PROMPT_LENGTH = 6_000;
+export const MAX_MODEL_REPAIR_RETRIES = 3;
 export const MODEL_STYLES = Object.freeze({
   faithful: 'faithful',
   concise: 'concise',
@@ -1434,6 +1435,102 @@ export function buildModelInstruction(
   ].join('\n');
 }
 
+const REPAIRABLE_MODEL_OUTPUT_CODES = new Set([
+  'INVALID_MODEL_OUTPUT',
+  'MODEL_OUTPUT_FACT_LOSS',
+  'MODEL_OUTPUT_FALSE_EXECUTION_CLAIM',
+  'MODEL_OUTPUT_LANGUAGE_MISMATCH',
+  'MODEL_OUTPUT_META_PROMPT',
+  'MODEL_OUTPUT_MODE_MISMATCH',
+  'MODEL_OUTPUT_MULTIPLE_CANDIDATES',
+  'MODEL_OUTPUT_OBJECT_DRIFT',
+  'MODEL_OUTPUT_PERMISSION_SEEKING',
+  'MODEL_OUTPUT_SCOPE_INVENTION',
+  'MODEL_OUTPUT_SEMANTIC_ESCALATION',
+  'MODEL_OUTPUT_STATUS_MISMATCH',
+  'MODEL_OUTPUT_TASK_INTENT_DRIFT',
+  'MODEL_OUTPUT_TOO_LONG',
+  'MODEL_OUTPUT_TRUNCATED',
+  'MODEL_OUTPUT_UNNECESSARY_CLARIFICATION',
+  'MODEL_OUTPUT_UNSUPPORTED_FACT',
+]);
+
+function compactRepairValues(values, fallback = 'none reported') {
+  const normalized = Array.isArray(values)
+    ? values
+      .filter((value) => typeof value === 'string' && value.trim())
+      .map((value) => value === 'Word' ? 'Microsoft Word' : value.trim())
+      .slice(0, 12)
+    : [];
+  return normalized.length > 0
+    ? JSON.stringify(normalized).slice(0, 600)
+    : fallback;
+}
+
+function buildRepairFeedback({
+  language,
+  code,
+  details,
+  attempt,
+  maxRetries,
+  prompt,
+  mode,
+  maxResultCharacters,
+}) {
+  if (!Number.isInteger(attempt) || attempt < 1) return '';
+  const introduced = compactRepairValues(details?.introduced);
+  const missing = compactRepairValues(details?.missing);
+  const anchors = compactRepairValues(boundedRepairAnchors(prompt));
+  const english = {
+    INVALID_MODEL_OUTPUT: 'Return exactly one valid JSON object using the required protocol and fields; no Markdown or surrounding text.',
+    MODEL_OUTPUT_FACT_LOSS: `Repair focus: copy factual anchors byte-for-byte. Required literal anchors: ${anchors}. Preserve explicit negative and suggestion/possibility strength.`,
+    MODEL_OUTPUT_FALSE_EXECUTION_CLAIM: 'The output fabricated completed work or evidence. Keep pending work pending and make no access, audit, test, or completion claim.',
+    MODEL_OUTPUT_LANGUAGE_MISMATCH: `Use the declared source language (${language}) for result.`,
+    MODEL_OUTPUT_META_PROMPT: 'Return the direct final result, not a second-order rewrite request, meta-prompt, protocol, or explanation.',
+    MODEL_OUTPUT_MODE_MISMATCH: `Use mode=${mode} exactly in the JSON envelope.`,
+    MODEL_OUTPUT_MULTIPLE_CANDIDATES: 'Return one final result only; remove candidates, options, and alternatives.',
+    MODEL_OUTPUT_OBJECT_DRIFT: `The requested deliverable was changed or dropped. Restore: ${missing}.`,
+    MODEL_OUTPUT_PERMISSION_SEEKING: 'Remove the added permission question; execute the clear rewrite directly without asking whether to proceed.',
+    MODEL_OUTPUT_SCOPE_INVENTION: `Unsupported categories were introduced: ${introduced}. Remove them entirely; do not replace them with another new scenario, product, platform, or evidence source.`,
+    MODEL_OUTPUT_SEMANTIC_ESCALATION: 'Restore the source modality: suggestions remain suggestions, possibilities remain uncertain, and explicit negatives remain explicit.',
+    MODEL_OUTPUT_STATUS_MISMATCH: 'Use unchanged only when result equals sourceText byte-for-byte; otherwise use ok.',
+    MODEL_OUTPUT_TASK_INTENT_DRIFT: `A core task action was changed or dropped. Restore: ${missing}.`,
+    MODEL_OUTPUT_TOO_LONG: `Shorten result to at most ${maxResultCharacters} characters without dropping anchors or constraints.`,
+    MODEL_OUTPUT_TRUNCATED: 'Return a complete result within the character limit; remove explanation and repetition before removing required content.',
+    MODEL_OUTPUT_UNNECESSARY_CLARIFICATION: 'Remove non-blocking confirmation or decision questions; the task and deliverable are already clear.',
+    MODEL_OUTPUT_UNSUPPORTED_FACT: 'Remove quantified targets, acceptance numbers, or facts not present in sourceText.',
+    MODEL_NEEDS_INPUT: 'The previous needs_input was invalid because task and deliverable are clear. Status must be ok; do not ask about preference, scope, or permission.',
+  };
+  const chinese = {
+    INVALID_MODEL_OUTPUT: '只返回一个符合既定字段的合法 JSON，不要使用 Markdown，也不要添加前后文。',
+    MODEL_OUTPUT_FACT_LOSS: `事实锚点须逐字复制：${anchors}。保留明确否定以及建议、可能性的语气强度。`,
+    MODEL_OUTPUT_FALSE_EXECUTION_CLAIM: '上次虚构了已完成状态或证据；待执行仍须写为待执行，不得声称已访问、审计、测试或完成。',
+    MODEL_OUTPUT_LANGUAGE_MISMATCH: `result 必须使用声明语言 ${language}。`,
+    MODEL_OUTPUT_META_PROMPT: '返回可直接使用的最终结果，不要返回二次改写任务、元提示词、协议或解释。',
+    MODEL_OUTPUT_MODE_MISMATCH: `JSON 中的 mode 必须严格为 ${mode}。`,
+    MODEL_OUTPUT_MULTIPLE_CANDIDATES: '只返回一个最终结果，删除候选、选项和备选版本。',
+    MODEL_OUTPUT_OBJECT_DRIFT: `恢复被改变或遗漏的交付物：${missing}。`,
+    MODEL_OUTPUT_PERMISSION_SEEKING: '删除新增的“是否需要、是否继续”等许可式追问，直接完成明确的改写任务。',
+    MODEL_OUTPUT_SCOPE_INVENTION: `上次新增了原文不支持的范围：${introduced}。全部删除，不得替换成其他新场景、产品、平台或证据来源。`,
+    MODEL_OUTPUT_SEMANTIC_ESCALATION: '恢复原文语气：建议仍是建议、可能仍不确定、明确否定仍须明确保留。',
+    MODEL_OUTPUT_STATUS_MISMATCH: '仅当 result 与 sourceText 逐字一致时使用 unchanged；否则使用 ok。',
+    MODEL_OUTPUT_TASK_INTENT_DRIFT: `恢复被改变或遗漏的核心任务动作：${missing}。`,
+    MODEL_OUTPUT_TOO_LONG: `将 result 压缩到 ${maxResultCharacters} 字符以内，同时保留锚点和约束。`,
+    MODEL_OUTPUT_TRUNCATED: '在字符上限内返回完整结果；优先删除解释和重复，不得删除必要内容。',
+    MODEL_OUTPUT_UNNECESSARY_CLARIFICATION: '删除非阻塞的确认或决策问题；任务对象和交付物已经明确。',
+    MODEL_OUTPUT_UNSUPPORTED_FACT: '删除原文没有的量化阈值、验收数字或事实。',
+    MODEL_NEEDS_INPUT: '上次 needs_input 无效：任务和交付物已明确。使用 status=ok，不得询问偏好、范围或是否继续。',
+  };
+  const summary = (language === 'zh' ? chinese : english)[code]
+    ?? (language === 'zh'
+      ? '上次输出未通过验收；仅修复指出的问题，并重新遵守既定协议。'
+      : 'The previous output failed validation; fix only the identified issue and follow the existing protocol.');
+  const prefix = language === 'zh'
+    ? `纠错 ${attempt}/${maxRetries}：${code}。`
+    : `Correction ${attempt}/${maxRetries}: ${code}.`;
+  return `\n${prefix} ${summary}`;
+}
+
 export function buildModelMessages(prompt, language, options = {}) {
   if (options.probe === true) {
     return [
@@ -1492,6 +1589,16 @@ export function buildModelMessages(prompt, language, options = {}) {
         ? '\n本次纠错重点：事实锚点须与 sourceText 逐字一致；明确否定、建议/可能性以及编号反馈中的功能名和界面动作不得删改或升级。'
         : '\nRepair focus: copy factual anchors byte-for-byte (including full date forms); preserve explicit negatives, suggestion/possibility markers, and every named feature or UI action.'
     : '';
+  const repairFeedback = buildRepairFeedback({
+    language,
+    code: options.repairCode,
+    details: options.repairDetails,
+    attempt: options.repairAttempt,
+    maxRetries: MAX_MODEL_REPAIR_RETRIES,
+    prompt,
+    mode: requestedMode,
+    maxResultCharacters: requestCharacterBudget,
+  });
   return [
     {
       role: 'system',
@@ -1501,10 +1608,8 @@ export function buildModelMessages(prompt, language, options = {}) {
         options.mode,
         options.customPrompt,
         )
-        + repairInstruction
-        + calibrationRepairGate
         + `\n${requestBudgetGate}`
-        + repairFocus,
+        + repairFeedback,
     },
     {
       role: 'user',
@@ -1607,14 +1712,18 @@ async function enhanceWithOpenAICompatible(prompt, options, language) {
   const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
     ? options.timeoutMs
     : DEFAULT_TIMEOUT_MS;
+  const operationTimeoutMs = options.probe === true
+    ? timeoutMs
+    : Math.min(timeoutMs * (MAX_MODEL_REPAIR_RETRIES + 1), 120_000);
   const controller = new AbortController();
   const unlinkAbortSignal = linkAbortSignal(controller, options.signal);
   let timedOut = false;
   let timer;
 
-  const requestCompletion = async (repairMetaPrompt = false, repairCode = '', repairDetails = null) => {
+  const requestCompletion = async (repairAttempt = 0, repairCode = '', repairDetails = null) => {
     const resolvedStyle = resolveModelStyle(options.style) ?? MODEL_STYLES.concise;
     const maxOutputLength = maxAllowedResultLength(prompt, resolvedStyle);
+    const repairMetaPrompt = repairAttempt > 0;
     let response;
     try {
       response = await fetchImpl(endpoint, {
@@ -1646,6 +1755,7 @@ async function enhanceWithOpenAICompatible(prompt, options, language) {
           messages: buildModelMessages(prompt, language, {
             ...options,
             repairMetaPrompt,
+            repairAttempt,
             repairCode,
             repairDetails,
           }),
@@ -1695,33 +1805,38 @@ async function enhanceWithOpenAICompatible(prompt, options, language) {
   };
 
   const operation = (async () => {
-    try {
-      return await requestCompletion(false);
-    } catch (error) {
-      const clearEnhancementNeedsInput = error?.code === 'MODEL_NEEDS_INPUT'
-        && (options.mode ?? PROMPT_MODES.enhance) === PROMPT_MODES.enhance
-        && requestedTaskIntentLabels(prompt).length > 0
-        && requestedOutputObjectLabels(prompt).length > 0;
-      const repairableOutputError = error?.code === 'MODEL_OUTPUT_META_PROMPT'
-        || error?.code === 'MODEL_OUTPUT_SCOPE_INVENTION'
-        || error?.code === 'MODEL_OUTPUT_TASK_INTENT_DRIFT'
-        || error?.code === 'MODEL_OUTPUT_OBJECT_DRIFT'
-        || error?.code === 'MODEL_OUTPUT_UNSUPPORTED_FACT'
-        || error?.code === 'MODEL_OUTPUT_FACT_LOSS'
-        || error?.code === 'MODEL_OUTPUT_TRUNCATED'
-        || error?.code === 'MODEL_OUTPUT_MULTIPLE_CANDIDATES'
-        || error?.code === 'MODEL_OUTPUT_SEMANTIC_ESCALATION'
-        || error?.code === 'MODEL_OUTPUT_PERMISSION_SEEKING'
-        || error?.code === 'MODEL_OUTPUT_FALSE_EXECUTION_CLAIM'
-        || error?.code === 'MODEL_OUTPUT_UNNECESSARY_CLARIFICATION'
-        || error?.code === 'MODEL_OUTPUT_TOO_LONG'
-        || error?.code === 'INVALID_MODEL_OUTPUT'
-        || clearEnhancementNeedsInput;
-      if (options.probe === true || !repairableOutputError) {
-        throw error;
+    let previousError = null;
+    for (let attempt = 0; attempt <= MAX_MODEL_REPAIR_RETRIES; attempt += 1) {
+      try {
+        return await requestCompletion(
+          attempt,
+          previousError?.code ?? '',
+          previousError?.details ?? null,
+        );
+      } catch (error) {
+        const clearEnhancementNeedsInput = error?.code === 'MODEL_NEEDS_INPUT'
+          && (options.mode ?? PROMPT_MODES.enhance) === PROMPT_MODES.enhance
+          && requestedTaskIntentLabels(prompt).length > 0
+          && requestedOutputObjectLabels(prompt).length > 0;
+        const repairableOutputError = REPAIRABLE_MODEL_OUTPUT_CODES.has(error?.code)
+          || clearEnhancementNeedsInput;
+        if (options.probe === true
+          || !repairableOutputError
+          || attempt >= MAX_MODEL_REPAIR_RETRIES) {
+          throw error;
+        }
+        previousError = error;
       }
-      return requestCompletion(true, error?.code, error?.details);
     }
+    if (previousError) {
+      throw previousError;
+    }
+    throw createEnhancementError(
+      'INVALID_MODEL_OUTPUT',
+      language,
+      '模型输出未通过验收。',
+      'The model output did not pass validation.',
+    );
   })();
 
   const timeout = new Promise((_, reject) => {
@@ -1734,7 +1849,7 @@ async function enhanceWithOpenAICompatible(prompt, options, language) {
         '模型增强请求超时，请稍后重试。',
         'The model enhancement request timed out. Please try again.',
       ));
-    }, timeoutMs);
+    }, operationTimeoutMs);
   });
 
   try {

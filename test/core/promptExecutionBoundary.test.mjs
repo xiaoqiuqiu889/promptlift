@@ -5,6 +5,7 @@ import {
   PROMPT_PROTOCOL_VERSION,
   buildModelInstruction,
   enhancePrompt,
+  MAX_MODEL_REPAIR_RETRIES,
   MODEL_STYLES,
   PROMPT_MODES,
 } from '../../src/core/promptEnhancer.mjs';
@@ -119,7 +120,11 @@ test('every scene-tier rejects a repeated fabricated execution claim', async () 
         (error) => error.code === 'MODEL_OUTPUT_FALSE_EXECUTION_CLAIM',
         `${mode}:${style} must reject fabricated completion and findings`,
       );
-      assert.equal(calls, 2, `${mode}:${style} must perform one bounded repair`);
+      assert.equal(
+        calls,
+        MAX_MODEL_REPAIR_RETRIES + 1,
+        `${mode}:${style} must stop after the bounded repair threshold`,
+      );
     }
   }
 });
@@ -143,7 +148,7 @@ test('clear executable audit requests cannot gain non-blocking decision question
     )),
     (error) => error.code === 'MODEL_OUTPUT_UNNECESSARY_CLARIFICATION',
   );
-  assert.equal(calls, 2);
+  assert.equal(calls, MAX_MODEL_REPAIR_RETRIES + 1);
 });
 
 test('a completion claim remains valid when the source explicitly states it', async () => {

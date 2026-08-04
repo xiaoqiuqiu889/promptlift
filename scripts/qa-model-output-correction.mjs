@@ -5,6 +5,7 @@ import { app, safeStorage } from 'electron';
 import {
   enhancePrompt,
   maxAllowedResultLength,
+  MAX_MODEL_REPAIR_RETRIES,
   MODEL_STYLES,
   PROMPT_MODES,
   PROMPT_PROTOCOL_VERSION,
@@ -191,9 +192,10 @@ async function run() {
         fetchImpl: tracedFetch,
       });
       const validation = validateAcceptedResult({ ...contractCase, result });
+      const withinRetryLimit = rawAttempts.length <= MAX_MODEL_REPAIR_RETRIES + 1;
       results.push({
         name: contractCase.name,
-        passed: validation.passed,
+        passed: validation.passed && withinRetryLimit,
         outcome: rawAttempts.length === 1 ? 'first_pass' : 'repaired',
         attempts: rawAttempts.length,
         resultCharacters: result.length,
@@ -203,7 +205,10 @@ async function run() {
           allExactFields: rawAttempts.every(({ exactFields }) => exactFields),
           allProtocolMatch: rawAttempts.every(({ protocolMatch }) => protocolMatch),
         },
-        checks: validation.checks,
+        checks: {
+          ...validation.checks,
+          withinRetryLimit,
+        },
         ...(process.env.QA_DEBUG_SYNTHETIC === '1' ? { debugResults } : {}),
       });
     } catch (error) {
@@ -237,6 +242,7 @@ async function run() {
       firstPass: results.filter(({ outcome }) => outcome === 'first_pass').length,
       repaired: results.filter(({ outcome }) => outcome === 'repaired').length,
       blockedOriginalPreserved: results.filter(({ outcome }) => outcome === 'blocked_original_preserved').length,
+      maxRepairRetries: MAX_MODEL_REPAIR_RETRIES,
     },
     results,
     privacy: {

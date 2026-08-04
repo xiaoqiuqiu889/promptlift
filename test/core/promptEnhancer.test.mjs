@@ -11,6 +11,7 @@ import {
   detectLanguage,
   enhancePrompt,
   maxAllowedResultLength,
+  MAX_MODEL_REPAIR_RETRIES,
   MODEL_STYLES,
   PROMPT_MODES,
   isPromptMode,
@@ -373,7 +374,93 @@ test('model protocol repairs one malformed envelope and rejects a repeated malfo
     request(true),
     (error) => error.code === 'INVALID_MODEL_OUTPUT',
   );
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, MAX_MODEL_REPAIR_RETRIES + 1);
+});
+
+test('model correction loop sends the latest validation failure back for up to three retries', async () => {
+  const source = 'Please improve this request while preserving its scope.';
+  const outputs = [
+    'not-json',
+    JSON.stringify({
+      protocol: PROMPT_PROTOCOL_VERSION,
+      mode: PROMPT_MODES.enhance,
+      language: 'en',
+      status: 'ok',
+      result: 'Please improve this Microsoft Word request while preserving its scope.',
+    }),
+    JSON.stringify({
+      protocol: PROMPT_PROTOCOL_VERSION,
+      mode: PROMPT_MODES.enhance,
+      language: 'en',
+      status: 'ok',
+      result: 'Please improve this request while preserving its scope. Should I proceed?',
+    }),
+    JSON.stringify({
+      protocol: PROMPT_PROTOCOL_VERSION,
+      mode: PROMPT_MODES.enhance,
+      language: 'en',
+      status: 'ok',
+      result: 'Improve this request clearly while preserving its original scope.',
+    }),
+  ];
+  const calls = [];
+
+  const result = await enhancePrompt(source, {
+    endpoint: 'https://tokenhub.tencentmaas.com/v1',
+    model: 'deepseek-v4-flash',
+    apiKey: 'secret-test-key',
+    mode: PROMPT_MODES.enhance,
+    style: MODEL_STYLES.concise,
+    fetchImpl: async (_url, init) => {
+      calls.push(JSON.parse(init.body));
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            choices: [{
+              finish_reason: 'stop',
+              message: { content: outputs[calls.length - 1] },
+            }],
+          };
+        },
+      };
+    },
+  });
+
+  assert.equal(MAX_MODEL_REPAIR_RETRIES, 3);
+  assert.equal(result, 'Improve this request clearly while preserving its original scope.');
+  assert.equal(calls.length, MAX_MODEL_REPAIR_RETRIES + 1);
+  assert.match(calls[1].messages[0].content, /Correction 1\/3.*INVALID_MODEL_OUTPUT.*valid JSON/isu);
+  assert.match(
+    calls[2].messages[0].content,
+    /Correction 2\/3.*MODEL_OUTPUT_SCOPE_INVENTION.*unsupported.*Microsoft Word/isu,
+  );
+  assert.match(
+    calls[3].messages[0].content,
+    /Correction 3\/3.*MODEL_OUTPUT_PERMISSION_SEEKING.*permission question/isu,
+  );
+});
+
+test('repair feedback stays compact and carries only the current validation issue', () => {
+  const source = 'Please improve this request while preserving its scope.';
+  const base = buildModelMessages(source, 'en', {
+    mode: PROMPT_MODES.enhance,
+    style: MODEL_STYLES.concise,
+  })[0].content;
+  const repair = buildModelMessages(source, 'en', {
+    mode: PROMPT_MODES.enhance,
+    style: MODEL_STYLES.concise,
+    repairMetaPrompt: true,
+    repairAttempt: 3,
+    repairCode: 'MODEL_OUTPUT_SCOPE_INVENTION',
+    repairDetails: { introduced: ['Word'] },
+  })[0].content;
+
+  assert.match(repair, /Correction 3\/3: MODEL_OUTPUT_SCOPE_INVENTION/iu);
+  assert.match(repair, /Microsoft Word/iu);
+  assert.ok(repair.length - base.length < 420);
+  assert.doesNotMatch(repair, /Correction [12]\/3/iu);
 });
 
 test('model protocol repairs an introduced meta-rewrite prompt and returns the direct optimized request', async () => {
@@ -528,7 +615,7 @@ test('model protocol rejects repeated unsolicited permission seeking', async () 
     }),
     (error) => error.code === 'MODEL_OUTPUT_PERMISSION_SEEKING',
   );
-  assert.equal(calls, 2);
+  assert.equal(calls, MAX_MODEL_REPAIR_RETRIES + 1);
 });
 
 test('model protocol rejects repeated system-protocol or meta-prompt leakage', async () => {
@@ -566,7 +653,7 @@ test('model protocol rejects repeated system-protocol or meta-prompt leakage', a
     }),
     (error) => error.code === 'MODEL_OUTPUT_META_PROMPT',
   );
-  assert.equal(calls, 2);
+  assert.equal(calls, MAX_MODEL_REPAIR_RETRIES + 1);
 });
 
 test('Prompt Lift numbered feedback rejects invented Word context and repairs to direct product requirements', async () => {
@@ -724,7 +811,7 @@ test('Prompt Lift feedback rejects unsupported diagnostic context twice without 
     }),
     (error) => error.code === 'MODEL_OUTPUT_SCOPE_INVENTION',
   );
-  assert.equal(calls, 2);
+  assert.equal(calls, MAX_MODEL_REPAIR_RETRIES + 1);
 });
 
 test('scope validation allows Word when the source explicitly names Word', async () => {

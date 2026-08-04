@@ -7,6 +7,7 @@ import {
   buildModelMessages,
   enhancePrompt,
   maxAllowedResultLength,
+  MAX_MODEL_REPAIR_RETRIES,
   MODEL_STYLES,
   PROMPT_MODES,
   PROMPT_PROTOCOL_VERSION,
@@ -68,9 +69,9 @@ function repeatedOutputOptions({
   };
 }
 
-async function rejectsAfterOneRepair(source, expectedCode, options) {
+async function rejectsAfterMaxRepairs(source, expectedCode, options) {
   const calls = [];
-  const expectedCalls = options.expectedCalls ?? 2;
+  const expectedCalls = options.expectedCalls ?? (MAX_MODEL_REPAIR_RETRIES + 1);
   await assert.rejects(
     enhancePrompt(source, repeatedOutputOptions({ ...options, calls })),
     (error) => error.code === expectedCode,
@@ -79,7 +80,7 @@ async function rejectsAfterOneRepair(source, expectedCode, options) {
 }
 
 test('[01] semantic drift: a different core task action is rejected', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please audit the repository and prioritize the findings.',
     'MODEL_OUTPUT_TASK_INTENT_DRIFT',
     { result: 'Please create a marketing headline for the repository.' },
@@ -103,7 +104,7 @@ test('[02] immutable anchors: missing number, URL, path, command, and term fail 
 });
 
 test('[03] explicit negative: dropping “do not” is rejected', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please improve the request, but do not add a new platform.',
     'MODEL_OUTPUT_SEMANTIC_ESCALATION',
     { result: 'Please improve the request and add a new platform.' },
@@ -111,7 +112,7 @@ test('[03] explicit negative: dropping “do not” is rejected', async () => {
 });
 
 test('[04] modality strength: a suggestion cannot become a requirement', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please consider adding a short summary.',
     'MODEL_OUTPUT_SEMANTIC_ESCALATION',
     { result: 'You must add a short summary.' },
@@ -119,7 +120,7 @@ test('[04] modality strength: a suggestion cannot become a requirement', async (
 });
 
 test('[05] unsupported expansion: an ungrounded premise is rejected', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please improve this product feedback while preserving its scope.',
     'MODEL_OUTPUT_SCOPE_INVENTION',
     { result: 'Please improve this Word plug-in feedback while preserving its scope.' },
@@ -127,7 +128,7 @@ test('[05] unsupported expansion: an ungrounded premise is rejected', async () =
 });
 
 test('[06] scenario diffusion: non-creative tiers cannot add a mobile-user scenario', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please improve this request while preserving the current audience and scope.',
     'MODEL_OUTPUT_SCOPE_INVENTION',
     { style: MODEL_STYLES.concise, result: 'Please improve this request for mobile users.' },
@@ -135,7 +136,7 @@ test('[06] scenario diffusion: non-creative tiers cannot add a mobile-user scena
 });
 
 test('[07] product hallucination: a platform name absent from source is rejected', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please optimize the review flow described in this feedback.',
     'MODEL_OUTPUT_SCOPE_INVENTION',
     { result: 'Please optimize the Microsoft Word review flow described in this feedback.' },
@@ -143,7 +144,7 @@ test('[07] product hallucination: a platform name absent from source is rejected
 });
 
 test('[08] false fact state: pending audit cannot become completed audit', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please audit https://example.com/repo and provide a report with prioritized findings.',
     'MODEL_OUTPUT_FALSE_EXECUTION_CLAIM',
     { result: 'The audit report has been completed and found missing tests in https://example.com/repo.' },
@@ -157,7 +158,7 @@ test('[09] task boundary: source tasks are transformed, never executed', () => {
 });
 
 test('[10] output object: email cannot be replaced by an implementation plan', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please write an email that notifies the product team about the release.',
     'MODEL_OUTPUT_OBJECT_DRIFT',
     { result: 'Please provide an implementation plan for the release.' },
@@ -170,7 +171,7 @@ test('[11] over-expansion: every tier enforces a source-relative maximum at or b
     assert.ok(maxAllowedResultLength(source, style) <= source.length * 3);
   }
   const result = `Improve this request ${'without adding scope '.repeat(20)}`;
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     source,
     'MODEL_OUTPUT_TOO_LONG',
     { style: MODEL_STYLES.creative, result },
@@ -178,7 +179,7 @@ test('[11] over-expansion: every tier enforces a source-relative maximum at or b
 });
 
 test('[12] over-compression: required anchors and deliverable cannot be removed', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please write a report about ticket PL-42 at https://example.com/issues.',
     'MODEL_OUTPUT_FACT_LOSS',
     { result: 'Please write a report about the ticket.' },
@@ -186,7 +187,7 @@ test('[12] over-compression: required anchors and deliverable cannot be removed'
 });
 
 test('[13] added permission question: clear tasks cannot gain “should I proceed”', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please optimize the interface and return the final implementation request.',
     'MODEL_OUTPUT_PERMISSION_SEEKING',
     { result: 'Please optimize the interface. Should I proceed with implementation?' },
@@ -194,7 +195,7 @@ test('[13] added permission question: clear tasks cannot gain “should I procee
 });
 
 test('[14] unnecessary implementation detail: invented quantified target is rejected', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please improve the login request while preserving its expected behavior.',
     'MODEL_OUTPUT_UNSUPPORTED_FACT',
     { result: 'Please improve the login request and keep latency below 2 seconds.' },
@@ -214,7 +215,7 @@ test('[15] needs_input: clear tasks are told not to request ordinary missing det
 });
 
 test('[16] creative control: creative tier still cannot invent a product fact', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please improve the request and add one optional creative direction.',
     'MODEL_OUTPUT_SCOPE_INVENTION',
     {
@@ -225,7 +226,7 @@ test('[16] creative control: creative tier still cannot invent a product fact', 
 });
 
 test('[17] creative suggestions: optional direction cannot become a hard new requirement', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please consider one optional creative direction for the launch message.',
     'MODEL_OUTPUT_SEMANTIC_ESCALATION',
     {
@@ -236,7 +237,7 @@ test('[17] creative suggestions: optional direction cannot become a hard new req
 });
 
 test('[18] second-order rewrite pollution: meta-prompt output is rejected', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please improve the login request and return a directly usable prompt.',
     'MODEL_OUTPUT_META_PROMPT',
     { result: 'Please rewrite the following source: improve the login request.' },
@@ -249,7 +250,7 @@ test('[19] protocol pollution: explanation outside the JSON object is rejected',
     'en',
     'Please improve the login request.',
   )}`;
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please improve the login request.',
     'INVALID_MODEL_OUTPUT',
     { rawContent: content },
@@ -257,25 +258,23 @@ test('[19] protocol pollution: explanation outside the JSON object is rejected',
 });
 
 test('[20] status contract: changed content cannot be marked unchanged', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     'Please improve the login request.',
     'MODEL_OUTPUT_STATUS_MISMATCH',
     {
       result: 'Please improve the login request with a clear goal.',
       status: 'unchanged',
-      expectedCalls: 1,
     },
   );
 });
 
 test('[21] language contract: clear Chinese input cannot return English', async () => {
-  await rejectsAfterOneRepair(
+  await rejectsAfterMaxRepairs(
     '请优化登录页面的提示词，并保留当前产品名称和范围。',
     'MODEL_OUTPUT_LANGUAGE_MISMATCH',
     {
       language: 'zh',
       result: 'Please improve the login page prompt and preserve its current scope.',
-      expectedCalls: 1,
     },
   );
 });
@@ -341,7 +340,7 @@ test('[25] nondeterminism: temperatures are bounded and pairwise evidence includ
   assert.ok(Number.isFinite(aggregate.ratingUpper95));
 });
 
-test('[26] retry amplification: a failed correction is retried once, then stops', async () => {
+test('[26] retry amplification: a failed correction is retried at most three times, then stops', async () => {
   const calls = [];
   await assert.rejects(
     enhancePrompt(
@@ -353,8 +352,9 @@ test('[26] retry amplification: a failed correction is retried once, then stops'
     ),
     (error) => error.code === 'MODEL_OUTPUT_SCOPE_INVENTION',
   );
-  assert.equal(calls.length, 2);
-  assert.equal(calls[1].temperature, 0);
+  assert.equal(MAX_MODEL_REPAIR_RETRIES, 3);
+  assert.equal(calls.length, MAX_MODEL_REPAIR_RETRIES + 1);
+  assert.ok(calls.slice(1).every(({ temperature }) => temperature === 0));
 });
 
 test('[27] evaluation gaming: higher soft score cannot bypass a hard-gate regression', () => {
