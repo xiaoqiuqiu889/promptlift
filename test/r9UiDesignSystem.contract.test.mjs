@@ -74,6 +74,7 @@ test('close and back controls are distinct, icon-based, and consistently positio
 test('compact mascot, menu dots, and feedback form one cohesive scalable cluster', () => {
   const css = read('src/renderer/styles.css');
   const renderer = read('src/renderer/renderer.mjs');
+  const compactGeometry = read('src/core/compactWindowGeometry.mjs');
   const qa = read('scripts/qa-ui-visual.mjs');
   const feedback = declarationsFor(
     css,
@@ -101,16 +102,21 @@ test('compact mascot, menu dots, and feedback form one cohesive scalable cluster
   assert.doesNotMatch(handle, /box-shadow:\s*(?!none\b)[^;]+/u);
 
   assert.match(renderer, /function updateCompactScale\(\)[\s\S]*--pet-visual-size/su);
+  assert.match(renderer, /computeCompactLayout/u);
+  assert.match(renderer, /computeCompactShapeRects/u);
+  assert.match(renderer, /api\.setShape\(rects\)/u);
   assert.match(renderer, /--pet-feedback-width/u);
+  assert.match(renderer, /--pet-feedback-top/u);
   assert.match(renderer, /compactFeedback\.dataset\.phase\s*=\s*phase/u);
-  assert.match(renderer, /feedbackScale\s*=\s*compactFeedback\.dataset\.phase\s*===\s*"success"\s*\?\s*1\.04\s*:\s*1\.28/u);
-  assert.match(renderer, /Math\.max\(58,\s*visualSize\s*\*\s*feedbackScale\)/u);
-  assert.match(renderer, /visualSize\s*\*\s*feedbackScale/u);
-  assert.match(renderer, /visualSize\s*\*\s*0\.018/u);
+  assert.match(compactGeometry, /availableWidth\s*\*\s*0\.96/u);
+  assert.match(compactGeometry, /availableHeight\s*\*\s*0\.96/u);
+  assert.match(compactGeometry, /feedbackPhase\s*===\s*"loading"\s*\?\s*1\.02\s*:\s*0\.94/u);
+  assert.match(compactGeometry, /computeCompactShapeRects/u);
+  assert.match(compactGeometry, /isGreenKnightPup\s*\?\s*0\.82\s*:\s*1/u);
   assert.match(greenKnightPupImage, /transform:\s*scale\(1\.3\)\s*translateY\(1px\)/u);
   assert.match(renderer, /--pet-menu-x/u);
-  assert.match(renderer, /window\.innerWidth\s*-/u);
-  assert.match(renderer, /window\.innerHeight\s*-/u);
+  assert.match(renderer, /width:\s*window\.innerWidth/u);
+  assert.match(renderer, /height:\s*window\.innerHeight/u);
 
   assert.match(qa, /compact-menu-to-mascot-distance/u);
   assert.match(qa, /compact-feedback-to-mascot-distance/u);

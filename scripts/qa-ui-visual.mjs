@@ -584,12 +584,14 @@ function geometryAudit() {
     if (mascotRect && feedbackRect) {
       const feedbackGap = feedbackRect.y - mascotRect.bottom;
       const maximumGap = Math.max(8, mascotRect.height * 0.045);
+      const maximumOverlap = mascotRect.height * 0.2;
       compactClusterMetrics.push({
         type: "compact-feedback-to-mascot-distance",
         value: round(feedbackGap),
         maximum: round(maximumGap),
+        minimum: round(-maximumOverlap),
       });
-      if (feedbackGap > maximumGap || feedbackGap < -2) {
+      if (feedbackGap > maximumGap || feedbackGap < -maximumOverlap) {
         failures.push({
           type: "compact-feedback-to-mascot-distance",
           selector: "#compactFeedback",
@@ -602,10 +604,10 @@ function geometryAudit() {
       compactClusterMetrics.push({
         type: "compact-feedback-width-ratio",
         value: round(feedbackWidthRatio),
-        minimum: 0.95,
-        maximum: 1.38,
+        minimum: 0.88,
+        maximum: 1.08,
       });
-      if (feedbackWidthRatio < 0.95 || feedbackWidthRatio > 1.38) {
+      if (feedbackWidthRatio < 0.88 || feedbackWidthRatio > 1.08) {
         failures.push({
           type: "compact-feedback-width-ratio",
           selector: "#compactFeedback",
@@ -620,9 +622,9 @@ function geometryAudit() {
       compactClusterMetrics.push({
         type: "compact-mascot-fill-ratio",
         value: round(mascotFillRatio),
-        minimum: 0.08,
+        minimum: 0.55,
       });
-      if (mascotFillRatio < 0.08) {
+      if (mascotFillRatio < 0.55) {
         failures.push({
           type: "compact-mascot-fill-ratio",
           selector: "#mascotIdleRig",
@@ -896,6 +898,17 @@ async function runElectron(electron, args) {
       height,
     }, false);
     return { width, height, bounds: qaWindow.getBounds() };
+  });
+  ipcMain.handle("qa:shape:set", (event, input = {}) => {
+    if (!senderIsQaWindow(event) || !qaWindow || qaWindow.isDestroyed()) {
+      return { supported: false, count: 0 };
+    }
+    const rects = Array.isArray(input.rects) ? input.rects : [];
+    if (typeof qaWindow.setShape === "function") {
+      qaWindow.setShape(rects);
+      return { supported: true, count: rects.length };
+    }
+    return { supported: false, count: 0 };
   });
   ipcMain.handle("qa:move", (event, input = {}) => {
     if (!senderIsQaWindow(event) || !qaWindow || qaWindow.isDestroyed()) {
@@ -2419,6 +2432,38 @@ async function runElectron(electron, args) {
       }
       qaResult.compactIdleMotion = idle;
     });
+    await runFlow("compact-transparent-hit-region", async () => {
+      await compactReady(COMPACT_SIZES[2], {}, true);
+      const compactState = await state();
+      const compactShape = apiCalls
+        .filter((call) => call.name === "setShape" && Array.isArray(call.rects))
+        .at(-1);
+      if (!compactShape || compactShape.rects.length === 0) {
+        throw new Error("compact window did not publish a non-empty native hit region");
+      }
+      const left = Math.min(...compactShape.rects.map((rect) => rect.x));
+      const top = Math.min(...compactShape.rects.map((rect) => rect.y));
+      const right = Math.max(...compactShape.rects.map((rect) => rect.x + rect.width));
+      const bottom = Math.max(...compactShape.rects.map((rect) => rect.y + rect.height));
+      const blockedRatio = ((right - left) * (bottom - top))
+        / (compactState.viewport.width * compactState.viewport.height);
+      if (blockedRatio >= 0.75) {
+        throw new Error("compact transparent hit region remained too broad: " + blockedRatio);
+      }
+      await rightClickAvatar("compact shaped mascot → expanded hub");
+      await waitForState({ view: "expanded", visible: { "#contextMenu": true } });
+      const expandedShape = apiCalls
+        .filter((call) => call.name === "setShape" && Array.isArray(call.rects))
+        .at(-1);
+      if (!expandedShape || expandedShape.rects.length !== 0) {
+        throw new Error("expanded hub did not restore the full rectangular window");
+      }
+      qaResult.compactShape = {
+        rects: compactShape.rects,
+        blockedRatio: Number(blockedRatio.toFixed(4)),
+        expandedReset: true,
+      };
+    });
     await runFlow("avatar-drag-and-overlay-hit-tests", async () => {
       await compactReady(COMPACT_SIZES[1], {}, true);
       const overlay = await readOnly(function avatarOverlayRead() {
@@ -2566,6 +2611,8 @@ async function runElectron(electron, args) {
       apiCallHistory,
       p0: qaResult.p0,
       overlayChecks: qaResult.overlayChecks,
+      compactShape: qaResult.compactShape,
+      compactResize: qaResult.compactResize,
       altDoubleClick: qaResult.altDoubleClick,
       reviewDiscard: qaResult.reviewDiscard,
       modeSemantics: qaResult.modeSemantics,
@@ -2653,6 +2700,14 @@ async function runElectron(electron, args) {
         + " → " + (qaResult.p0?.success?.phase || "not recorded") + ".",
       "- Avatar drag, resize-handle hit testing, and compact badge pointer behavior are recorded in qa/evidence/ui/summary.json.",
       "- Special resizeHandle 18x18 point audit: mascot and adjacent control centers remain outside the resize-handle hit target in every audited view.",
+      "- Native compact hit region: blocked bounding ratio "
+        + (qaResult.compactShape?.blockedRatio ?? "not recorded")
+        + "; expanded rectangle reset=" + (qaResult.compactShape?.expandedReset === true) + ".",
+      "- Compact resize: "
+        + (qaResult.compactResize
+          ? `${qaResult.compactResize.before.width}x${qaResult.compactResize.before.height} → ${qaResult.compactResize.after.width}x${qaResult.compactResize.after.height}`
+          : "not recorded")
+        + "; clipping=" + (qaResult.compactResize?.idle?.clipped ?? "not recorded") + ".",
       "",
       "## Defects and reproduction",
       "",

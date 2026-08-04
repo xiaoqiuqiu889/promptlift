@@ -330,6 +330,13 @@ const promptLiftApi = Object.freeze({
     });
   },
 
+  setShape(rects) {
+    record("setShape", { rects: Array.isArray(rects) ? rects : [] });
+    return ipcRenderer.invoke("qa:shape:set", {
+      rects: Array.isArray(rects) ? rects : [],
+    });
+  },
+
   moveBy(deltaX, deltaY) {
     record("moveBy", { deltaX, deltaY });
     return ipcRenderer.invoke("qa:move", { deltaX, deltaY });

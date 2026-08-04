@@ -32,6 +32,7 @@ export const PROMPT_LIFT_CHANNELS = Object.freeze({
   styleSet: "prompt:style:set",
   modeSet: "prompt:mode:set",
   resize: "prompt:resize",
+  shapeSet: "prompt:shape:set",
   move: "prompt:move",
   dragStart: "prompt:drag:start",
   dragMove: "prompt:drag:move",
@@ -79,6 +80,31 @@ function normalizeScreenPoint(screenX, screenY) {
     throw new TypeError("screen coordinates must be finite and within range");
   }
   return point;
+}
+
+function normalizeWindowShape(rects) {
+  if (!Array.isArray(rects) || rects.length > 8) {
+    throw new TypeError("window shape must be an array with at most 8 rectangles");
+  }
+  return rects.map((rect) => {
+    if (!rect || typeof rect !== "object" || Array.isArray(rect)) {
+      throw new TypeError("window shape rectangle must be an object");
+    }
+    const normalized = Object.fromEntries(
+      ["x", "y", "width", "height"].map((field) => {
+        const value = Number(rect[field]);
+        if (!Number.isSafeInteger(value)) {
+          throw new TypeError(`window shape ${field} must be a safe integer`);
+        }
+        return [field, value];
+      }),
+    );
+    if (normalized.x < 0 || normalized.y < 0
+      || normalized.width <= 0 || normalized.height <= 0) {
+      throw new RangeError("window shape rectangles must have positive in-window bounds");
+    }
+    return normalized;
+  });
 }
 
 function normalizeModelConfig(config = {}) {
@@ -282,6 +308,12 @@ const promptLiftApi = Object.freeze({
       height,
       anchor: options.anchor === "top-right" ? "top-right" : "top-left",
       persist: options.persist !== false,
+    });
+  },
+
+  setShape(rects) {
+    return invoke(PROMPT_LIFT_CHANNELS.shapeSet, {
+      rects: normalizeWindowShape(rects),
     });
   },
 

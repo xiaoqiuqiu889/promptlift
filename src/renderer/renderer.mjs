@@ -8,6 +8,10 @@ import {
   normalizeShortcut,
   shortcutDisplayLabel,
 } from "../core/shortcutConfig.mjs";
+import {
+  computeCompactLayout,
+  computeCompactShapeRects,
+} from "../core/compactWindowGeometry.mjs";
 
 const MAX_PROMPT_LENGTH = 1_000_000;
 const MODE_STAGE_TIMEOUT_MS = 5_000;
@@ -367,6 +371,7 @@ let suppressAvatarClickUntil = 0;
 let suppressMenuClickUntil = 0;
 let compactFeedbackTimer;
 let targetSnapshotPromise;
+let compactShapeSignature = "";
 
 const messages = Object.freeze({
   idle: "准备就绪。左键处理当前发言，右键切换场景。",
@@ -454,42 +459,40 @@ function updateExpressionSummary() {
 }
 
 function updateCompactScale() {
-  const horizontalPadding = Math.min(28, Math.max(12, window.innerWidth * 0.04));
-  const verticalPadding = Math.min(22, Math.max(8, window.innerHeight * 0.035));
-  const feedbackReserve = compactFeedback.hidden
-    ? 0
-    : Math.min(48, Math.max(30, window.innerHeight * 0.1));
-  const availableWidth = Math.max(48, window.innerWidth - (horizontalPadding * 2));
-  const availableHeight = Math.max(
-    48,
-    window.innerHeight - (verticalPadding * 2) - feedbackReserve,
-  );
-  const visualSize = Math.min(
-    320,
-    Math.max(48, Math.min(availableWidth * 0.62, availableHeight * 0.82)),
-  );
-  const feedbackScale = compactFeedback.dataset.phase === "success" ? 1.04 : 1.28;
-  const feedbackWidth = Math.min(
-    Math.min(420, availableWidth),
-    Math.max(58, visualSize * feedbackScale),
-  );
-  const clusterHeight = visualSize + (compactFeedback.hidden ? 0 : 32);
-  const clusterTop = Math.max(
-    verticalPadding,
-    (window.innerHeight - clusterHeight) / 2,
-  );
-  const centerY = Math.min(
-    window.innerHeight - verticalPadding - (visualSize / 2),
-    clusterTop + (visualSize / 2),
-  );
-  const scale = visualSize / 64;
+  if (state.view !== "compact") {
+    return;
+  }
+  const feedbackVisible = !compactFeedback.hidden;
+  const layout = computeCompactLayout({
+    width: window.innerWidth,
+    height: window.innerHeight,
+    feedbackVisible,
+    feedbackPhase: compactFeedback.dataset.phase,
+  });
+  const scale = layout.visualSize / 64;
   root.style.setProperty("--pet-scale", String(scale));
-  root.style.setProperty("--pet-visual-size", `${visualSize}px`);
-  root.style.setProperty("--pet-feedback-width", `${feedbackWidth}px`);
-  root.style.setProperty("--pet-center-y", `${centerY}px`);
-  root.style.setProperty("--pet-feedback-gap", `${Math.min(5, Math.max(2, visualSize * 0.018))}px`);
-  root.style.setProperty("--pet-menu-x", `${visualSize * 0.34}px`);
-  root.style.setProperty("--pet-menu-y", `${visualSize * 0.34}px`);
+  root.style.setProperty("--pet-visual-size", `${layout.visualSize}px`);
+  root.style.setProperty("--pet-feedback-width", `${layout.feedbackWidth}px`);
+  root.style.setProperty("--pet-center-y", `${layout.centerY}px`);
+  root.style.setProperty("--pet-feedback-top", `${layout.feedbackTop}px`);
+  root.style.setProperty("--pet-feedback-gap", `${layout.feedbackGap}px`);
+  root.style.setProperty("--pet-menu-x", `${layout.menuX}px`);
+  root.style.setProperty("--pet-menu-y", `${layout.menuY}px`);
+
+  if (typeof api?.setShape === "function") {
+    const rects = computeCompactShapeRects({
+      ...layout,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      mascot: state.mascot,
+      feedbackVisible,
+    });
+    const signature = JSON.stringify(rects);
+    if (signature !== compactShapeSignature) {
+      compactShapeSignature = signature;
+      void api.setShape(rects).catch(() => {});
+    }
+  }
 }
 
 function restoreCompactBounds() {
@@ -510,6 +513,10 @@ function expandAssistant() {
   }
   state.view = "expanded";
   root.dataset.view = "expanded";
+  compactShapeSignature = "";
+  if (typeof api?.setShape === "function") {
+    void api.setShape([]).catch(() => {});
+  }
   void api.resize(DEFAULT_EXPANDED_WIDTH, DEFAULT_EXPANDED_HEIGHT, { persist: false });
 }
 
@@ -851,6 +858,9 @@ function setMascot(mascot, { persist = true } = {}) {
     persistMascot(normalized);
   }
   updateHubPresentation();
+  if (state.view === "compact") {
+    updateCompactScale();
+  }
 }
 
 function updateReviewModeLabel() {

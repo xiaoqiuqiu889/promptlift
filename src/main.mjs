@@ -464,6 +464,36 @@ function resizeWindow(_event, input = {}) {
   return { width: nextWidth, height: nextHeight };
 }
 
+function setWindowShape(_event, input = {}) {
+  if (!Array.isArray(input.rects) || input.rects.length > 8) {
+    throw createConfigError('WINDOW_SHAPE_INVALID', '窗口形状必须包含不超过 8 个矩形区域。');
+  }
+  if (!mainWindow || mainWindow.isDestroyed() || typeof mainWindow.setShape !== 'function') {
+    return { supported: false, count: 0 };
+  }
+  const bounds = mainWindow.getContentBounds();
+  const rects = input.rects.map((rect) => {
+    if (!rect || typeof rect !== 'object' || Array.isArray(rect)) {
+      throw createConfigError('WINDOW_SHAPE_INVALID', '窗口形状区域无效。');
+    }
+    const values = Object.fromEntries(
+      ['x', 'y', 'width', 'height'].map((field) => [field, Number(rect[field])]),
+    );
+    if (!Object.values(values).every(Number.isSafeInteger)
+      || values.x < 0
+      || values.y < 0
+      || values.width <= 0
+      || values.height <= 0
+      || values.x + values.width > bounds.width
+      || values.y + values.height > bounds.height) {
+      throw createConfigError('WINDOW_SHAPE_INVALID', '窗口形状区域超出当前窗口范围。');
+    }
+    return values;
+  });
+  mainWindow.setShape(rects);
+  return { supported: true, count: rects.length };
+}
+
 function moveWindowBy(_event, input = {}) {
   const deltaX = Number(input.deltaX);
   const deltaY = Number(input.deltaY);
@@ -825,6 +855,7 @@ function registerIpc() {
   handleIpc('prompt:style:set', setPromptStyle);
   handleIpc('prompt:mode:set', setPromptMode);
   handleIpc('prompt:resize', resizeWindow);
+  handleIpc('prompt:shape:set', setWindowShape);
   handleIpc('prompt:move', moveWindowBy);
   handleIpc('prompt:model:check', checkConfiguredModel);
   handleIpc('prompt:startup:get', getStartupState);
