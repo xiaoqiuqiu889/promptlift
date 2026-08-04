@@ -38,7 +38,7 @@ const CASES = [
     source: 'Rewrite the release note for clarity.',
     mode: PROMPT_MODES.enhance,
     style: MODEL_STYLES.faithful,
-    result: 'Rewrite the release note for clarity and preserve the original intent.',
+    result: 'Rewrite the release note clearly.',
     expected: 'ok',
   },
   {

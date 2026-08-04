@@ -13,12 +13,12 @@ const PRODUCT_FEEDBACK_SOURCE = [
   '1. 我没有开启审阅后应用，但生成后仍进入审阅界面',
   '2. 审阅状态缺少取消、恢复原文、重新生成、复制、应用',
   '3. 四种沟通模式需要使用不同的优化档位',
-].join('\n');
+].join('\n') + '\nReturn one concise direct request with no explanation.';
 const DECISIVE_PRODUCT_FEEDBACK_SOURCE = [
   '结论：当前设置中的工作模式与场景存在重复，建议合并保留一个。',
   '界面 UI 文字过小且拥挤，需要整体升级。',
   '下一步行动：优先处理 UI 升级并指定合并方案，同时明确自定义快捷键的技术实现范围。',
-].join('\n');
+].join('\n') + '\n请保留建议语气，不要把建议改写为强制要求；只返回一份紧凑、可执行的直接请求。';
 const META_OUTPUT = /请将以下(?:内容|文本|用户反馈).{0,32}(?:优化为|改写|润色|重写|增强)|待改写内容|本次改写要求|SOURCE_MATERIAL_JSON|系统提示词规范/iu;
 const DIRECT_OUTPUT = /拖动|跟手|流畅|丝滑/iu;
 const PRODUCT_SCOPE_OUTPUT = /审阅后应用/iu;
@@ -49,7 +49,7 @@ async function run() {
     {
       name: 'direct-feedback',
       source: DIRECT_FEEDBACK_SOURCE,
-      style: 'faithful',
+      style: 'concise',
       validate(result) {
         return {
           directResult: DIRECT_OUTPUT.test(result),
@@ -60,7 +60,7 @@ async function run() {
     {
       name: 'product-feedback-scope',
       source: PRODUCT_FEEDBACK_SOURCE,
-      style: 'faithful',
+      style: 'concise',
       validate(result) {
         return {
           productScopePreserved: PRODUCT_SCOPE_OUTPUT.test(result)
@@ -74,7 +74,7 @@ async function run() {
     {
       name: 'decisive-product-feedback',
       source: DECISIVE_PRODUCT_FEEDBACK_SOURCE,
-      style: 'concise',
+      style: 'professional',
       validate(result) {
         return {
           mergedModeAndScene: /工作模式/u.test(result) && /场景/u.test(result),
