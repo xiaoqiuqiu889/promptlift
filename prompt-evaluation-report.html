@@ -197,7 +197,7 @@ AND hardGatePassRate, semanticFidelity, anchorRecall, utility,
           <tr><td>自动化 CLI</td><td><code>scripts/prompt-eval.mjs</code></td><td>支持离线 JSONL 对比和注入式 runner；默认 dry-run；校验 case-id 集合；输出隐私安全摘要；只在显式 <code>--promote</code> 时写回策略。</td></tr>
           <tr><td>运行时策略</td><td><code>config/prompt-policy.json</code><br><code>src/core/promptEnhancer.mjs</code></td><td>系统提示词加载受控策略；策略行经过 schema、长度和字符清洗；空策略无行为变化；晋级后的 global / mode / tier 约束可进入 prompt builder。</td></tr>
           <tr><td>回归资产</td><td><code>qa/prompt-eval/</code></td><td>提供 golden fixture、mock runner 和候选策略，能离线重现门禁及 21.21% 合成提升。</td></tr>
-          <tr><td>测试与文档</td><td><code>test/promptEval*.test.mjs</code><br><code>docs/prompt-evaluation-loop.md</code></td><td>覆盖严格长度、锚点、scope、modality、隐私、3% 门槛、保护指标、CLI dry-run 和显式 promote；提供真实 runner 接入和策略回写说明。</td></tr>
+          <tr><td>测试与文档</td><td><code>test/promptEval*.test.mjs</code><br><code>test/repositorySurface.contract.test.mjs</code><br><code>docs/prompt-evaluation-loop.md</code></td><td>覆盖严格长度、锚点、scope、modality、隐私、3% 门槛、保护指标、CLI dry-run 和显式 promote；仓库表面白名单同步纳入评测 fixture；提供真实 runner 接入和策略回写说明。</td></tr>
           <tr><td>工程脚本</td><td><code>package.json</code><br><code>.gitignore</code></td><td>新增 <code>prompt-eval</code> 与合约测试命令，忽略评测运行摘要和临时运行目录，避免测评产物污染仓库。</td></tr>
         </tbody>
       </table>
@@ -248,7 +248,7 @@ AND hardGatePassRate, semanticFidelity, anchorRecall, utility,
           <tr><td><code>node --check</code></td><td><span class="tag good">通过</span></td><td><code>scripts/prompt-eval.mjs</code>、<code>scripts/prompt-eval/metrics.mjs</code>、<code>src/core/promptEnhancer.mjs</code>。</td></tr>
           <tr><td><code>npm run check</code></td><td><span class="tag good">通过</span></td><td>包含新增脚本语法检查。</td></tr>
           <tr><td>评测专项合约测试</td><td><span class="tag good">17 / 17</span></td><td><code>promptEvalMetrics</code>、<code>promptEvaluation</code>、<code>promptEvalCli</code> 全部通过。</td></tr>
-          <tr><td><code>npm test</code></td><td><span class="tag warn">232 通过 / 1 环境失败</span></td><td>唯一失败来自预先存在的 <code>test/packageSurfaceAudit.test.mjs</code>：当前环境缺少 <code>@electron/asar</code>；与本版评测逻辑无关。</td></tr>
+          <tr><td><code>npm test</code></td><td><span class="tag warn">241 通过 / 1 环境失败</span></td><td>共 242 项；唯一失败来自预先存在的 <code>test/packageSurfaceAudit.test.mjs</code>：当前环境缺少 <code>@electron/asar</code>。由本版新增 fixture 引起的仓库表面白名单失败已在独立分支修正。</td></tr>
           <tr><td>主干隔离</td><td><span class="tag good">保持未修改</span></td><td>本版文件只在独立 worktree <code>AIlight-prompt-eval</code> 产生；主 worktree 原有脏改动未被触碰。</td></tr>
         </tbody>
       </table>
