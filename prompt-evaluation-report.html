@@ -148,7 +148,7 @@
       <div class="grid four">
         <div class="card metric-card"><div class="metric-label">真实复测质量分</div><div class="metric">1.000 → 1.000<br>1.000 → 1.000</div><div class="metric-note warn">两轮候选均 0%，低于 3% 门槛</div></div>
         <div class="card metric-card"><div class="metric-label">真实复测硬门禁</div><div class="metric">100% → 100%<br>100% → 100%</div><div class="metric-note good">两轮均无硬门禁失败</div></div>
-        <div class="card metric-card"><div class="metric-label">系统提示词压缩</div><div class="metric">-41.0% / -47.8%</div><div class="metric-note good">中文 / 英文 enhance·concise 字符数下降</div></div>
+        <div class="card metric-card"><div class="metric-label">系统提示词压缩</div><div class="metric">-40.9% / -47.8%</div><div class="metric-note good">中文 / 英文 enhance·concise 字符数下降</div></div>
         <div class="card metric-card"><div class="metric-label">工程测试</div><div class="metric">244 / 245</div><div class="metric-note warn">唯一失败是环境缺少 @electron/asar</div></div>
       </div>
       <div class="callout warn" style="margin-top:16px">
@@ -210,9 +210,9 @@ AND hardGatePassRate, semanticFidelity, anchorRecall, utility,
       <table>
         <thead><tr><th>同一组合</th><th>压缩前字符数</th><th>压缩后字符数</th><th>下降</th><th>验收</th></tr></thead>
         <tbody>
-          <tr><td>中文 · enhance · concise</td><td>2,888</td><td>1,704</td><td><span class="good">-41.0%</span></td><td>协议、事实闸门、原文范围、档位合同和 JSON 合同保留</td></tr>
+          <tr><td>中文 · enhance · concise</td><td>2,888</td><td>1,707</td><td><span class="good">-40.9%</span></td><td>协议、事实闸门、原文范围、档位合同和 JSON 合同保留</td></tr>
           <tr><td>英文 · enhance · concise</td><td>7,973</td><td>4,166</td><td><span class="good">-47.8%</span></td><td>同上，保留英文优先级与 scope gate</td></tr>
-          <tr><td>全量 32 组合</td><td>旧版未逐组合留档</td><td>1,453–4,368</td><td><span class="good">均在预算内</span></td><td>中文 ≤2,000、英文 ≤4,500、每条 ≤40 行</td></tr>
+          <tr><td>全量 32 组合</td><td>旧版未逐组合留档</td><td>1,468–4,368</td><td><span class="good">均在预算内</span></td><td>中文 ≤2,000、英文 ≤4,500、每条 ≤40 行</td></tr>
         </tbody>
       </table>
       <div class="callout" style="margin-top:16px"><strong>解释：</strong>字符下降不是以删除硬约束换取。压缩版仍保留“不执行原文任务、待执行任务保持未完成、链接不是访问证据、非创意严格限定原文范围、创意硬上限 350%、锚点与语气保真、单模型单结果、严格 JSON 输出”等模型决策所需闸门。</div>
