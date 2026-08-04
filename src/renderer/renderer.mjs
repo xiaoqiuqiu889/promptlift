@@ -197,6 +197,7 @@ const copyButton = document.querySelector("#copyButton");
 const applyEditedButton = document.querySelector("#applyEditedButton");
 const regenerateButton = document.querySelector("#regenerateButton");
 const contextMenu = document.querySelector("#contextMenu");
+const currentModeLabel = document.querySelector("#currentModeLabel");
 const currentStyleLabel = document.querySelector("#currentStyleLabel");
 const currentMascotLabel = document.querySelector("#currentMascotLabel");
 const currentShortcutLabel = document.querySelector("#currentShortcutLabel");
@@ -204,6 +205,7 @@ const reviewModeButton = document.querySelector("#reviewModeButton");
 const reviewModeLabel = document.querySelector("#reviewModeLabel");
 const startupLabel = document.querySelector("#startupLabel");
 const settingsPanel = document.querySelector("#settingsPanel");
+const modePanel = document.querySelector("#modePanel");
 const stylePanel = document.querySelector("#stylePanel");
 const systemPromptPanel = document.querySelector("#systemPromptPanel");
 const mascotPanel = document.querySelector("#mascotPanel");
@@ -233,16 +235,9 @@ const compactModeBadge = document.querySelector("#compactModeBadge");
 const compactFeedback = document.querySelector("#compactFeedback");
 const compactFeedbackText = document.querySelector("#compactFeedbackText");
 const compactCancelButton = document.querySelector("#compactCancelButton");
-const hubHeading = document.querySelector("#hubHeading");
-const hubModeValue = document.querySelector("#hubModeValue");
-const hubStyleValue = document.querySelector("#hubStyleValue");
-const hubReviewValue = document.querySelector("#hubReviewValue");
-const hubReviewQuick = document.querySelector("#hubReviewQuick");
 const hubPrimaryAction = document.querySelector("#hubPrimaryAction");
 const hubPrimaryActionTitle = document.querySelector("#hubPrimaryActionTitle");
-const hubPrimaryActionHint = document.querySelector("#hubPrimaryActionHint");
 const hubPrivacyNote = document.querySelector("#hubPrivacyNote");
-const hubSceneSelector = document.querySelector("#hubSceneSelector");
 const hubTaskState = document.querySelector("#hubTaskState");
 const hubModelStateLabel = document.querySelector("#hubModelStateLabel");
 const hubModelCheckLabel = document.querySelector("#hubModelCheckLabel");
@@ -509,7 +504,7 @@ function updateStyleLabel() {
     button.classList.toggle("is-active", selected);
     button.setAttribute("aria-pressed", String(selected));
   });
-  updateHubSummary();
+  updateHubPresentation();
 }
 
 function systemPromptEntryKey(mode, style) {
@@ -660,7 +655,7 @@ function updateModeLabel() {
   compactModeBadge.textContent = presentation.badge;
   compactModeBadge.setAttribute("aria-label", "当前场景：" + (MODE_LABELS[state.mode] ?? MODE_LABELS.enhance));
   updateStyleLabel();
-  updateHubSummary();
+  updateHubPresentation();
 }
 
 function updateShortcutPresentation() {
@@ -806,41 +801,33 @@ function setMascot(mascot, { persist = true } = {}) {
   if (persist) {
     persistMascot(normalized);
   }
-  updateHubSummary();
+  updateHubPresentation();
 }
 
 function updateReviewModeLabel() {
   reviewModeLabel.textContent = state.reviewMode ? "已开启" : "已关闭";
   reviewModeButton.setAttribute("aria-checked", String(state.reviewMode));
   reviewModeButton.classList.toggle("is-active", state.reviewMode);
-  if (hubReviewQuick) {
-    hubReviewQuick.setAttribute("aria-checked", String(state.reviewMode));
-    hubReviewQuick.classList.toggle("is-active", state.reviewMode);
-  }
-  updateHubSummary();
+  updateHubPresentation();
 }
 
 function updateStartupLabel() {
   startupLabel.textContent = state.startup ? "已开启" : "已关闭";
-  updateHubSummary();
+  updateHubPresentation();
 }
 
-function updateHubSummary() {
+function updateHubPresentation() {
   const modeLabel = MODE_LABELS[state.mode] ?? MODE_LABELS.enhance;
   const styleLabel = MODE_STYLE_PRESENTATION[state.mode]?.[state.style]?.label
     ?? STYLE_LABELS[state.style]
     ?? STYLE_LABELS.concise;
-  const reviewLabel = state.reviewMode ? "审阅后应用" : "直接回填";
   const mascotLabel = MASCOTS[state.mascot]?.label ?? MASCOTS.cockapoo.label;
   const startupText = state.startup ? "已开启" : "已关闭";
-  if (hubModeValue) {
-    hubModeValue.textContent = modeLabel;
+  if (currentModeLabel) {
+    currentModeLabel.textContent = modeLabel;
   }
-  if (hubStyleValue) {
-    hubStyleValue.textContent = styleLabel;
-  }
-  if (hubReviewValue) {
-    hubReviewValue.textContent = reviewLabel;
+  if (currentStyleLabel) {
+    currentStyleLabel.textContent = styleLabel;
   }
   if (hubMascotValue) {
     hubMascotValue.textContent = `小精灵：${mascotLabel}`;
@@ -859,15 +846,10 @@ function updateHubSummary() {
 function updateHubOperationState() {
   if (!hubPrimaryAction
     || !hubPrimaryActionTitle
-    || !hubPrimaryActionHint
     || !hubPrivacyNote
     || !hubTaskState) {
     return;
   }
-  const modeLabel = MODE_LABELS[state.mode] ?? MODE_LABELS.enhance;
-  const styleLabel = MODE_STYLE_PRESENTATION[state.mode]?.[state.style]?.label
-    ?? STYLE_LABELS[state.style]
-    ?? STYLE_LABELS.concise;
   const pendingReview = hasPendingReview();
   const phaseLabels = {
     idle: "就绪",
@@ -888,11 +870,6 @@ function updateHubOperationState() {
         : state.phase === "success"
           ? "继续优化当前输入"
           : "优化当前输入";
-  hubPrimaryActionHint.textContent = state.phase === "loading"
-    ? "原文保持不变，请稍候"
-    : pendingReview
-      ? "返回本次结果，不会重新生成"
-      : `${modeLabel} · ${styleLabel}`;
   hubPrivacyNote.textContent = state.reviewMode
     ? "只处理当前输入 · 不保存表达历史 · 先审阅再决定回填"
     : "只处理当前输入 · 不保存表达历史 · 通过校验后安全回填";
@@ -1162,6 +1139,7 @@ function showPanel(panel) {
   root.dataset.surface = "panel";
   contextMenu.hidden = true;
   settingsPanel.hidden = panel !== settingsPanel;
+  modePanel.hidden = panel !== modePanel;
   stylePanel.hidden = panel !== stylePanel;
   systemPromptPanel.hidden = panel !== systemPromptPanel;
   mascotPanel.hidden = panel !== mascotPanel;
@@ -1184,12 +1162,12 @@ function showHub(hub = state.hub) {
   root.dataset.surface = "hub";
   contextMenu.hidden = false;
   settingsPanel.hidden = true;
+  modePanel.hidden = true;
   stylePanel.hidden = true;
   systemPromptPanel.hidden = true;
   mascotPanel.hidden = true;
   shortcutPanel.hidden = true;
   helpPanel.hidden = true;
-  hubHeading.textContent = HUB_LABELS[normalizedHub];
   document.querySelectorAll("[data-hub-page]").forEach((page) => {
     page.hidden = page.dataset.hubPage !== normalizedHub;
   });
@@ -1208,16 +1186,6 @@ function showContextMenu() {
   showHub(state.hub);
 }
 
-function focusSceneSelector() {
-  showHub("process");
-  requestAnimationFrame(() => {
-    hubSceneSelector?.scrollIntoView({ block: "center", behavior: "smooth" });
-    const activeScene = hubSceneSelector?.querySelector(".hub-scene-choice.is-active")
-      ?? hubSceneSelector?.querySelector(".hub-scene-choice");
-    activeScene?.focus({ preventScroll: true });
-  });
-}
-
 function hidePanels({ collapse = true } = {}) {
   if (state.shortcutRecording) {
     state.shortcutRecording = false;
@@ -1227,6 +1195,7 @@ function hidePanels({ collapse = true } = {}) {
   root.dataset.surface = "task";
   contextMenu.hidden = true;
   settingsPanel.hidden = true;
+  modePanel.hidden = true;
   stylePanel.hidden = true;
   systemPromptPanel.hidden = true;
   mascotPanel.hidden = true;
@@ -2026,12 +1995,6 @@ contextMenu.addEventListener("click", (event) => {
     showHub(hubTarget);
     return;
   }
-  const hubMode = event.target.closest("[data-hub-mode]")?.dataset.hubMode;
-  if (hubMode) {
-    state.hub = "process";
-    void handleMode(hubMode, { returnToMenu: true });
-    return;
-  }
   const action = event.target.closest("[data-menu-action]")?.dataset.menuAction;
   if (!action) {
     return;
@@ -2043,7 +2006,7 @@ contextMenu.addEventListener("click", (event) => {
   if (action === "configure") {
     showPanel(settingsPanel);
   } else if (action === "scenes") {
-    focusSceneSelector();
+    showPanel(modePanel);
   } else if (action === "mascot") {
     showPanel(mascotPanel);
   } else if (action === "shortcut") {
@@ -2079,6 +2042,14 @@ contextMenu.addEventListener("keydown", (event) => {
   event.preventDefault();
   showHub(tabs[nextIndex].dataset.hubTarget);
   tabs[nextIndex].focus();
+});
+
+modePanel.addEventListener("click", (event) => {
+  const hubMode = event.target.closest("[data-hub-mode]")?.dataset.hubMode;
+  if (hubMode) {
+    state.hub = "process";
+    void handleMode(hubMode, { returnToMenu: true });
+  }
 });
 
 stylePanel.addEventListener("click", (event) => {
@@ -2143,7 +2114,7 @@ petCard.addEventListener("contextmenu", (event) => {
   void toggleWorkMode();
 });
 document.addEventListener("click", (event) => {
-  if (!event.target.closest("#contextMenu, #settingsPanel, #stylePanel, #systemPromptPanel, #mascotPanel, #shortcutPanel, #helpPanel, #petCard")) {
+  if (!event.target.closest("#contextMenu, #settingsPanel, #modePanel, #stylePanel, #systemPromptPanel, #mascotPanel, #shortcutPanel, #helpPanel, #petCard")) {
     hidePanels();
   }
 });

@@ -142,40 +142,26 @@
           </div>
         </section>
 
-      <nav id="contextMenu" class="context-menu app-hub" hidden aria-labelledby="hubHeading">
-        <header class="hub-heading">
-          <div>
-            <span class="panel-kicker">PROMPT LIFT</span>
-            <strong id="hubHeading">处理</strong>
-          </div>
-          <span id="hubTaskState" class="hub-heading-note hub-task-state" aria-live="polite" data-state="idle">就绪</span>
-        </header>
-
+      <nav id="contextMenu" class="context-menu app-hub" hidden aria-label="Prompt Lift 功能">
         <section id="hubPageProcess" class="hub-page" data-hub-page="process" role="tabpanel" aria-labelledby="hubTabProcess">
           <button id="hubPrimaryAction" class="hub-primary-action" type="button" aria-busy="false">
             <span class="hub-primary-icon" aria-hidden="true">✦</span>
             <span>
               <strong id="hubPrimaryActionTitle">优化当前输入</strong>
-              <small id="hubPrimaryActionHint">AI 提示词 · 清晰直达</small>
             </span>
-            <span class="hub-primary-arrow" aria-hidden="true">→</span>
+            <span class="hub-primary-tail">
+              <span id="hubTaskState" class="hub-primary-state" aria-live="polite" data-state="idle">就绪</span>
+              <span class="hub-primary-arrow" aria-hidden="true">→</span>
+            </span>
           </button>
           <p id="hubPrivacyNote" class="hub-privacy-note">只处理当前输入 · 不保存表达历史 · 通过校验后安全回填</p>
-          <div class="hub-summary" aria-label="当前处理状态">
-            <button class="hub-summary-action" type="button" data-menu-action="style"><small>档位</small><strong id="hubStyleValue">清晰直达</strong></button>
-            <button class="hub-summary-action" type="button" data-menu-action="scenes"><small>场景</small><strong id="hubModeValue">AI 提示词</strong></button>
-            <button id="hubReviewQuick" class="hub-summary-action" type="button" data-menu-action="review" role="switch" aria-checked="false"><small>应用</small><strong id="hubReviewValue">直接回填</strong></button>
+          <p class="hub-section-label">表达设置</p>
+          <div id="hubExpressionSettings" class="hub-group hub-expression-settings">
+            <button class="hub-row" type="button" data-menu-action="scenes"><span class="hub-row-icon">◇</span><span>表达场景<small>决定表达对象与优化目标</small></span><span class="hub-row-tail"><span id="currentModeLabel" class="menu-value">AI 提示词</span><span class="hub-chevron" aria-hidden="true">›</span></span></button>
+            <button class="hub-row" type="button" data-menu-action="style"><span class="hub-row-icon">✦</span><span>优化档位<small>控制保真、简洁、专业与创意程度</small></span><span class="hub-row-tail"><span id="currentStyleLabel" class="menu-value">清晰直达</span><span class="hub-chevron" aria-hidden="true">›</span></span></button>
           </div>
-          <p class="hub-section-label">选择表达场景</p>
-          <div id="hubSceneSelector" class="hub-scene-grid" aria-label="选择表达场景">
-            <button class="hub-scene-choice" type="button" data-hub-mode="enhance"><span class="hub-row-icon">AI</span><span><strong>AI 提示词</strong><small>目标与约束</small></span></button>
-            <button class="hub-scene-choice" type="button" data-hub-mode="upward-communication"><span class="hub-row-icon">上</span><span><strong>向上沟通</strong><small>结论与行动</small></span></button>
-            <button class="hub-scene-choice" type="button" data-hub-mode="chat-polish"><span class="hub-row-icon">客</span><span><strong>用户沟通</strong><small>安全与礼貌</small></span></button>
-            <button class="hub-scene-choice" type="button" data-hub-mode="ppt-copy"><span class="hub-row-icon">P</span><span><strong>PPT 文案</strong><small>标题与层级</small></span></button>
-          </div>
-          <p class="hub-section-label">处理设置</p>
+          <p class="hub-section-label">应用与规则</p>
           <div class="hub-group">
-            <button class="hub-row" type="button" data-menu-action="style"><span class="hub-row-icon">✦</span><span>优化档位<small>控制保真、简洁、专业与创意程度</small></span><span id="currentStyleLabel" class="menu-value">清晰直达</span></button>
             <button id="reviewModeButton" class="hub-row" role="switch" type="button" data-menu-action="review" aria-checked="false"><span class="hub-row-icon">○</span><span>审阅后应用<small>开启后先看差异，再决定是否回填</small></span><span id="reviewModeLabel" class="menu-value">已关闭</span></button>
             <button id="systemPromptQuickAction" class="hub-row" type="button" data-menu-action="system-prompts"><span class="hub-row-icon">≡</span><span>系统提示词<small>查看当前档位约束，并编辑本机自定义补充规则</small></span><span class="menu-value">查看与编辑</span></button>
           </div>
@@ -304,6 +290,21 @@
           <button id="checkModelButton" class="text-button" type="button">检查并保存</button>
           <button id="saveModelButton" class="small-primary" type="button">保存配置</button>
         </div>
+      </section>
+
+      <section id="modePanel" class="floating-panel mode-panel" hidden aria-label="表达场景" role="dialog">
+        <div class="panel-heading">
+          <div>
+            <span class="panel-kicker">EXPRESSION SCENE</span>
+            <strong>选择表达场景</strong>
+          </div>
+          <button class="panel-close" type="button" data-close-panel="modePanel" aria-label="返回处理">‹</button>
+        </div>
+        <p class="panel-note">只选择这段话要表达给谁；选择后自动返回处理页。</p>
+        <button class="mode-option" type="button" data-hub-mode="enhance" aria-pressed="false"><span class="mode-option-icon">AI</span><span><strong>AI 提示词</strong><small>明确目标、上下文、约束与输出格式</small></span><span class="mode-option-check" aria-hidden="true">✓</span></button>
+        <button class="mode-option" type="button" data-hub-mode="upward-communication" aria-pressed="false"><span class="mode-option-icon">上</span><span><strong>向上沟通</strong><small>结论前置，理清依据、风险与下一步</small></span><span class="mode-option-check" aria-hidden="true">✓</span></button>
+        <button class="mode-option" type="button" data-hub-mode="chat-polish" aria-pressed="false"><span class="mode-option-icon">客</span><span><strong>用户沟通</strong><small>表达更安全、礼貌、清晰并可执行</small></span><span class="mode-option-check" aria-hidden="true">✓</span></button>
+        <button class="mode-option" type="button" data-hub-mode="ppt-copy" aria-pressed="false"><span class="mode-option-icon">P</span><span><strong>PPT 文案</strong><small>提炼结论型标题与单页内容层级</small></span><span class="mode-option-check" aria-hidden="true">✓</span></button>
       </section>
 
       <section id="helpPanel" class="floating-panel help-panel" hidden aria-label="安全与使用说明" role="dialog">

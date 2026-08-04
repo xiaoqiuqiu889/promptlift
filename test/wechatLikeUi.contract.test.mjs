@@ -7,7 +7,7 @@ const read = (relativePath) => readFileSync(
   "utf8",
 );
 
-test("round 1 exposes three task-aligned hubs with scenes merged into processing", () => {
+test("round 1 exposes three task-aligned hubs with one scene entry in processing", () => {
   const html = read("src/renderer/index.html");
   const targets = [...html.matchAll(/data-hub-target="([^"]+)"/g)]
     .map((match) => match[1]);
@@ -19,7 +19,8 @@ test("round 1 exposes three task-aligned hubs with scenes merged into processing
   for (const hub of targets) {
     assert.match(html, new RegExp(`data-hub-page="${hub}"`));
   }
-  assert.match(html, /data-hub-page="process"[\s\S]*id="hubSceneSelector"/);
+  assert.match(html, /data-hub-page="process"[\s\S]*id="hubExpressionSettings"/);
+  assert.match(html, /data-hub-page="process"[\s\S]*data-menu-action="scenes"/);
   assert.doesNotMatch(html, /data-hub-page="scenes"/);
   assert.doesNotMatch(html, />\s*(?:聊天|朋友圈|支付|小程序)\s*</u);
 });
@@ -59,9 +60,9 @@ test("round 4 provides live status overview and bounded safety guidance", () => 
   const renderer = read("src/renderer/renderer.mjs");
 
   for (const id of [
-    "hubModeValue",
-    "hubStyleValue",
-    "hubReviewValue",
+    "currentModeLabel",
+    "currentStyleLabel",
+    "hubTaskState",
     "hubMascotValue",
     "hubStartupValue",
     "helpPanel",
@@ -75,7 +76,7 @@ test("round 4 provides live status overview and bounded safety guidance", () => 
   ]) {
     assert.match(html, new RegExp(promise));
   }
-  assert.match(renderer, /function updateHubSummary\(/);
+  assert.match(renderer, /function updateHubPresentation\(/);
   for (const updater of [
     "updateStyleLabel",
     "updateModeLabel",
@@ -87,7 +88,7 @@ test("round 4 provides live status overview and bounded safety guidance", () => 
       renderer.indexOf(`function ${updater}`),
       renderer.indexOf("\n}", renderer.indexOf(`function ${updater}`)) + 2,
     );
-    assert.match(body, /updateHubSummary\(\)/);
+    assert.match(body, /updateHubPresentation\(\)/);
   }
 });
 

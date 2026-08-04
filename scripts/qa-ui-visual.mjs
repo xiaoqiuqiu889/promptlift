@@ -242,6 +242,7 @@ function geometryAudit() {
   const overlaySelectors = [
     "#contextMenu",
     "#settingsPanel",
+    "#modePanel",
     "#stylePanel",
     "#systemPromptPanel",
     "#mascotPanel",
@@ -315,7 +316,7 @@ function geometryAudit() {
       });
     }
   }
-  for (const selector of ["#contextMenu", "#settingsPanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel", "#shortcutPanel", "#helpPanel"]) {
+  for (const selector of ["#contextMenu", "#settingsPanel", "#modePanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel", "#shortcutPanel", "#helpPanel"]) {
     const element = document.querySelector(selector);
     if (isVisible(element) && !inHorizontalViewport(rectOf(element))) {
       failures.push({
@@ -340,7 +341,7 @@ function geometryAudit() {
       againstSelector: "document.clientBox",
     });
   }
-  for (const selector of ["#settingsPanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel", "#shortcutPanel"]) {
+  for (const selector of ["#settingsPanel", "#modePanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel", "#shortcutPanel"]) {
     const panel = document.querySelector(selector);
     if (!isVisible(panel)) {
       continue;
@@ -597,7 +598,7 @@ function readPageState() {
     dragging: root?.dataset.dragging || "false",
     viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
     visible: Object.fromEntries([
-      "#contextMenu", "#settingsPanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel", "#shortcutPanel", "#helpPanel", "#needsInputPanel", "#resultPanel",
+      "#contextMenu", "#settingsPanel", "#modePanel", "#stylePanel", "#systemPromptPanel", "#mascotPanel", "#shortcutPanel", "#helpPanel", "#needsInputPanel", "#resultPanel",
       "#compactFeedback", "#compactCancelButton", "#collapseButton", "#closeButton",
     ].map((selector) => [selector, visible(selector)])),
     controls: Object.fromEntries([
@@ -1698,12 +1699,12 @@ async function runElectron(electron, args) {
       const pendingHub = await readOnly(function pendingReviewHubRead() {
         return {
           title: document.querySelector("#hubPrimaryActionTitle")?.textContent?.trim() || "",
-          subtitle: document.querySelector("#hubPrimaryActionHint")?.textContent?.trim() || "",
+          state: document.querySelector("#hubTaskState")?.textContent?.trim() || "",
           policy: document.querySelector("#hubPrivacyNote")?.textContent?.trim() || "",
         };
       });
       if (pendingHub.title !== "继续审阅"
-        || !pendingHub.subtitle.includes("不会重新生成")
+        || pendingHub.state !== "待审阅"
         || !pendingHub.policy.includes("先审阅再决定回填")) {
         throw new Error("pending review hub did not expose the safe resume path: " + JSON.stringify(pendingHub));
       }
@@ -1791,9 +1792,9 @@ async function runElectron(electron, args) {
             throw new Error("mock quit unexpectedly destroyed QA window");
           }
         } else if (action === "scenes") {
-          await waitForState({ view: "expanded", hub: "process", visible: { "#contextMenu": true } });
-          await takeSnapshot("context-scenes-merged-visible", "context menu → process scene selector");
-          await pressEscape("close process context menu");
+          await waitForState({ view: "expanded", hub: "process", visible: { "#modePanel": true, "#contextMenu": false } });
+          await takeSnapshot("context-scenes-panel-visible", "context menu → expression scene list");
+          await clickAt("[data-close-panel=\"modePanel\"]", "scene list → process hub");
         } else if (action === "startup" || action === "review") {
           await waitForState({ view: "expanded", visible: { "#contextMenu": true } });
           await takeSnapshot("context-startup-visible", "context menu → startup");
@@ -1866,8 +1867,8 @@ async function runElectron(electron, args) {
     await runFlow("right-click-mode-colors", async () => {
       await compactReady(COMPACT_SIZES[1], {}, true);
       await rightClickAvatar("open process hub for right-click baseline");
-      await menuAction("scenes", "context menu → merged scene selector");
-      await waitForState({ view: "expanded", hub: "process", visible: { "#contextMenu": true } });
+      await menuAction("scenes", "context menu → expression scene list");
+      await waitForState({ view: "expanded", hub: "process", visible: { "#modePanel": true, "#contextMenu": false } });
       await clickAt("[data-hub-mode=\"ppt-copy\"]", "set right-click baseline → ppt-copy");
       await waitForState({
         view: "expanded",
@@ -1920,8 +1921,8 @@ async function runElectron(electron, args) {
       for (const mode of WORK_MODES) {
         await compactReady(COMPACT_SIZES[1], {}, true, { reviewMode: false });
         await rightClickAvatar("open process hub for tier labels: " + mode);
-        await menuAction("scenes", "context menu → merged scenes for tier labels: " + mode);
-        await waitForState({ view: "expanded", hub: "process", visible: { "#contextMenu": true } });
+        await menuAction("scenes", "context menu → expression scenes for tier labels: " + mode);
+        await waitForState({ view: "expanded", hub: "process", visible: { "#modePanel": true, "#contextMenu": false } });
         await clickAt("[data-hub-mode=\"" + mode + "\"]", "scene option for tier labels → " + mode);
         await waitForState({
           view: "expanded",

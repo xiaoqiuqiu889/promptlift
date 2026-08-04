@@ -7,11 +7,10 @@ const read = (relativePath) => readFileSync(
   "utf8",
 );
 
-test("scene selector is merged into the first processing tab without a standalone tab", () => {
+test("scene and tier are one quiet settings group without duplicated scene cards", () => {
   const html = read("src/renderer/index.html");
   const renderer = read("src/renderer/renderer.mjs");
 
-  assert.doesNotMatch(html, /id="modePanel"/);
   assert.doesNotMatch(html, />工作模式</);
   assert.doesNotMatch(html, /id="hubTabScenes"/);
   assert.doesNotMatch(html, /id="hubPageScenes"/);
@@ -19,14 +18,23 @@ test("scene selector is merged into the first processing tab without a standalon
     html.indexOf('data-hub-page="process"'),
     html.indexOf('data-hub-page="services"'),
   );
-  assert.match(processPage, /id="hubSceneSelector"/);
-  assert.match(processPage, /选择表达场景/);
-  assert.equal((processPage.match(/data-hub-mode=/g) ?? []).length, 4);
-  assert.match(html, /data-menu-action="scenes"/);
-  assert.match(renderer, /action === "scenes"[\s\S]*focusSceneSelector\(\)/);
+  const expressionSettings = processPage.slice(
+    processPage.indexOf('id="hubExpressionSettings"'),
+    processPage.indexOf("</div>", processPage.indexOf('id="hubExpressionSettings"')) + 6,
+  );
+  assert.match(processPage, /表达设置/);
+  assert.equal((expressionSettings.match(/<button class="hub-row"/g) ?? []).length, 2);
+  assert.match(expressionSettings, /data-menu-action="scenes"/);
+  assert.match(expressionSettings, /data-menu-action="style"/);
+  assert.match(expressionSettings, /id="currentModeLabel"/);
+  assert.match(expressionSettings, /id="currentStyleLabel"/);
+  assert.doesNotMatch(processPage, /id="hubSceneSelector"|hub-scene-choice|data-hub-mode=/);
+  assert.match(html, /id="modePanel"/);
+  assert.equal((html.match(/class="mode-option"[^>]*data-hub-mode=/g) ?? []).length, 4);
+  assert.match(renderer, /action === "scenes"[\s\S]*showPanel\(modePanel\)/);
   assert.doesNotMatch(renderer, /showHub\("scenes"\)/);
   assert.doesNotMatch(renderer, /state\.hub\s*=\s*"scenes"/);
-  assert.doesNotMatch(renderer, /showPanel\(modePanel\)/);
+  assert.doesNotMatch(renderer, /focusSceneSelector/);
 });
 
 test("expanded UI defaults to a readable size and typography scale", () => {

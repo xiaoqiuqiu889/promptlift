@@ -26,7 +26,7 @@ test("repository publishes one runnable archive without expanded runtime or gene
     "deliverables/SHA256SUMS.txt",
   ]);
   assert.deepEqual(evidence, []);
-  assert.deepEqual(qaDocuments, ["qa/R7_ACCEPTANCE.md"]);
+  assert.deepEqual(qaDocuments, ["qa/R8_ACCEPTANCE.md"]);
   assert.equal(tracked.includes("AGENTS.md"), false);
 });
 
