@@ -36,105 +36,41 @@ const COMPACT_SIZE_STORAGE_KEY = "prompt-pet.compact-size.v1";
 const REVIEW_MODE_STORAGE_KEY = "prompt-pet.review-mode.v1";
 const MASCOT_STORAGE_KEY = "prompt-pet.mascot.v1";
 const STYLE_LABELS = Object.freeze({
-  faithful: "原意守护",
-  concise: "清晰直达",
-  professional: "专业展开",
-  creative: "创意策划",
   workbuddy: "WorkBuddy",
 });
 const MODE_STYLE_PRESENTATION = Object.freeze({
   enhance: Object.freeze({
-    faithful: Object.freeze({
-      label: "原意守护",
-      description: "只澄清目标与结构，不新增范围、假设或承诺",
-    }),
-    concise: Object.freeze({
-      label: "清晰直达",
-      description: "去除重复，补齐关键约束，用更短路径表达",
-    }),
-    professional: Object.freeze({
-      label: "专业展开",
-      description: "重组原文已有步骤、标准与边界，缺失项保持待确认",
-    }),
-    creative: Object.freeze({
-      label: "创意策划",
-      description: "在专业完整基础上增加可控创意方向与备选方案",
-    }),
     workbuddy: Object.freeze({
       label: "WorkBuddy",
-      description: "复刻 WorkBuddy 提示词工程：自然文本直出，只做轻量清理",
+      description: "识别会话上下文，补齐执行标准，信息足够时直接给出可执行请求",
     }),
   }),
   "upward-communication": Object.freeze({
-    faithful: Object.freeze({
-      label: "事实直报",
-      description: "保留事实、数字与原结论，不添加未经确认的判断",
-    }),
-    concise: Object.freeze({
-      label: "结论先行",
-      description: "结论前置，压缩背景，明确影响与下一步",
-    }),
-    professional: Object.freeze({
-      label: "决策建议",
-      description: "组织结论、依据、风险、选项与所需决策",
-    }),
-    creative: Object.freeze({
-      label: "影响力表达",
-      description: "在保真基础上增强叙事节奏与说服力，不夸大承诺",
-    }),
     workbuddy: Object.freeze({
       label: "WorkBuddy",
-      description: "按 WorkBuddy 骨架扩写结论、依据、风险、支持诉求和下一步",
+      description: "结论先行，组织依据、影响、风险、支持诉求和下一步",
     }),
   }),
   "chat-polish": Object.freeze({
-    faithful: Object.freeze({
-      label: "安全保真",
-      description: "保留原意与责任边界，不扩大承诺或推断",
-    }),
-    concise: Object.freeze({
-      label: "友好清晰",
-      description: "更礼貌、更易读，直接说明重点与下一步",
-    }),
-    professional: Object.freeze({
-      label: "专业服务",
-      description: "使用稳定、克制、可执行的服务沟通结构",
-    }),
-    creative: Object.freeze({
-      label: "共情化解",
-      description: "先承接情绪再化解问题，仍保持事实与边界",
-    }),
     workbuddy: Object.freeze({
       label: "WorkBuddy",
-      description: "按 WorkBuddy 骨架增强礼貌、清晰度、边界和下一步",
+      description: "增强礼貌与清晰度，同时守住事实、承诺、责任和下一步",
     }),
   }),
   "ppt-copy": Object.freeze({
-    faithful: Object.freeze({
-      label: "原文压缩",
-      description: "压缩原文但保留事实、数字、逻辑与结论",
-    }),
-    concise: Object.freeze({
-      label: "结论标题",
-      description: "提炼结论型标题与一页最必要的信息",
-    }),
-    professional: Object.freeze({
-      label: "结构化叙事",
-      description: "构造成因、判断、证据与行动的清晰层级",
-    }),
-    creative: Object.freeze({
-      label: "创意提案",
-      description: "在事实不变前提下增加有记忆点的提案表达",
-    }),
     workbuddy: Object.freeze({
       label: "WorkBuddy",
-      description: "按 WorkBuddy 骨架生成结论标题、单页主张和支持层级",
+      description: "生成结论型标题、单页主张和清晰支持层级",
     }),
   }),
 });
 const LEGACY_STYLE_ALIASES = Object.freeze({
-  balanced: "concise",
-  detailed: "professional",
+  balanced: "workbuddy",
+  detailed: "workbuddy",
+  faithful: "workbuddy",
+  concise: "workbuddy",
+  professional: "workbuddy",
+  creative: "workbuddy",
 });
 const MASCOTS = Object.freeze({
   cockapoo: Object.freeze({
@@ -322,11 +258,10 @@ function persistReviewMode(enabled) {
 }
 
 function normalizeStyle(style) {
-  if (typeof style !== "string") {
-    return "concise";
-  }
-  const normalized = LEGACY_STYLE_ALIASES[style] ?? style;
-  return STYLE_LABELS[normalized] ? normalized : "concise";
+  const normalized = typeof style === "string"
+    ? LEGACY_STYLE_ALIASES[style] ?? style
+    : "workbuddy";
+  return STYLE_LABELS[normalized] ? normalized : "workbuddy";
 }
 
 function normalizeMascot(mascot) {
@@ -358,7 +293,7 @@ const state = {
   target: undefined,
   requestId: undefined,
   cancelled: false,
-  style: "concise",
+  style: "workbuddy",
   mode: "enhance",
   mascot: readMascot(),
   startup: false,
@@ -376,7 +311,7 @@ const state = {
   reviewMode: readReviewMode(),
   systemPrompts: [],
   systemPromptMode: "enhance",
-  systemPromptStyle: "concise",
+  systemPromptStyle: "workbuddy",
   systemPromptDirty: false,
   shortcut: DEFAULT_SHORTCUT,
   shortcutDraft: DEFAULT_SHORTCUT,
@@ -476,7 +411,7 @@ function updateExpressionSummary() {
   expressionSummaryMode.textContent = MODE_LABELS[resultMode] ?? MODE_LABELS.enhance;
   expressionSummaryStyle.textContent = MODE_STYLE_PRESENTATION[resultMode]?.[resultStyle]?.label
     ?? STYLE_LABELS[resultStyle]
-    ?? STYLE_LABELS.concise;
+    ?? STYLE_LABELS.workbuddy;
   expressionSummaryLength.textContent = `${state.originalText.length} → ${state.enhancedText.length}`;
   expressionSummarySafety.textContent = resultStyle === "workbuddy"
     ? "WorkBuddy 直出"
@@ -579,11 +514,9 @@ function updateStyleLabel() {
     ?? MODE_STYLE_PRESENTATION.enhance;
   currentStyleLabel.textContent = presentation[state.style]?.label
     ?? STYLE_LABELS[state.style]
-    ?? STYLE_LABELS.concise;
+    ?? STYLE_LABELS.workbuddy;
   if (promptProtocolLabel) {
-    promptProtocolLabel.textContent = state.style === "workbuddy"
-      ? "WorkBuddy 协议 · 当前模型 · 自然文本直出 · 轻量清理"
-      : "系统提示词规范 v2 · 原意、事实与语言保护";
+    promptProtocolLabel.textContent = "WorkBuddy 协议 · 当前模型 · 自然文本直出 · 场景化判断";
   }
   document.querySelectorAll(".style-option").forEach((button) => {
     const item = presentation[button.dataset.style];
@@ -636,11 +569,11 @@ function renderSystemPromptPanel() {
     const sceneLabel = MODE_LABELS[state.systemPromptMode] ?? MODE_LABELS.enhance;
     const tierLabel = presentation[state.systemPromptStyle]?.label
       ?? STYLE_LABELS[state.systemPromptStyle]
-      ?? STYLE_LABELS.concise;
+      ?? STYLE_LABELS.workbuddy;
     systemPromptSelectionLabel.textContent = `${sceneLabel} · ${tierLabel}`;
   }
   if (!entry) {
-    systemPromptCurrent.textContent = "正在读取当前场景与档位的专属系统提示词…";
+    systemPromptCurrent.textContent = "正在读取当前场景的 WorkBuddy 系统提示词…";
     if (!state.systemPromptDirty) {
       systemPromptCustom.value = "";
     }
@@ -658,7 +591,7 @@ function renderSystemPromptPanel() {
   systemPromptStatus.textContent = state.systemPromptDirty
     ? "已修改但尚未保存；保存后仅影响本机当前用户。"
     : entry.customPrompt
-      ? "当前档位已使用本机自定义补充规则。"
+      ? "当前场景已使用本机自定义补充规则。"
       : "当前使用默认系统提示词。";
 }
 
@@ -673,26 +606,26 @@ async function loadSystemPrompts() {
 
 function openSystemPromptPanel() {
   state.systemPromptMode = state.mode;
-  state.systemPromptStyle = state.style;
+  state.systemPromptStyle = "workbuddy";
   state.systemPromptDirty = false;
   showPanel(systemPromptPanel);
   renderSystemPromptPanel();
   if (!state.systemPrompts.length) {
-    systemPromptStatus.textContent = "正在读取当前档位…";
+    systemPromptStatus.textContent = "正在读取当前场景…";
     void loadSystemPrompts().catch((error) => {
       systemPromptStatus.textContent = errorMessage(error, "系统提示词读取失败，请稍后重试。" );
     });
   }
 }
 
-function selectSystemPrompt(mode, style) {
+function selectSystemPrompt(mode) {
   if (state.systemPromptDirty) {
-    systemPromptStatus.textContent = "请先保存或恢复当前编辑，再切换场景或优化档位。";
+    systemPromptStatus.textContent = "请先保存或恢复当前编辑，再切换场景。";
     renderSystemPromptPanel();
     return;
   }
   state.systemPromptMode = mode;
-  state.systemPromptStyle = style;
+  state.systemPromptStyle = "workbuddy";
   renderSystemPromptPanel();
 }
 
@@ -715,8 +648,8 @@ async function handleSaveSystemPrompt() {
     state.systemPromptDirty = false;
     renderSystemPromptPanel();
     systemPromptStatus.textContent = saved?.customPrompt
-      ? "已保存；这条规则只会作用于本机当前用户和该模式×档位。"
-      : "已恢复默认；这条档位不再使用自定义规则。";
+      ? "已保存；这条规则只会作用于本机当前用户和该场景。"
+      : "已恢复默认；该场景不再使用自定义规则。";
   } catch (error) {
     renderSystemPromptPanel();
     systemPromptStatus.textContent = errorMessage(error, "系统提示词保存失败，请稍后重试。" );
@@ -927,7 +860,7 @@ function updateHubPresentation() {
   const modeLabel = MODE_LABELS[state.mode] ?? MODE_LABELS.enhance;
   const styleLabel = MODE_STYLE_PRESENTATION[state.mode]?.[state.style]?.label
     ?? STYLE_LABELS[state.style]
-    ?? STYLE_LABELS.concise;
+    ?? STYLE_LABELS.workbuddy;
   const mascotLabel = MASCOTS[state.mascot]?.label ?? MASCOTS.cockapoo.label;
   const startupText = state.startup ? "已开启" : "已关闭";
   if (currentModeLabel) {
@@ -2252,13 +2185,7 @@ stylePanel.addEventListener("click", (event) => {
 
 viewSystemPromptButton.addEventListener("click", openSystemPromptPanel);
 systemPromptModeSelect.addEventListener("change", () => {
-  selectSystemPrompt(systemPromptModeSelect.value, state.systemPromptStyle);
-});
-systemPromptPanel.addEventListener("click", (event) => {
-  const style = event.target.closest("[data-system-style]")?.dataset.systemStyle;
-  if (style) {
-    selectSystemPrompt(state.systemPromptMode, style);
-  }
+  selectSystemPrompt(systemPromptModeSelect.value);
 });
 systemPromptCustom.addEventListener("input", () => {
   state.systemPromptDirty = true;

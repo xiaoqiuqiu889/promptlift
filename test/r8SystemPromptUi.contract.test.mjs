@@ -21,10 +21,7 @@ const MODES = Object.freeze([
 ]);
 
 const STYLES = Object.freeze([
-  MODEL_STYLES.faithful,
-  MODEL_STYLES.concise,
-  MODEL_STYLES.professional,
-  MODEL_STYLES.creative,
+  MODEL_STYLES.workbuddy,
 ]);
 
 function extractSystemPromptPanel(html) {
@@ -43,57 +40,29 @@ function substantivePrompt(prompt) {
     .replace(/"mode":"[^"]+"/gu, '"mode":"<mode>"');
 }
 
-test("four scenes by four tiers expose sixteen substantive default prompt contracts", () => {
+test("four scenes expose four substantive WorkBuddy default prompt contracts", () => {
   const prompts = new Map();
 
   for (const mode of MODES) {
     for (const style of STYLES) {
       const prompt = buildModelInstruction("zh", style, mode);
-      const tierContract = prompt
-        .split("\n")
-        .filter((line) => /^(?:档位目标|改动预算|结构要求|档位禁区)：/u.test(line))
-        .join("\n");
-      const sceneContract = prompt
-        .split("\n")
-        .find((line) => line.startsWith("你的唯一任务是"));
-
-      assert.ok(sceneContract, `${mode}:${style} must define a scene-specific task`);
-      assert.equal(
-        tierContract.split("\n").length,
-        4,
-        `${mode}:${style} must define goal, change budget, structure, and prohibition`,
-      );
+      assert.match(prompt, /TASK:/u, `${mode}:${style} must define a task`);
+      assert.match(prompt, /ANALYSIS PROCESS:/u, `${mode}:${style} must define an analysis process`);
+      assert.match(prompt, /IMPORTANT CONSTRAINTS:/u, `${mode}:${style} must define hard constraints`);
+      assert.match(prompt, /FORMAT:/u, `${mode}:${style} must define an output contract`);
       prompts.set(`${mode}:${style}`, substantivePrompt(prompt));
     }
   }
 
-  assert.equal(prompts.size, 16);
+  assert.equal(prompts.size, 4);
   assert.equal(
     new Set(prompts.values()).size,
-    16,
-    "the 16 defaults must remain different after display-only identifiers are removed",
+    4,
+    "the four WorkBuddy scene defaults must remain substantively different",
   );
-
-  for (const mode of MODES) {
-    const tierContracts = STYLES.map((style) => prompts.get(`${mode}:${style}`));
-    assert.equal(
-      new Set(tierContracts).size,
-      4,
-      `${mode} must provide four substantive tier contracts`,
-    );
-  }
-
-  for (const style of STYLES) {
-    const sceneContracts = MODES.map((mode) => prompts.get(`${mode}:${style}`));
-    assert.equal(
-      new Set(sceneContracts).size,
-      4,
-      `${style} must provide four substantive scene contracts`,
-    );
-  }
 });
 
-test("scene and tier selection refresh the single current system prompt", () => {
+test("scene selection refreshes the single WorkBuddy system prompt", () => {
   const renderer = read("src/renderer/renderer.mjs");
 
   assert.match(renderer, /const systemPromptCurrent\s*=\s*document\.querySelector\("#systemPromptCurrent"\)/u);
@@ -101,17 +70,10 @@ test("scene and tier selection refresh the single current system prompt", () => 
     renderer,
     /function renderSystemPromptPanel\(\)[\s\S]*systemPromptCurrent\.textContent\s*=\s*entry\.effectivePrompt\s*\?\?\s*entry\.defaultPrompt\s*\?\?\s*""/u,
   );
+  assert.match(renderer, /function selectSystemPrompt\(mode\)[\s\S]*state\.systemPromptMode\s*=\s*mode[\s\S]*renderSystemPromptPanel\(\)/u);
   assert.match(
     renderer,
-    /function selectSystemPrompt\(mode,\s*style\)[\s\S]*state\.systemPromptMode\s*=\s*mode[\s\S]*state\.systemPromptStyle\s*=\s*style[\s\S]*renderSystemPromptPanel\(\)/u,
-  );
-  assert.match(
-    renderer,
-    /systemPromptModeSelect\.addEventListener\("change",[\s\S]*selectSystemPrompt\(systemPromptModeSelect\.value,\s*state\.systemPromptStyle\)/u,
-  );
-  assert.match(
-    renderer,
-    /systemPromptPanel\.addEventListener\("click",[\s\S]*data-system-style[\s\S]*selectSystemPrompt\(state\.systemPromptMode,\s*style\)/u,
+    /systemPromptModeSelect\.addEventListener\("change",[\s\S]*selectSystemPrompt\(systemPromptModeSelect\.value\)/u,
   );
 });
 

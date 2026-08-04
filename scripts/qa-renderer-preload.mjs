@@ -34,7 +34,7 @@ const qaState = {
   model: {
     endpoint: "https://tokenhub.tencentmaas.com/v1",
     model: "deepseek-v4-flash",
-    style: "balanced",
+    style: "workbuddy",
     mode: "enhance",
     targetWindowTitlePattern: "",
     apiKeySaved: false,
@@ -53,13 +53,7 @@ const QA_SYSTEM_PROMPT_MODES = Object.freeze([
   "chat-polish",
   "ppt-copy",
 ]);
-const QA_SYSTEM_PROMPT_STYLES = Object.freeze([
-  "faithful",
-  "concise",
-  "professional",
-  "creative",
-  "workbuddy",
-]);
+const QA_SYSTEM_PROMPT_STYLES = Object.freeze(["workbuddy"]);
 
 function systemPromptKey(mode, style) {
   return `${mode}:${style}`;

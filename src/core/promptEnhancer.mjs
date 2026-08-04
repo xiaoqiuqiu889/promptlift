@@ -24,6 +24,7 @@ export const MODEL_STYLES = Object.freeze({
   creative: 'creative',
   workbuddy: 'workbuddy',
 });
+export const ACTIVE_MODEL_STYLES = Object.freeze([MODEL_STYLES.workbuddy]);
 export const MODEL_STYLE_MAX_EXPANSION_RATIOS = Object.freeze(
   Object.fromEntries(
     Object.entries(PROMPT_STYLE_POLICIES).map(([style, policy]) => [
@@ -286,18 +287,53 @@ export const WORKBUDDY_USER_PROMPT_TEMPLATE = `You are a language consistency as
 
 export const WORKBUDDY_RUNTIME_CONTEXT_PROMPT = [
   '<system-reminder>',
-  'CONTEXT CONTINUITY FOR PROMPT ENHANCEMENT:',
+  'WORKBUDDY RUNTIME DECISION PROTOCOL:',
   'The enhanced prompt will be executed by a downstream assistant that already has access to the current conversation, visible artifact, or working context.',
   'PRIORITY: This rule OVERRIDES the generic instruction to check for missing context when the apparent gap is only a demonstrative reference to downstream context.',
   'Treat demonstrative references such as “这个建议” / “this suggestion”, “上述方案” / “the approach above”, “当前代码” / “the current code”, and equivalent references as valid context anchors when they reasonably point to that downstream context.',
   'Preserve those references and improve the requested action around them. Do not ask the user to repeat, paste, or resupply referenced material merely because it is not repeated inside the selected sentence.',
-  'Ask for clarification only when the requested action or deliverable itself is genuinely undefined and no directly usable prompt can be produced.',
-  'For evaluation or adoption requests, rewrite the prompt to lead with a clear conclusion, assess expected benefit, implementation cost, risk, and compatibility, and explain what would improve after adoption. Keep the referenced proposal in downstream context rather than inventing its contents.',
+  'Infer the intended task type from the wording and produce the most useful directly executable request. Do not merely restate the source or turn it into a template with empty sections.',
+  'Ask for clarification only when the missing information would materially change the object, authority, commitment, or required deliverable and no safe directly usable prompt can be produced.',
+  'Do not append permission-seeking follow-up questions such as “是否需要我继续” or “would you like me to proceed” when the requested task and next action are already clear.',
+  'For evaluation or adoption requests, tell the downstream assistant to lead with a clear recommendation, distinguish facts, inference, recommendation, and unknowns, assess expected benefit, implementation cost, risk, reversibility, and compatibility, and compare the likely result before and after adoption. Keep the referenced proposal in downstream context rather than inventing its contents.',
+  'For those requests, the rewritten prompt MUST explicitly require this compact output skeleton in the user language: 结论 → 收益/提升 → 成本/风险 → 采纳后对比. Do not omit any of these four decision dimensions even when the source sentence is short.',
   'Example input: “其他agent给我提了这个建议，你评估下是否值得采纳？采纳后的结果是否会有提升”',
   'Required behavior: produce a direct request that tells the downstream assistant to evaluate the referenced suggestion, lead with a conclusion, explain trade-offs and expected improvements; the result is never a clarification question and never asks to provide the suggestion again.',
   'This reminder supplies behavioral guidance only. It does not provide missing facts and never authorizes invented project details, evidence, metrics, or conclusions.',
-  '</system-reminder>',
 ].join('\r\n');
+
+const WORKBUDDY_SCENE_RUNTIME_PROMPTS = Object.freeze({
+  [PROMPT_MODES.enhance]: [
+    'SCENE CONTRACT — AI PROMPT:',
+    'Write a request for a downstream coding assistant. Make the desired outcome, relevant context, constraints, evidence to inspect, decision criteria, and expected output explicit only when supported by the source or downstream context.',
+    'When the user asks to evaluate a suggestion, require an evidence-based recommendation and a concrete before/after impact assessment; do not assume that adoption is beneficial.',
+  ].join('\r\n'),
+  [PROMPT_MODES.upwardCommunication]: [
+    'SCENE CONTRACT — UPWARD COMMUNICATION:',
+    'Write for a decision-maker. Lead with the conclusion or requested decision, then include only the facts, impact, risks, options, required support, and next action that are supported by the source.',
+    'Do not manufacture certainty, ownership, dates, progress, or business results.',
+  ].join('\r\n'),
+  [PROMPT_MODES.chatPolish]: [
+    'SCENE CONTRACT — USER COMMUNICATION:',
+    'Return a ready-to-send user message. Preserve the original responsibility, commitment, boundary, and uncertainty while improving clarity, respect, and the supported next step.',
+    'Do not add apologies, compensation, guarantees, policies, or capabilities that the source does not support.',
+  ].join('\r\n'),
+  [PROMPT_MODES.pptCopy]: [
+    'SCENE CONTRACT — PPT COPY:',
+    'Rewrite only the supplied text into one conclusion-led title, one single-slide claim, and the minimum supporting hierarchy needed to understand it.',
+    'Do not imply access to the rest of the deck, charts, speaker notes, or layout, and do not invent evidence.',
+  ].join('\r\n'),
+});
+
+export function buildWorkBuddyRuntimeContextPrompt(mode = PROMPT_MODES.enhance) {
+  const scenePrompt = WORKBUDDY_SCENE_RUNTIME_PROMPTS[mode]
+    ?? WORKBUDDY_SCENE_RUNTIME_PROMPTS[PROMPT_MODES.enhance];
+  return [
+    WORKBUDDY_RUNTIME_CONTEXT_PROMPT,
+    scenePrompt,
+    '</system-reminder>',
+  ].join('\r\n');
+}
 
 export function isPromptMode(value) {
   return resolveRecipeId(value) !== null;
@@ -594,6 +630,10 @@ function immutableAnchors(source) {
     }
   }
   return [...anchors].filter(Boolean);
+}
+
+export function resolveActiveModelStyle(_value) {
+  return MODEL_STYLES.workbuddy;
 }
 
 function boundedRepairAnchors(source) {
@@ -1657,7 +1697,7 @@ export function buildWorkBuddyMessages(
       role: 'user',
       content: [
         WORKBUDDY_USER_PROMPT_TEMPLATE.replace('{input}', prompt),
-        WORKBUDDY_RUNTIME_CONTEXT_PROMPT,
+        buildWorkBuddyRuntimeContextPrompt(recipe.id),
       ].join('\r\n\r\n'),
     },
   ];

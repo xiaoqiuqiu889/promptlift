@@ -7,7 +7,7 @@ const read = (relativePath) => readFileSync(
   'utf8',
 );
 
-test('the fifth WorkBuddy tier is selectable and inspectable in every scene', () => {
+test('the sole WorkBuddy tier is selectable and inspectable in every scene', () => {
   const html = read('src/renderer/index.html');
   const renderer = read('src/renderer/renderer.mjs');
   const main = read('src/main.mjs');
@@ -25,14 +25,20 @@ test('the fifth WorkBuddy tier is selectable and inspectable in every scene', ()
     4,
     'all four scene presentation maps must describe WorkBuddy',
   );
-  assert.match(main, /Object\.values\(MODEL_STYLES\)/u);
+  assert.match(main, /createSystemPromptEntry\(mode,\s*MODEL_STYLES\.workbuddy\)/u);
+  assert.match(
+    main,
+    /input\.style\s*===\s*MODEL_STYLES\.workbuddy\s*\?\s*MODEL_STYLES\.workbuddy\s*:\s*null/u,
+    'renderer-facing IPC must reject retired tier identifiers instead of silently selecting them',
+  );
 });
 
-test('visual QA exposes the full four-scene by five-tier prompt matrix', () => {
+test('visual QA exposes the four-scene WorkBuddy-only prompt matrix', () => {
   const preload = read('scripts/qa-renderer-preload.mjs');
 
   assert.match(
     preload,
-    /QA_SYSTEM_PROMPT_STYLES\s*=\s*Object\.freeze\(\[[\s\S]*"workbuddy"[\s\S]*\]\)/u,
+    /QA_SYSTEM_PROMPT_STYLES\s*=\s*Object\.freeze\(\["workbuddy"\]\)/u,
   );
+  assert.doesNotMatch(preload, /QA_SYSTEM_PROMPT_STYLES[\s\S]{0,120}"(?:faithful|concise|professional|creative)"/u);
 });

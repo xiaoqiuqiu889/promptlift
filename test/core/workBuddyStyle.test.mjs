@@ -34,7 +34,7 @@ function completion(content) {
   };
 }
 
-test('WorkBuddy is a canonical fifth tier in all four scenes', () => {
+test('WorkBuddy is the canonical active tier in all four scenes', () => {
   assert.equal(MODEL_STYLES.workbuddy, 'workbuddy');
   assert.equal(resolveModelStyle('workbuddy'), MODEL_STYLES.workbuddy);
 
@@ -70,12 +70,25 @@ test('WorkBuddy messages include runtime context continuity before the language 
   assert.match(messages[1].content, /downstream assistant that already has access/iu);
   assert.match(messages[1].content, /这个建议|this suggestion/iu);
   assert.match(messages[1].content, /do not ask the user to repeat/iu);
-  assert.match(messages[1].content, /lead with a clear conclusion/iu);
+  assert.match(messages[1].content, /lead with a clear recommendation/iu);
   assert.match(messages[1].content, /OVERRIDES the generic instruction to check for missing context/u);
   assert.match(messages[1].content, /其他agent给我提了这个建议/u);
   assert.match(messages[1].content, /never a clarification question/iu);
+  assert.match(messages[1].content, /Do not append permission-seeking follow-up questions/iu);
+  assert.match(messages[1].content, /distinguish facts, inference, recommendation, and unknowns/iu);
+  assert.match(messages[1].content, /结论.*收益\/提升.*成本\/风险.*采纳后对比/iu);
   assert.match(messages[1].content, /CRITICAL PRIORITY - LANGUAGE CONSISTENCY:/u);
   assert.match(messages[1].content, /USER INPUT: 请把这个需求写清楚/u);
+});
+
+test('WorkBuddy runtime guidance changes with all four scenes', () => {
+  const contents = MODES.map((mode) => buildWorkBuddyMessages('请优化这段内容', mode)[1].content);
+
+  assert.equal(new Set(contents).size, MODES.length);
+  assert.match(contents[0], /downstream coding assistant/iu);
+  assert.match(contents[1], /decision-maker/iu);
+  assert.match(contents[2], /ready-to-send user message/iu);
+  assert.match(contents[3], /single-slide claim/iu);
 });
 
 test('WorkBuddy quote cleanup matches the one-pass WorkBuddy behavior', () => {

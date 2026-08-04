@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  ACTIVE_MODEL_STYLES,
   PROMPT_PROTOCOL_VERSION,
   buildEnhancementRequest,
   buildModelInstruction,
@@ -17,6 +18,7 @@ import {
   WORKBUDDY_SYSTEM_PROMPTS,
   isPromptMode,
   resolveModelStyle,
+  resolveActiveModelStyle,
   sanitizeModelOutput,
 } from '../../src/core/promptEnhancer.mjs';
 
@@ -54,6 +56,23 @@ test('prompt style registry exposes five canonical tiers and migrates legacy val
   assert.equal(resolveModelStyle('detailed'), MODEL_STYLES.professional);
   assert.equal(resolveModelStyle('unknown'), null);
   assert.equal(resolveModelStyle(''), null);
+});
+
+test('the product runtime exposes only WorkBuddy and migrates every saved tier to it', () => {
+  assert.deepEqual(ACTIVE_MODEL_STYLES, [MODEL_STYLES.workbuddy]);
+  for (const value of [
+    undefined,
+    'balanced',
+    'detailed',
+    'faithful',
+    'concise',
+    'professional',
+    'creative',
+    'workbuddy',
+    'unknown',
+  ]) {
+    assert.equal(resolveActiveModelStyle(value), MODEL_STYLES.workbuddy);
+  }
 });
 
 test('five prompt tiers define visibly different contracts', () => {

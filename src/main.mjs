@@ -22,7 +22,7 @@ import {
   checkModel,
   enhancePrompt,
   isPromptMode,
-  resolveModelStyle,
+  resolveActiveModelStyle,
   normalizeCustomSystemPrompt,
 } from './core/promptEnhancer.mjs';
 import { createCapturedPayload, hasVisiblePromptText } from './core/capturePayload.mjs';
@@ -88,7 +88,7 @@ let modelConfig = {
   endpoint: DEFAULT_MODEL_ENDPOINT,
   model: DEFAULT_MODEL,
   apiKey: '',
-  style: MODEL_STYLES.concise,
+  style: MODEL_STYLES.workbuddy,
   mode: PROMPT_MODES.enhance,
   targetWindowTitlePattern: '',
   customPrompts: {},
@@ -118,7 +118,7 @@ async function configureModel(_event, input = {}, { persist = true } = {}) {
     : DEFAULT_MODEL;
   const apiKey = typeof input.apiKey === 'string' ? input.apiKey.trim() : '';
   const resolvedApiKey = apiKey || modelConfig.apiKey;
-  const style = resolveModelStyle(input.style) ?? modelConfig.style;
+  const style = resolveActiveModelStyle(input.style);
   const targetWindowTitlePattern = typeof input.targetWindowTitlePattern === 'string'
     ? input.targetWindowTitlePattern.trim()
     : modelConfig.targetWindowTitlePattern;
@@ -197,10 +197,7 @@ async function loadPersistedModelConfig() {
   if (typeof persisted.model === 'string' && persisted.model.length > 0) {
     modelConfig.model = persisted.model;
   }
-  const persistedStyle = resolveModelStyle(persisted.style);
-  if (persistedStyle) {
-    modelConfig.style = persistedStyle;
-  }
+  modelConfig.style = resolveActiveModelStyle(persisted.style);
   if (isPromptMode(persisted.mode)) {
     modelConfig.mode = persisted.mode;
   }
@@ -312,18 +309,18 @@ function createSystemPromptEntry(mode, style) {
 }
 
 function listSystemPromptEntries() {
-  return Object.values(PROMPT_MODES).flatMap((mode) => Object.values(MODEL_STYLES)
-    .map((style) => createSystemPromptEntry(mode, style)));
+  return Object.values(PROMPT_MODES)
+    .map((mode) => createSystemPromptEntry(mode, MODEL_STYLES.workbuddy));
 }
 
 function validateSystemPromptSelection(input = {}) {
   const mode = typeof input.mode === 'string' ? input.mode : '';
-  const style = resolveModelStyle(input.style);
+  const style = input.style === MODEL_STYLES.workbuddy ? MODEL_STYLES.workbuddy : null;
   if (!isPromptMode(mode)) {
     throw createConfigError('MODE_INVALID', '场景无效。');
   }
   if (!style) {
-    throw createConfigError('STYLE_INVALID', '提示词风格无效。');
+    throw createConfigError('STYLE_INVALID', '当前版本仅支持 WorkBuddy 优化引擎。');
   }
   return { mode, style };
 }
@@ -373,9 +370,9 @@ async function resetSystemPrompt(_event, input = {}) {
 }
 
 async function setPromptStyle(_event, input = {}) {
-  const style = resolveModelStyle(input.style);
+  const style = input.style === MODEL_STYLES.workbuddy ? MODEL_STYLES.workbuddy : null;
   if (!style) {
-    throw createConfigError('STYLE_INVALID', '提示词风格无效。');
+    throw createConfigError('STYLE_INVALID', '当前版本仅支持 WorkBuddy 优化引擎。');
   }
   modelConfig.style = style;
   const persistence = await persistModelConfig();
