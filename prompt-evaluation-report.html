@@ -267,7 +267,7 @@ AND hardGatePassRate, semanticFidelity, anchorRecall, utility,
         <tbody>
           <tr><td><code>node --check</code></td><td><span class="tag good">通过</span></td><td><code>scripts/prompt-eval.mjs</code>、<code>scripts/prompt-eval/metrics.mjs</code>、<code>src/core/promptEnhancer.mjs</code>。</td></tr>
           <tr><td><code>npm run check</code></td><td><span class="tag good">通过</span></td><td>包含新增脚本语法检查。</td></tr>
-          <tr><td>评测专项合约测试</td><td><span class="tag good">20 / 20</span></td><td>指标、晋级、CLI、真实 TokenHub runner 凭据契约、压缩预算和仓库表面契约全部通过。</td></tr>
+          <tr><td>评测专项合约测试</td><td><span class="tag good">18 / 18 + 2 / 2</span></td><td>评测指标/晋级/CLI/真实 TokenHub runner 合约 18/18；压缩预算合约 2/2；仓库表面契约在完整套件中通过。</td></tr>
           <tr><td>真实 TokenHub runner</td><td><span class="tag good">已执行</span></td><td><code>deepseek-v4-flash</code> 真实返回；摘要 privacy flags 均为 false；没有使用 mock 结果替代失败调用。</td></tr>
           <tr><td><code>npm test</code></td><td><span class="tag warn">244 通过 / 1 环境失败</span></td><td>共 245 项；唯一失败来自 <code>test/packageSurfaceAudit.test.mjs</code>：当前环境缺少 <code>@electron/asar</code>。压缩合约、评测 fixture 与真实 runner 的仓库表面白名单已通过。</td></tr>
           <tr><td>主干隔离</td><td><span class="tag good">保持未写回</span></td><td>本版文件只在独立 worktree <code>AIlight-prompt-eval</code> 产生；评测 CLI 未自动向主 worktree 写回、提交或合并。</td></tr>
