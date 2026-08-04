@@ -475,6 +475,7 @@ function assertStrictScope(result, source, language, style) {
 const SOFT_MODALITY_PATTERN = /(?:建议|可选|可以|可能|或许|也许|可考虑|待确认|如需|suggest(?:ion|ed)?|consider|could|may|might|optional|possible|if|when)/iu;
 const HARD_MODALITY_PATTERN = /(?:必须|务必|要求|确保|一定|必然|不得不|must|shall|required|need to|have to|ensure|definitely|guarantee|certainly|\bwill\b)/iu;
 const NEGATIVE_CONSTRAINT_PATTERN = /(?:不得|禁止|不能|不要|仅限|只允许|除非|不可|must not|do not|don't|never|cannot|only if|unless)/iu;
+const NEGATIVE_MODALITY_GUARD_PATTERN = /(?:不要|不得|不能|must not|do not|never).{0,18}(?:把|将|turn|rewrite|change).{0,18}(?:建议|可能|不确定|承诺|suggest|possible|uncertain|commitment).{0,18}(?:改|写|升级|变|requirement|certainty|mandatory|hard)/isu;
 const UNSOLICITED_PERMISSION_SEEKING_PATTERNS = Object.freeze([
   /(?:是否|要不要|需不需要)(?:需要)?我.{0,24}(?:继续|开始|优先|现在|进一步|着手|处理|执行|修改|开发|优化|完善|推进)/iu,
   /(?:需要我|要我).{0,30}(?:吗|么)[？?]?/iu,
@@ -552,7 +553,10 @@ function assertSemanticStrength(result, source, language, style) {
     );
   }
 
-  if (NEGATIVE_CONSTRAINT_PATTERN.test(source) && !NEGATIVE_CONSTRAINT_PATTERN.test(result)) {
+  const sourceUsesNegativeModalityGuard = NEGATIVE_MODALITY_GUARD_PATTERN.test(source);
+  if (NEGATIVE_CONSTRAINT_PATTERN.test(source)
+    && !NEGATIVE_CONSTRAINT_PATTERN.test(result)
+    && !sourceUsesNegativeModalityGuard) {
     throw createEnhancementError(
       'MODEL_OUTPUT_SEMANTIC_ESCALATION',
       language,
@@ -1153,8 +1157,8 @@ export function buildModelMessages(prompt, language, options = {}) {
     : '';
   const calibrationRepairGate = options.repairMetaPrompt === true
     ? language === 'zh'
-      ? '\n校准闸门：再次执行同一档位政策。所有档位都必须移除 sourceText 未明确支持的产品、平台、工具、诊断前提、证据来源或能力。非创意档位不得增加应用场景；任何档位结果都不得超过原文长度的 300%。保留所有不可变锚点、明确否定以及建议与可能性的语义强度。clarificationText 仍只用于消歧，不得并入正文或扩大范围。只返回当前配置模型生成的一个最终结果，不返回候选或解释。'
-      : '\nCalibration gate: apply the same tier policy again. All tiers must remove any product, platform, tool, diagnostic premise, evidence source, or capability not literally grounded in sourceText. Non-creative tiers must not add a new application scenario; every style must remain at or below 300% of the source length. Preserve every immutable anchor, explicit negative, and suggestion/possibility strength. clarificationText remains disambiguation-only and must not be merged into the source or expand scope. Return one final result from the configured model, not candidates or explanations.'
+      ? '\n校准闸门：再次执行同一档位政策。所有档位都必须移除 sourceText 未明确支持的产品、平台、工具、诊断前提、证据来源或能力。非创意档位不得增加应用场景；任何档位结果都不得超过原文长度的 300%。保留所有不可变锚点、明确否定以及建议与可能性的语义强度；sourceText 出现“不要、不可、未开启、未完成”等否定词时，result 必须保留对应否定。clarificationText 仍只用于消歧，不得并入正文或扩大范围。长度接近上限时删除解释、重复、空章节和格式包装，只保留一个最终结果；不得在 result 中返回超长报错或重试请求。只返回当前配置模型生成的一个最终结果，不返回候选或解释。'
+      : '\nCalibration gate: apply the same tier policy again. All tiers must remove any product, platform, tool, diagnostic premise, evidence source, or capability not literally grounded in sourceText. Non-creative tiers must not add a new application scenario; every style must remain at or below 300% of the source length. Preserve every immutable anchor, explicit negative, and suggestion/possibility strength; when sourceText says “do not”, “cannot”, “not enabled”, or “not completed”, result must retain that negative state. clarificationText remains disambiguation-only and must not be merged into the source or expand scope. Near the length limit, remove explanations, repetition, empty sections, and formatting wrappers; return one final result and never put a length error or retry request inside result. Return one final result from the configured model, not candidates or explanations.'
     : '';
   const requestedMode = options.mode ?? PROMPT_MODES.enhance;
   const requestedStyle = resolveModelStyle(options.style) ?? MODEL_STYLES.concise;

@@ -4,6 +4,10 @@ import {
 } from "../core/capturePayload.mjs";
 import { withOperationDeadline } from "../core/operationDeadline.mjs";
 import {
+  inferPromptErrorCode,
+  promptErrorMessage,
+} from "../core/errorCatalog.mjs";
+import {
   DEFAULT_SHORTCUT,
   normalizeShortcut,
   shortcutDisplayLabel,
@@ -1059,6 +1063,10 @@ function hideNeedsInput() {
 }
 
 function errorMessage(error, fallback = messages.error) {
+  return promptErrorMessage(error, fallback);
+}
+
+function legacyErrorMessage(error, fallback = messages.error) {
   switch (inferErrorCode(error)) {
     case "API_UNAVAILABLE":
       return "助手连接失败，请重启 Prompt Pet 后重试。";
@@ -1167,6 +1175,10 @@ function errorMessage(error, fallback = messages.error) {
 }
 
 function inferErrorCode(error) {
+  return inferPromptErrorCode(error);
+}
+
+function legacyInferErrorCode(error) {
   const code = typeof error?.code === "string" ? error.code : "";
   if (code && code !== "PROMPT_LIFT_ERROR") {
     return code;

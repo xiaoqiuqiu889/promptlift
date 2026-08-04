@@ -122,6 +122,17 @@ test('semantic strength cannot escalate a suggestion into a requirement', async 
   );
 });
 
+test('modality guard instructions do not require repeating the guard wording', async () => {
+  const source = 'Consider merging the duplicate settings; do not turn the suggestion into a requirement.';
+  const result = 'Consider merging the duplicate settings while keeping the suggestion soft.';
+  const actual = await enhancePrompt(source, modelOptions({
+    mode: PROMPT_MODES.enhance,
+    style: MODEL_STYLES.professional,
+    result,
+  }));
+  assert.equal(actual, result);
+});
+
 test('creative output is accepted at the exact 300 percent ceiling', async () => {
   const source = 'Improve the login request with clear steps and an output format.';
   const maxLength = maxAllowedResultLength(source, MODEL_STYLES.creative);
