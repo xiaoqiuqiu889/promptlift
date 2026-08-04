@@ -25,6 +25,13 @@ test("the combined legacy apply message is reduced to the underlying model cause
   assert.doesNotMatch(promptErrorMessage(error), /原始输入框未被覆盖/);
 });
 
+test("a known code serialized across the Electron boundary is recovered", () => {
+  const error = new Error("MODEL_NEEDS_INPUT: QA clarification required");
+  error.code = "PROMPT_LIFT_ERROR";
+
+  assert.equal(inferPromptErrorCode(error), "MODEL_NEEDS_INPUT");
+});
+
 test("each model validation failure explains one cause without collapsing into a generic message", () => {
   const cases = [
     ["MODEL_OUTPUT_FACT_LOSS", /事实锚点/],

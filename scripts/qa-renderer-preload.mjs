@@ -58,6 +58,7 @@ const QA_SYSTEM_PROMPT_STYLES = Object.freeze([
   "concise",
   "professional",
   "creative",
+  "workbuddy",
 ]);
 
 function systemPromptKey(mode, style) {

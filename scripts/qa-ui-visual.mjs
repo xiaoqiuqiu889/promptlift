@@ -28,6 +28,7 @@ const PROMPT_TIERS = Object.freeze([
   "concise",
   "professional",
   "creative",
+  "workbuddy",
 ]);
 const WORK_MODES = Object.freeze([
   "enhance",
@@ -2107,14 +2108,14 @@ async function runElectron(electron, args) {
         const labels = await readTierLabels();
         if (labels.length !== PROMPT_TIERS.length || labels.some((label) => !label)) {
           throw new Error(
-            "mode did not expose four visible non-empty tier labels: "
+            "mode did not expose five visible non-empty tier labels: "
               + JSON.stringify({ mode, labels }),
           );
         }
         tierLabelSets.push(labels);
         await takeSnapshot(
           "tier-labels-" + mode,
-          "mode " + mode + " → four visible tier labels",
+          "mode " + mode + " → five visible tier labels",
         );
         await clickAt(
           "[data-close-panel=\"stylePanel\"]",
@@ -2122,7 +2123,7 @@ async function runElectron(electron, args) {
         );
       }
       if (new Set(tierLabelSets.map((labels) => JSON.stringify(labels))).size !== WORK_MODES.length) {
-        throw new Error("four work modes did not expose four distinct visible tier label sets");
+        throw new Error("four work modes did not expose five distinct visible tier label sets");
       }
       qaResult.tierLabelSets = WORK_MODES.map((mode, index) => ({
         mode,
@@ -2150,7 +2151,7 @@ async function runElectron(electron, args) {
         || initial.currentTag !== "PRE"
         || initial.duplicateDefaults
         || initial.maxLength !== "6000") {
-        throw new Error("system prompt editor did not expose one current prompt and four tiers: " + JSON.stringify(initial));
+        throw new Error("system prompt editor did not expose one current prompt and five tiers: " + JSON.stringify(initial));
       }
       const promptMatrix = [];
       for (const mode of WORK_MODES) {
@@ -2172,9 +2173,9 @@ async function runElectron(electron, args) {
           promptMatrix.push({ mode, tier, current });
         }
       }
-      if (promptMatrix.length !== 16
-        || new Set(promptMatrix.map((entry) => entry.current)).size !== 16) {
-        throw new Error("scene/tier switching did not expose 16 distinct system prompts");
+      if (promptMatrix.length !== 20
+        || new Set(promptMatrix.map((entry) => entry.current)).size !== 20) {
+        throw new Error("scene/tier switching did not expose 20 distinct system prompts");
       }
       qaResult.systemPromptMatrix = promptMatrix.map(({ mode, tier, current }) => ({
         mode,

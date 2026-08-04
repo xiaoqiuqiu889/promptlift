@@ -7,12 +7,14 @@ import {
   PROMPT_MODES,
 } from '../src/core/promptEnhancer.mjs';
 
-test('compact model instructions stay within the prompt budget for every language, mode, and tier', () => {
+test('compact Prompt Lift model instructions stay within the prompt budget for every language, mode, and protocol tier', () => {
   const lengths = [];
+  const protocolStyles = Object.values(MODEL_STYLES)
+    .filter((style) => style !== MODEL_STYLES.workbuddy);
 
   for (const language of ['zh', 'en']) {
     for (const mode of Object.values(PROMPT_MODES)) {
-      for (const style of Object.values(MODEL_STYLES)) {
+      for (const style of protocolStyles) {
         const instruction = buildModelInstruction(language, style, mode);
         const lineCount = instruction.split('\n').length;
         lengths.push(instruction.length);

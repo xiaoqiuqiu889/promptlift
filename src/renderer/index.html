@@ -361,6 +361,7 @@
         <button class="style-option" type="button" data-style="concise"><strong>清晰直达</strong><span>去除重复，补齐关键约束，用更短路径表达</span></button>
         <button class="style-option" type="button" data-style="professional"><strong>专业展开</strong><span>补充执行背景、步骤、标准与专业输出结构</span></button>
         <button class="style-option" type="button" data-style="creative"><strong>创意策划</strong><span>在专业完整基础上增加可控创意方向与备选方案</span></button>
+        <button class="style-option" type="button" data-style="workbuddy"><strong>WorkBuddy</strong><span>复刻 WorkBuddy：单任务提示词、自然文本直出、只做轻量清理</span></button>
         <button id="viewSystemPromptButton" class="panel-link-button" type="button">查看当前档位系统提示词</button>
       </section>
 
@@ -372,7 +373,7 @@
           </div>
           <button class="panel-back" type="button" data-close-panel="systemPromptPanel" aria-label="返回优化档位"><svg class="ui-icon" aria-hidden="true"><use href="#icon-back"></use></svg></button>
         </div>
-        <p class="panel-note system-prompt-safety-note">这里展示当前场景与优化档位实际使用的系统提示词。系统安全协议不可关闭；你的自定义规则只作为低优先级补充，不会覆盖事实保护、档位约束或输出协议。</p>
+        <p class="panel-note system-prompt-safety-note">这里展示当前场景与优化档位实际使用的系统提示词。普通档位使用 Prompt Lift 安全协议；WorkBuddy 档使用其自然文本直出协议。自定义规则会附加到当前场景与档位。</p>
         <div class="system-prompt-selectors">
           <label class="field-label" for="systemPromptModeSelect">场景</label>
           <select id="systemPromptModeSelect" class="panel-input">
@@ -386,6 +387,7 @@
             <button class="system-prompt-style-tab" type="button" data-system-style="concise" aria-selected="false"><strong>清晰直达</strong><small></small></button>
             <button class="system-prompt-style-tab" type="button" data-system-style="professional" aria-selected="false"><strong>专业展开</strong><small></small></button>
             <button class="system-prompt-style-tab" type="button" data-system-style="creative" aria-selected="false"><strong>创意策划</strong><small></small></button>
+            <button class="system-prompt-style-tab" type="button" data-system-style="workbuddy" aria-selected="false"><strong>WorkBuddy</strong><small></small></button>
           </div>
         </div>
         <details id="systemPromptDisclosure" class="system-prompt-disclosure">
@@ -397,7 +399,7 @@
         </details>
         <label class="field-label" for="systemPromptCustom">自定义补充规则</label>
         <textarea id="systemPromptCustom" class="system-prompt-editor system-prompt-custom-editor" rows="4" maxlength="6000" spellcheck="false" placeholder="例如：先给结论，再列出两条依据。"></textarea>
-        <p class="panel-note">自定义补充规则仅在不与安全协议、原文事实、Recipe 和档位合同冲突时生效；留空即可恢复默认。</p>
+        <p class="panel-note">普通档位的补充规则不能覆盖安全协议；WorkBuddy 档会按其原生方式把补充规则附加到系统提示词。留空即可恢复默认。</p>
         <div class="panel-actions">
           <button id="resetSystemPromptButton" class="text-button" type="button">恢复默认</button>
           <button id="saveSystemPromptButton" class="small-primary" type="button" disabled>保存自定义规则</button>

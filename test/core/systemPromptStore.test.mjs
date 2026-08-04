@@ -49,6 +49,22 @@ test("system prompt override normalization bounds text and removes blank values"
   assert.equal(Object.hasOwn(result, "invalid"), false);
 });
 
+test("WorkBuddy supplements persist independently for every scene", () => {
+  const result = normalizeSystemPromptOverrides({
+    "enhance:workbuddy": "Keep the request focused.",
+    "upward-communication:workbuddy": "Lead with the decision.",
+    "chat-polish:workbuddy": "Keep the response polite.",
+    "ppt-copy:workbuddy": "Use one slide claim.",
+  });
+
+  assert.deepEqual(result, {
+    "enhance:workbuddy": "Keep the request focused.",
+    "upward-communication:workbuddy": "Lead with the decision.",
+    "chat-polish:workbuddy": "Keep the response polite.",
+    "ppt-copy:workbuddy": "Use one slide claim.",
+  });
+});
+
 test("system prompt store rejects an invalid user data path", () => {
   assert.throws(() => createSystemPromptStore({ userDataPath: "" }), /userDataPath/);
   assert.deepEqual(normalizeSystemPromptOverrides(null), {});

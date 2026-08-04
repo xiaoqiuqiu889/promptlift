@@ -46,6 +46,15 @@ export const PROMPT_STYLE_POLICIES = Object.freeze({
     preserveSuggestionModality: true,
     singleResult: true,
   }),
+  workbuddy: Object.freeze({
+    scopePolicy: 'workbuddy-natural-rewrite',
+    maxExpansionRatio: 3,
+    allowNewScenarios: true,
+    preserveAnchors: false,
+    preserveCommitmentStrength: false,
+    preserveSuggestionModality: false,
+    singleResult: true,
+  }),
 });
 
 function deepFreeze(value) {
@@ -124,6 +133,13 @@ const RECIPES = Object.freeze([
           '先完整定义目标、约束和交付，再列可比较的创意方向及选择标准。',
           '不得把创意建议伪装为事实，不得虚构数据、来源、用户结论、产品能力或业务前提。',
         ),
+        workbuddy: tier(
+          'WorkBuddy',
+          '使用 WorkBuddy 的单任务提示词工程方法增强请求。',
+          '允许模型按任务需要补充上下文、参数、约束、输出结构和相关示例。',
+          '由 WorkBuddy 系统提示词根据原始请求选择最有效的结构。',
+          'AI 提示词 WorkBuddy 档仅执行原版语言、长度和纯文本输出约束，不应用 Prompt Lift JSON 验收协议。',
+        ),
       },
       en: {
         faithful: tier(
@@ -153,6 +169,13 @@ const RECIPES = Object.freeze([
           'Add at most two one-sentence optional creative directions, evaluation dimensions, or combinations that serve the source task.',
           'Define the objective, constraints, and deliverable first, then comparable creative directions and selection criteria.',
           'Do not present suggestions as facts or invent data, sources, user conclusions, product capabilities, or business premises.',
+        ),
+        workbuddy: tier(
+          'WorkBuddy',
+          'Enhance the request with WorkBuddy’s single-purpose prompt-engineering method.',
+          'Allow the model to add useful context, parameters, constraints, output structure, and relevant examples.',
+          'Let the WorkBuddy system prompt choose the most effective structure for the source request.',
+          'Apply only the WorkBuddy language, length, and plain-text output constraints instead of the Prompt Lift JSON validation protocol.',
         ),
       },
     },
@@ -218,6 +241,13 @@ const RECIPES = Object.freeze([
           '以结论开场，用事实建立必要性，再呈影响、建议与明确行动请求。',
           '不得情绪操纵、夸大紧迫性或价值，不得掩盖代价、风险和不确定性。',
         ),
+        workbuddy: tier(
+          'WorkBuddy',
+          '使用 WorkBuddy 的单任务方法增强向上沟通。',
+          '允许模型补齐有助于决策理解的结论、背景、风险、支持诉求和下一步结构。',
+          '由 WorkBuddy 风格系统提示词组织最终沟通文本。',
+          '向上沟通 WorkBuddy 档仅执行语言、长度和纯文本输出约束，不应用 Prompt Lift JSON 验收协议。',
+        ),
       },
       en: {
         faithful: tier(
@@ -247,6 +277,13 @@ const RECIPES = Object.freeze([
           'Improve narrative order, emphasis, and wording, with bounded framing options.',
           'Lead with the conclusion, establish necessity with facts, then show impact, recommendation, and a clear action request.',
           'Do not manipulate emotion, exaggerate urgency or value, or conceal costs, risks, and uncertainty.',
+        ),
+        workbuddy: tier(
+          'WorkBuddy',
+          'Enhance upward communication with WorkBuddy’s single-purpose method.',
+          'Allow the model to clarify the conclusion, context, risks, support request, and next-action structure needed for decision understanding.',
+          'Let the WorkBuddy-style system prompt organize the final communication.',
+          'Apply only the WorkBuddy language, length, and plain-text output constraints instead of the Prompt Lift JSON validation protocol.',
         ),
       },
     },
@@ -297,6 +334,13 @@ const RECIPES = Object.freeze([
           '按共情回应、事实与边界、可行下一步组织，必要时提供中性选择。',
           '不得假装已解决、过度道歉、揣测用户动机，或用安抚措辞替代事实。',
         ),
+        workbuddy: tier(
+          'WorkBuddy',
+          '使用 WorkBuddy 的单任务方法增强用户沟通。',
+          '允许模型补齐礼貌衔接、必要背景、边界和清晰的下一步表达。',
+          '由 WorkBuddy 风格系统提示词组织可直接发送的文本。',
+          '用户沟通 WorkBuddy 档仅执行语言、长度和纯文本输出约束，不应用 Prompt Lift JSON 验收协议。',
+        ),
       },
       en: {
         faithful: tier(
@@ -326,6 +370,13 @@ const RECIPES = Object.freeze([
           'Adjust tone and narrative and add empathy only when consistent with the source intent.',
           'Use Empathy, Facts and Boundaries, and Feasible Next Step, with neutral options when useful.',
           'Do not pretend the issue is solved, over-apologize, infer motives, or replace facts with reassurance.',
+        ),
+        workbuddy: tier(
+          'WorkBuddy',
+          'Enhance user communication with WorkBuddy’s single-purpose method.',
+          'Allow the model to add polite transitions, necessary context, boundaries, and a clear next step.',
+          'Let the WorkBuddy-style system prompt organize a ready-to-send message.',
+          'Apply only the WorkBuddy language, length, and plain-text output constraints instead of the Prompt Lift JSON validation protocol.',
         ),
       },
     },
@@ -379,6 +430,13 @@ const RECIPES = Object.freeze([
           '先输出推荐方案，再列备选方向和简短选择理由。',
           '不得为了吸引力夸大结论、制造数据、虚构来源或偏离单页主张。',
         ),
+        workbuddy: tier(
+          'WorkBuddy',
+          '使用 WorkBuddy 的单任务方法增强单页 PPT 文案。',
+          '允许模型重组结论标题、单页主张和支持信息层级。',
+          '由 WorkBuddy 风格系统提示词生成可直接使用的单页文案。',
+          'PPT 文案 WorkBuddy 档仅执行语言、长度和纯文本输出约束，不应用 Prompt Lift JSON 验收协议。',
+        ),
       },
       en: {
         faithful: tier(
@@ -408,6 +466,13 @@ const RECIPES = Object.freeze([
           'Provide two or three title or narrative directions and their use cases without adding facts.',
           'Output the recommended direction first, then alternatives and a short selection rationale.',
           'Do not exaggerate conclusions, fabricate data or sources, or drift from the single-slide claim for impact.',
+        ),
+        workbuddy: tier(
+          'WorkBuddy',
+          'Enhance single-slide presentation copy with WorkBuddy’s single-purpose method.',
+          'Allow the model to reorganize the conclusion-led title, slide claim, and supporting hierarchy.',
+          'Let the WorkBuddy-style system prompt produce slide-ready copy.',
+          'Apply only the WorkBuddy language, length, and plain-text output constraints instead of the Prompt Lift JSON validation protocol.',
         ),
       },
     },

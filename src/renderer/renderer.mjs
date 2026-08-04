@@ -22,6 +22,7 @@ const MAX_PROMPT_LENGTH = 1_000_000;
 const MODE_STAGE_TIMEOUT_MS = 5_000;
 const CONFIGURE_STAGE_TIMEOUT_MS = 8_000;
 const MODEL_STAGE_TIMEOUT_MS = 20_000;
+const WORKBUDDY_MODEL_STAGE_TIMEOUT_MS = 300_000;
 const APPLY_STAGE_TIMEOUT_MS = 15_000;
 const DEFAULT_COMPACT_WIDTH = 120;
 const DEFAULT_COMPACT_HEIGHT = 140;
@@ -39,6 +40,7 @@ const STYLE_LABELS = Object.freeze({
   concise: "清晰直达",
   professional: "专业展开",
   creative: "创意策划",
+  workbuddy: "WorkBuddy",
 });
 const MODE_STYLE_PRESENTATION = Object.freeze({
   enhance: Object.freeze({
@@ -58,6 +60,10 @@ const MODE_STYLE_PRESENTATION = Object.freeze({
       label: "创意策划",
       description: "在专业完整基础上增加可控创意方向与备选方案",
     }),
+    workbuddy: Object.freeze({
+      label: "WorkBuddy",
+      description: "复刻 WorkBuddy 提示词工程：自然文本直出，只做轻量清理",
+    }),
   }),
   "upward-communication": Object.freeze({
     faithful: Object.freeze({
@@ -75,6 +81,10 @@ const MODE_STYLE_PRESENTATION = Object.freeze({
     creative: Object.freeze({
       label: "影响力表达",
       description: "在保真基础上增强叙事节奏与说服力，不夸大承诺",
+    }),
+    workbuddy: Object.freeze({
+      label: "WorkBuddy",
+      description: "按 WorkBuddy 骨架扩写结论、依据、风险、支持诉求和下一步",
     }),
   }),
   "chat-polish": Object.freeze({
@@ -94,6 +104,10 @@ const MODE_STYLE_PRESENTATION = Object.freeze({
       label: "共情化解",
       description: "先承接情绪再化解问题，仍保持事实与边界",
     }),
+    workbuddy: Object.freeze({
+      label: "WorkBuddy",
+      description: "按 WorkBuddy 骨架增强礼貌、清晰度、边界和下一步",
+    }),
   }),
   "ppt-copy": Object.freeze({
     faithful: Object.freeze({
@@ -111,6 +125,10 @@ const MODE_STYLE_PRESENTATION = Object.freeze({
     creative: Object.freeze({
       label: "创意提案",
       description: "在事实不变前提下增加有记忆点的提案表达",
+    }),
+    workbuddy: Object.freeze({
+      label: "WorkBuddy",
+      description: "按 WorkBuddy 骨架生成结论标题、单页主张和支持层级",
     }),
   }),
 });
@@ -199,6 +217,7 @@ const expressionSummaryMode = document.querySelector("#expressionSummaryMode");
 const expressionSummaryStyle = document.querySelector("#expressionSummaryStyle");
 const expressionSummaryLength = document.querySelector("#expressionSummaryLength");
 const expressionSummarySafety = document.querySelector("#expressionSummarySafety");
+const promptProtocolLabel = document.querySelector("#promptProtocolLabel");
 const cancelButton = document.querySelector("#cancelButton");
 const restoreButton = document.querySelector("#restoreButton");
 const copyButton = document.querySelector("#copyButton");
@@ -459,10 +478,12 @@ function updateExpressionSummary() {
     ?? STYLE_LABELS[resultStyle]
     ?? STYLE_LABELS.concise;
   expressionSummaryLength.textContent = `${state.originalText.length} → ${state.enhancedText.length}`;
-  expressionSummarySafety.textContent = state.validatedText
+  expressionSummarySafety.textContent = resultStyle === "workbuddy"
+    ? "WorkBuddy 直出"
+    : state.validatedText
     && state.enhancedText !== state.validatedText
-    ? "用户已编辑"
-    : "安全校验通过";
+      ? "用户已编辑"
+      : "安全校验通过";
 }
 
 function updateCompactScale() {
@@ -559,6 +580,11 @@ function updateStyleLabel() {
   currentStyleLabel.textContent = presentation[state.style]?.label
     ?? STYLE_LABELS[state.style]
     ?? STYLE_LABELS.concise;
+  if (promptProtocolLabel) {
+    promptProtocolLabel.textContent = state.style === "workbuddy"
+      ? "WorkBuddy 协议 · 当前模型 · 自然文本直出 · 轻量清理"
+      : "系统提示词规范 v2 · 原意、事实与语言保护";
+  }
   document.querySelectorAll(".style-option").forEach((button) => {
     const item = presentation[button.dataset.style];
     if (item) {
@@ -1523,7 +1549,9 @@ async function handleEnhance({ capturedSource, clarification } = {}) {
       replace: !state.reviewMode,
     }), {
       stage: "model",
-      timeoutMs: MODEL_STAGE_TIMEOUT_MS,
+      timeoutMs: state.style === "workbuddy"
+        ? WORKBUDDY_MODEL_STAGE_TIMEOUT_MS
+        : MODEL_STAGE_TIMEOUT_MS,
     });
     if (!isCurrentRequest(requestId)) {
       return;

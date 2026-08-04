@@ -149,6 +149,10 @@ export function inferPromptErrorCode(error) {
     error?.details?.message,
     error?.cause?.message,
   ].filter((value) => typeof value === "string").join(" ");
+  const serializedCode = detail.match(/\b[A-Z][A-Z0-9_]{2,63}\b/u)?.[0] ?? "";
+  if (KNOWN_ERROR_CODES.has(serializedCode)) {
+    return serializedCode;
+  }
   for (const [code, pattern] of ERROR_CODE_PATTERNS) {
     if (pattern.test(detail)) {
       return code;

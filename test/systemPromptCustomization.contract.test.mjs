@@ -32,12 +32,12 @@ test("system prompt customization exposes a mode-by-tier editor and local persis
   assert.match(main, /handleIpc\('prompt:system-prompts:reset'/);
 });
 
-test("system prompt editor keeps immutable safety protocol visible and custom rules bounded", () => {
+test("system prompt editor distinguishes the safe protocol from WorkBuddy and keeps custom rules bounded", () => {
   const html = read("src/renderer/index.html");
   const renderer = read("src/renderer/renderer.mjs");
   const core = read("src/core/promptEnhancer.mjs");
 
-  assert.match(html, /系统安全协议不可关闭/);
+  assert.match(html, /普通档位使用 Prompt Lift 安全协议；WorkBuddy 档使用其自然文本直出协议/);
   assert.match(html, /maxlength="6000"/);
   assert.match(html, /恢复默认/);
   assert.match(renderer, /自定义补充规则/);
