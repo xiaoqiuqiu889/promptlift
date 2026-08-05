@@ -48,46 +48,40 @@ test("processing hub prioritizes optimization tier and keeps scene changes in th
   assert.doesNotMatch(renderer, /state\.hub\s*=\s*"scenes"/);
 });
 
-test("prompt style UI exposes exactly four distinct tiers and migrates legacy values", () => {
+test("prompt style UI exposes WorkBuddy as the only tier and migrates every legacy value", () => {
   const html = read("src/renderer/index.html");
   const renderer = read("src/renderer/renderer.mjs");
   const styleValues = [...html.matchAll(/class="style-option"[^>]*data-style="([^"]+)"/g)]
     .map((match) => match[1]);
 
-  assert.deepEqual(styleValues, [
-    "faithful",
-    "concise",
-    "professional",
-    "creative",
-  ]);
-  for (const label of ["原意守护", "清晰直达", "专业展开", "创意策划"]) {
-    assert.match(html, new RegExp(`<strong>${label}</strong>`));
-    assert.match(renderer, new RegExp(`"${label}"`));
-  }
+  assert.deepEqual(styleValues, ["workbuddy"]);
+  assert.deepEqual(
+    [...html.matchAll(/data-system-style="([^"]+)"/g)].map((match) => match[1]),
+    ["workbuddy"],
+  );
+  assert.match(html, /<strong>WorkBuddy<\/strong>/);
+  assert.doesNotMatch(html, /data-style="(?:faithful|concise|professional|creative)"/);
+  assert.doesNotMatch(html, /data-system-style="(?:faithful|concise|professional|creative)"/);
   assert.match(renderer, /LEGACY_STYLE_ALIASES/);
-  assert.match(renderer, /balanced:\s*"concise"/);
-  assert.match(renderer, /detailed:\s*"professional"/);
+  for (const legacyStyle of ["balanced", "detailed", "faithful", "concise", "professional", "creative"]) {
+    assert.match(renderer, new RegExp(`${legacyStyle}:\\s*"workbuddy"`));
+  }
   assert.match(renderer, /normalizeStyle\(savedConfig\.style\)/);
 });
 
-test("each work mode presents its own four tier names while keeping canonical values", () => {
+test("each work mode presents one scene-specific WorkBuddy contract", () => {
   const html = read("src/renderer/index.html");
   const renderer = read("src/renderer/renderer.mjs");
   const styleValues = [...html.matchAll(/class="style-option"[^>]*data-style="([^"]+)"/g)]
     .map((match) => match[1]);
 
-  assert.deepEqual(styleValues, ["faithful", "concise", "professional", "creative"]);
+  assert.deepEqual(styleValues, ["workbuddy"]);
   assert.match(renderer, /MODE_STYLE_PRESENTATION/);
-  for (const labels of [
-    ["原意守护", "清晰直达", "专业展开", "创意策划"],
-    ["事实直报", "结论先行", "决策建议", "影响力表达"],
-    ["安全保真", "友好清晰", "专业服务", "共情化解"],
-    ["原文压缩", "结论标题", "结构化叙事", "创意提案"],
-  ]) {
-    for (const label of labels) {
-      assert.match(renderer, new RegExp(`label:\\s*"${label}"`));
-    }
-  }
+  assert.equal(
+    (renderer.match(/workbuddy:\s*Object\.freeze\(\{/gu) ?? []).length,
+    4,
+    "all four scenes must define one WorkBuddy presentation",
+  );
   assert.match(
     renderer,
     /function updateStyleLabel\(\)[\s\S]*button\.querySelector\("strong"\)[\s\S]*button\.querySelector\("span"\)/,
@@ -95,7 +89,7 @@ test("each work mode presents its own four tier names while keeping canonical va
   assert.match(
     renderer,
     /function updateModeLabel\(\)[\s\S]*updateStyleLabel\(\)/,
-    "switching mode must refresh all four visible tier labels immediately",
+    "switching mode must refresh the WorkBuddy scene contract immediately",
   );
 });
 

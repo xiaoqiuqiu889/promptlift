@@ -12,20 +12,22 @@ const DIRECT_FEEDBACK_SOURCE = '请优化桌面宠物的拖动交互：当前拖
 const PRODUCT_FEEDBACK_SOURCE = [
   '1. 我没有开启审阅后应用，但生成后仍进入审阅界面',
   '2. 审阅状态缺少取消、恢复原文、重新生成、复制、应用',
-  '3. 四种沟通模式需要使用不同的优化档位',
+  '3. 四种沟通模式需要统一使用 WorkBuddy 优化逻辑，不再展示其他档位',
 ].join('\n') + '\nReturn one concise direct request with no explanation.';
 const DECISIVE_PRODUCT_FEEDBACK_SOURCE = [
   '结论：当前设置中的工作模式与场景存在重复，建议合并保留一个。',
   '界面 UI 文字过小且拥挤，需要整体升级。',
   '下一步行动：优先处理 UI 升级并指定合并方案，同时明确自定义快捷键的技术实现范围。',
 ].join('\n') + '\n请保留建议语气，不要把建议改写为强制要求；只返回一份紧凑、可执行的直接请求。';
+const CONTEXT_REFERENCE_SOURCE = '其他agent给我提了这个建议，你评估下是否值得采纳？ 采纳后的结果是否会有提升';
 const META_OUTPUT = /请将以下(?:内容|文本|用户反馈).{0,32}(?:优化为|改写|润色|重写|增强)|待改写内容|本次改写要求|SOURCE_MATERIAL_JSON|系统提示词规范/iu;
 const DIRECT_OUTPUT = /拖动|跟手|流畅|丝滑/iu;
 const PRODUCT_SCOPE_OUTPUT = /审阅后应用/iu;
 const REVIEW_ACTION_OUTPUT = /取消|放弃/iu;
-const MODE_TIER_OUTPUT = /四种沟通模式|沟通模式.{0,24}优化档位/iu;
+const MODE_TIER_OUTPUT = /四种沟通模式|沟通模式.{0,32}WorkBuddy/iu;
 const FORBIDDEN_PRODUCT_CONTEXT = /Microsoft\s*Word|Word\s*审阅|第三方插件|版本差异|权限设置|模板问题/iu;
 const PERMISSION_SEEKING_OUTPUT = /(?:是否|要不要|需不需要)(?:需要)?我.{0,24}(?:继续|开始|优先|进一步|处理|执行|修改|开发|优化|推进)|(?:would you like me to|should i|shall i|do you want me to)/iu;
+const BLOCKING_CLARIFICATION_OUTPUT = /请(?:先)?提供|请(?:先)?补充|需要(?:先)?提供|无法评估|缺少.{0,12}(?:建议|内容|上下文)/iu;
 const promptLiftUserDataPath = path.join(app.getPath('appData'), 'Prompt Lift');
 app.setPath('userData', promptLiftUserDataPath);
 let activeCase = 'configuration';
@@ -52,7 +54,7 @@ async function run() {
     {
       name: 'direct-feedback',
       source: DIRECT_FEEDBACK_SOURCE,
-      style: 'concise',
+      style: 'workbuddy',
       validate(result) {
         return {
           directResult: DIRECT_OUTPUT.test(result),
@@ -63,7 +65,7 @@ async function run() {
     {
       name: 'product-feedback-scope',
       source: PRODUCT_FEEDBACK_SOURCE,
-      style: 'concise',
+      style: 'workbuddy',
       validate(result) {
         return {
           productScopePreserved: PRODUCT_SCOPE_OUTPUT.test(result)
@@ -77,13 +79,28 @@ async function run() {
     {
       name: 'decisive-product-feedback',
       source: DECISIVE_PRODUCT_FEEDBACK_SOURCE,
-      style: 'professional',
+      style: 'workbuddy',
       validate(result) {
         return {
           mergedModeAndScene: /工作模式/u.test(result) && /场景/u.test(result),
           uiUpgradePreserved: /UI|界面/u.test(result) && /升级|优化/u.test(result),
           shortcutScopePreserved: /快捷键/u.test(result) && /技术实现范围|实现范围|技术范围/u.test(result),
           permissionSeeking: PERMISSION_SEEKING_OUTPUT.test(result),
+          metaPromptLeak: META_OUTPUT.test(result),
+        };
+      },
+    },
+    {
+      name: 'workbuddy-context-reference',
+      source: CONTEXT_REFERENCE_SOURCE,
+      style: 'workbuddy',
+      validate(result) {
+        return {
+          contextReferencePreserved: /当前对话|其他\s*Agent|该建议|这个建议/iu.test(result),
+          evaluationStructure: /结论/u.test(result)
+            && /收益|提升/u.test(result)
+            && /成本|风险|兼容/u.test(result),
+          blockingClarification: BLOCKING_CLARIFICATION_OUTPUT.test(result),
           metaPromptLeak: META_OUTPUT.test(result),
         };
       },
@@ -103,7 +120,10 @@ async function run() {
     });
     const checks = contractCase.validate(result);
     const failed = Object.entries(checks).some(([key, value]) => (
-      key.startsWith('invented') || key.endsWith('Leak') || key === 'permissionSeeking'
+      key.startsWith('invented')
+        || key.startsWith('blocking')
+        || key.endsWith('Leak')
+        || key === 'permissionSeeking'
         ? value
         : !value
     ));

@@ -1,4 +1,5 @@
 export const DEFAULT_SHORTCUT = "DoubleAlt";
+export const MACOS_DEFAULT_SHORTCUT = "Shift+Super+P";
 
 const MODIFIER_ORDER = Object.freeze(["Control", "Alt", "Shift", "Super"]);
 const MODIFIER_ALIASES = Object.freeze({
@@ -82,10 +83,31 @@ export function normalizeShortcut(input, { fallbackToDefault = true } = {}) {
   ].join("+");
 }
 
-export function shortcutDisplayLabel(input) {
+export function defaultShortcutForPlatform(platform = process.platform) {
+  return platform === "darwin" ? MACOS_DEFAULT_SHORTCUT : DEFAULT_SHORTCUT;
+}
+
+export function shortcutDisplayLabel(input, { platform = process.platform } = {}) {
   const shortcut = normalizeShortcut(input);
   if (shortcut === DEFAULT_SHORTCUT) {
     return "双击左 Alt";
+  }
+  if (platform === "darwin") {
+    const symbols = Object.freeze({
+      Control: "⌃",
+      Alt: "⌥",
+      Shift: "⇧",
+      Super: "⌘",
+    });
+    const tokens = shortcut.split("+");
+    const baseKey = tokens.at(-1);
+    const modifierOrder = ["Super", "Shift", "Alt", "Control"];
+    return [
+      ...modifierOrder.filter((modifier) => tokens.includes(modifier)),
+      baseKey,
+    ]
+      .map((token) => symbols[token] ?? token)
+      .join("");
   }
   return shortcut
     .split("+")

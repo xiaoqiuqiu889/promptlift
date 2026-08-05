@@ -138,7 +138,7 @@
           </div>
           <section id="expressionSummary" class="expression-summary" aria-label="本次优化摘要">
             <span><small>场景</small><strong id="expressionSummaryMode">AI 提示词</strong></span>
-            <span><small>档位</small><strong id="expressionSummaryStyle">清晰直达</strong></span>
+            <span><small>引擎</small><strong id="expressionSummaryStyle">WorkBuddy</strong></span>
             <span><small>长度</small><strong id="expressionSummaryLength">0 → 0</strong></span>
             <span class="summary-safe"><small>校验</small><strong id="expressionSummarySafety">安全校验通过</strong></span>
           </section>
@@ -180,12 +180,12 @@
           <p class="hub-section-label">表达设置</p>
           <div id="hubExpressionSettings" class="hub-group hub-expression-settings">
             <button class="hub-row" type="button" data-menu-action="scenes"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-scene"></use></svg></span><span>表达场景<small>决定表达对象与优化目标</small></span><span class="hub-row-tail"><span id="currentModeLabel" class="menu-value">AI 提示词</span><span class="hub-chevron" aria-hidden="true">›</span></span></button>
-            <button class="hub-row" type="button" data-menu-action="style"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-tier"></use></svg></span><span>优化档位<small>控制保真、简洁、专业与创意程度</small></span><span class="hub-row-tail"><span id="currentStyleLabel" class="menu-value">清晰直达</span><span class="hub-chevron" aria-hidden="true">›</span></span></button>
+            <button class="hub-row" type="button" data-menu-action="style"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-tier"></use></svg></span><span>优化引擎<small>所有场景统一使用 WorkBuddy 增强协议</small></span><span class="hub-row-tail"><span id="currentStyleLabel" class="menu-value">WorkBuddy</span><span class="hub-chevron" aria-hidden="true">›</span></span></button>
           </div>
           <p class="hub-section-label">应用与规则</p>
           <div class="hub-group">
             <button id="reviewModeButton" class="hub-row" role="switch" type="button" data-menu-action="review" aria-checked="false"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-review"></use></svg></span><span>审阅后应用<small>开启后先看差异，再决定是否回填</small></span><span id="reviewModeLabel" class="menu-value">已关闭</span></button>
-            <button id="systemPromptQuickAction" class="hub-row" type="button" data-menu-action="system-prompts"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-prompt"></use></svg></span><span>系统提示词<small>查看当前档位约束，并编辑本机自定义补充规则</small></span><span class="menu-value">查看与编辑</span></button>
+            <button id="systemPromptQuickAction" class="hub-row" type="button" data-menu-action="system-prompts"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-prompt"></use></svg></span><span>系统提示词<small>查看当前场景的 WorkBuddy 规则，并编辑本机补充规则</small></span><span class="menu-value">查看与编辑</span></button>
           </div>
         </section>
 
@@ -214,7 +214,7 @@
                 </span>
               </span>
             </span>
-            <span><strong>Prompt Pet</strong><small>一起让表达变好 · Windows 任意输入框里的安全表达助手</small></span>
+            <span><strong>Prompt Pet</strong><small>一起让表达变好 · 桌面任意输入框里的安全表达助手</small></span>
           </div>
           <p class="hub-section-label">偏好</p>
           <div class="hub-group">
@@ -225,7 +225,7 @@
           <div class="hub-group">
             <button class="hub-row" type="button" data-menu-action="configure"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-key"></use></svg></span><span>模型与 Key<small>配置服务地址、模型和加密凭据</small></span><span id="hubModelStateLabel" class="menu-value" aria-live="polite">检查中</span></button>
             <button class="hub-row" type="button" data-menu-action="check"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-model-check"></use></svg></span><span>检查模型配置<small>验证连接并安全保存当前设置</small></span><span id="hubModelCheckLabel" class="menu-value" aria-live="polite">未检查</span></button>
-            <button class="hub-row" type="button" data-menu-action="startup"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-startup"></use></svg></span><span>开机自启动<small>登录 Windows 后自动唤起小精灵</small></span><span id="startupLabel" class="menu-value">已关闭</span></button>
+            <button class="hub-row" type="button" data-menu-action="startup"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-startup"></use></svg></span><span>开机自启动<small>登录系统后自动唤起小精灵</small></span><span id="startupLabel" class="menu-value">已关闭</span></button>
           </div>
           <p class="hub-section-label">帮助与安全</p>
           <div class="hub-group">
@@ -275,13 +275,13 @@
           </div>
           <button class="panel-back" type="button" data-close-panel="shortcutPanel" aria-label="返回我的"><svg class="ui-icon" aria-hidden="true"><use href="#icon-back"></use></svg></button>
         </div>
-        <p class="panel-note">默认使用双击左 Alt。自定义组合键会在 Windows 全局生效，保存前先检查是否与系统或其他应用冲突。</p>
+        <p class="panel-note">默认快捷键由当前系统决定。自定义组合键会在桌面全局生效，保存前先检查是否与系统或其他应用冲突。</p>
         <label class="field-label" for="shortcutValue">当前准备使用</label>
         <input id="shortcutValue" class="panel-input shortcut-value" type="text" value="双击左 Alt" readonly />
         <button id="shortcutCaptureButton" class="shortcut-capture-button" type="button">录制新的组合键</button>
         <p class="panel-note shortcut-scope-note">按下至少两个修饰键（Ctrl / Alt / Shift / Win）和一个字母、数字、Space 或 F1–F12；按 Esc 取消录制。</p>
         <div class="panel-actions">
-          <button id="shortcutResetButton" class="text-button" type="button">恢复双击左 Alt</button>
+          <button id="shortcutResetButton" class="text-button" type="button">恢复默认快捷键</button>
           <button id="shortcutSaveButton" class="small-primary" type="button" disabled>保存并启用</button>
         </div>
         <p id="shortcutStatus" class="panel-note" role="status" aria-live="polite">正在读取当前快捷键…</p>
@@ -303,7 +303,7 @@
         <input id="apiKey" class="panel-input" type="password" placeholder="请输入你的 API Key" autocomplete="off" spellcheck="false" />
         <label class="field-label" for="targetWindowTitlePattern">目标窗口标题（可选）</label>
         <input id="targetWindowTitlePattern" class="panel-input" type="text" placeholder="留空使用当前目标窗口" autocomplete="off" />
-        <p id="modelStorageStatus" class="panel-note" role="status">API Key 使用 Windows 加密存储，可保存后留空复用。</p>
+        <p id="modelStorageStatus" class="panel-note" role="status">API Key 使用系统加密存储，可保存后留空复用。</p>
         <div class="panel-actions">
           <button id="checkModelButton" class="text-button" type="button">检查并保存</button>
           <button id="saveModelButton" class="small-primary" type="button">保存配置</button>
@@ -342,26 +342,23 @@
           <ul>
             <li>不保存输入内容或优化历史</li>
             <li>应用前校验目标窗口与原文</li>
-            <li>API Key 使用 Windows 加密存储</li>
+            <li>API Key 使用当前系统账户的加密存储</li>
           </ul>
         </div>
         <p class="panel-note">遇到异常时不会盲目覆盖输入；结果会保留在助手中供复制或重试。</p>
       </section>
 
-      <section id="stylePanel" class="floating-panel style-panel" hidden aria-label="优化档位" role="dialog">
+      <section id="stylePanel" class="floating-panel style-panel" hidden aria-label="优化引擎" role="dialog">
         <div class="panel-heading">
           <div>
-            <span class="panel-kicker">PROMPT TIER</span>
-            <strong>优化档位</strong>
+            <span class="panel-kicker">WORKBUDDY ENGINE</span>
+            <strong>优化引擎</strong>
           </div>
           <button class="panel-back" type="button" data-close-panel="stylePanel" aria-label="返回处理"><svg class="ui-icon" aria-hidden="true"><use href="#icon-back"></use></svg></button>
         </div>
-        <p id="promptProtocolLabel" class="panel-note">系统提示词规范 v2 · 原意、事实与语言保护</p>
-        <button class="style-option" type="button" data-style="faithful"><strong>原意守护</strong><span>只澄清目标与结构，不新增范围、假设或承诺</span></button>
-        <button class="style-option" type="button" data-style="concise"><strong>清晰直达</strong><span>去除重复，补齐关键约束，用更短路径表达</span></button>
-        <button class="style-option" type="button" data-style="professional"><strong>专业展开</strong><span>补充执行背景、步骤、标准与专业输出结构</span></button>
-        <button class="style-option" type="button" data-style="creative"><strong>创意策划</strong><span>在专业完整基础上增加可控创意方向与备选方案</span></button>
-        <button id="viewSystemPromptButton" class="panel-link-button" type="button">查看当前档位系统提示词</button>
+        <p id="promptProtocolLabel" class="panel-note">WorkBuddy 协议 · 当前模型 · 自然文本直出 · 场景化判断</p>
+        <button class="style-option" type="button" data-style="workbuddy"><strong>WorkBuddy</strong><span>识别上下文引用，直接形成可执行请求；信息足够时不追加追问</span></button>
+        <button id="viewSystemPromptButton" class="panel-link-button" type="button">查看当前场景系统提示词</button>
       </section>
 
       <section id="systemPromptPanel" class="floating-panel system-prompt-panel" hidden aria-label="系统提示词" role="dialog">
@@ -370,9 +367,9 @@
             <span class="panel-kicker">SYSTEM PROMPT</span>
             <strong>查看与编辑系统提示词</strong>
           </div>
-          <button class="panel-back" type="button" data-close-panel="systemPromptPanel" aria-label="返回优化档位"><svg class="ui-icon" aria-hidden="true"><use href="#icon-back"></use></svg></button>
+          <button class="panel-back" type="button" data-close-panel="systemPromptPanel" aria-label="返回优化引擎"><svg class="ui-icon" aria-hidden="true"><use href="#icon-back"></use></svg></button>
         </div>
-        <p class="panel-note system-prompt-safety-note">这里展示当前场景与优化档位实际使用的系统提示词。系统安全协议不可关闭；你的自定义规则只作为低优先级补充，不会覆盖事实保护、档位约束或输出协议。</p>
+        <p class="panel-note system-prompt-safety-note">这里展示当前场景实际使用的 WorkBuddy 系统提示词。自定义规则只附加到所选场景，不会改变其他场景。</p>
         <div class="system-prompt-selectors">
           <label class="field-label" for="systemPromptModeSelect">场景</label>
           <select id="systemPromptModeSelect" class="panel-input">
@@ -381,28 +378,25 @@
             <option value="chat-polish">用户沟通</option>
             <option value="ppt-copy">PPT 文案</option>
           </select>
-          <div id="systemPromptStyleTabs" class="system-prompt-style-tabs" role="tablist" aria-label="优化档位">
-            <button class="system-prompt-style-tab" type="button" data-system-style="faithful" aria-selected="false"><strong>原意守护</strong><small></small></button>
-            <button class="system-prompt-style-tab" type="button" data-system-style="concise" aria-selected="false"><strong>清晰直达</strong><small></small></button>
-            <button class="system-prompt-style-tab" type="button" data-system-style="professional" aria-selected="false"><strong>专业展开</strong><small></small></button>
-            <button class="system-prompt-style-tab" type="button" data-system-style="creative" aria-selected="false"><strong>创意策划</strong><small></small></button>
+          <div id="systemPromptStyleTabs" class="system-prompt-style-tabs" role="tablist" aria-label="优化引擎">
+            <button class="system-prompt-style-tab" type="button" data-system-style="workbuddy" aria-selected="false"><strong>WorkBuddy</strong><small></small></button>
           </div>
         </div>
         <details id="systemPromptDisclosure" class="system-prompt-disclosure">
           <summary>
             <span>当前系统提示词（只读）</span>
-            <small id="systemPromptSelectionLabel">AI 提示词 · 清晰直达</small>
+            <small id="systemPromptSelectionLabel">AI 提示词 · WorkBuddy</small>
           </summary>
           <pre id="systemPromptCurrent" class="system-prompt-current" tabindex="0"></pre>
         </details>
         <label class="field-label" for="systemPromptCustom">自定义补充规则</label>
         <textarea id="systemPromptCustom" class="system-prompt-editor system-prompt-custom-editor" rows="4" maxlength="6000" spellcheck="false" placeholder="例如：先给结论，再列出两条依据。"></textarea>
-        <p class="panel-note">自定义补充规则仅在不与安全协议、原文事实、Recipe 和档位合同冲突时生效；留空即可恢复默认。</p>
+        <p class="panel-note">补充规则会按 WorkBuddy 原生方式附加到当前场景的系统提示词。留空即可恢复默认。</p>
         <div class="panel-actions">
           <button id="resetSystemPromptButton" class="text-button" type="button">恢复默认</button>
           <button id="saveSystemPromptButton" class="small-primary" type="button" disabled>保存自定义规则</button>
         </div>
-        <p id="systemPromptStatus" class="panel-note" role="status" aria-live="polite">正在读取当前档位…</p>
+        <p id="systemPromptStatus" class="panel-note" role="status" aria-live="polite">正在读取当前场景…</p>
       </section>
     </main>
     <script type="module" src="./renderer.mjs"></script>

@@ -68,13 +68,17 @@ test('recipe protocol is versioned and exposes conservative style policies', () 
     concise: 1.5,
     professional: 2.25,
     creative: 3,
+    workbuddy: 3,
   });
-  for (const style of Object.values(MODEL_STYLES)) {
+  for (const style of Object.values(MODEL_STYLES)
+    .filter((value) => value !== MODEL_STYLES.workbuddy)) {
     const policy = recipe.styleContracts.en[style];
     assert.equal(policy.preserveAnchors, true);
     assert.equal(policy.preserveCommitmentStrength, true);
     assert.equal(policy.maxExpansionRatio, MODEL_STYLE_MAX_EXPANSION_RATIOS[style]);
   }
+  assert.equal(recipe.styleContracts.en.workbuddy.preserveAnchors, false);
+  assert.equal(recipe.styleContracts.en.workbuddy.preserveCommitmentStrength, false);
   assert.equal(recipe.styleContracts.en.faithful.allowNewScenarios, false);
   assert.equal(recipe.styleContracts.en.concise.allowNewScenarios, false);
   assert.equal(recipe.styleContracts.en.professional.allowNewScenarios, false);

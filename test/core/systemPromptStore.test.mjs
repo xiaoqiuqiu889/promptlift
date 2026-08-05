@@ -6,7 +6,7 @@ import {
   normalizeSystemPromptOverrides,
 } from "../../src/core/systemPromptStore.mjs";
 
-test("system prompt overrides persist per mode and tier without storing unrelated keys", async () => {
+test("system prompt overrides persist only WorkBuddy rules and discard retired tiers", async () => {
   let fileContents;
   let renamed;
   const store = createSystemPromptStore({
@@ -21,32 +21,49 @@ test("system prompt overrides persist per mode and tier without storing unrelate
   });
 
   const saved = await store.save({
-    "enhance:creative": "优先给出三种可选方向。",
-    "chat-polish:faithful": "不要改变称谓。",
+    "enhance:workbuddy": "优先给出可执行结论。",
+    "chat-polish:workbuddy": "不要改变称谓。",
+    "enhance:creative": "retired tier must be discarded",
     "unknown:creative": "must be discarded",
   });
   assert.equal(saved.saved, true);
   assert.equal(renamed.target, store.configPath);
-  assert.doesNotMatch(fileContents, /unknown:creative/);
+  assert.doesNotMatch(fileContents, /(?:unknown:creative|enhance:creative)/);
 
   const loaded = await store.load();
   assert.deepEqual(loaded.overrides, {
-    "enhance:creative": "优先给出三种可选方向。",
-    "chat-polish:faithful": "不要改变称谓。",
+    "enhance:workbuddy": "优先给出可执行结论。",
+    "chat-polish:workbuddy": "不要改变称谓。",
   });
 });
 
 test("system prompt override normalization bounds text and removes blank values", () => {
   const result = normalizeSystemPromptOverrides({
-    "enhance:concise": "  保留关键数字。  ",
-    "upward-communication:professional": "x".repeat(10_000),
-    "ppt-copy:creative": "   ",
+    "enhance:workbuddy": "  保留关键数字。  ",
+    "upward-communication:workbuddy": "x".repeat(10_000),
+    "ppt-copy:creative": "retired",
     "invalid": "ignore",
   });
-  assert.equal(result["enhance:concise"], "保留关键数字。");
-  assert.equal(result["upward-communication:professional"].length, 6_000);
+  assert.equal(result["enhance:workbuddy"], "保留关键数字。");
+  assert.equal(result["upward-communication:workbuddy"].length, 6_000);
   assert.equal(Object.hasOwn(result, "ppt-copy:creative"), false);
   assert.equal(Object.hasOwn(result, "invalid"), false);
+});
+
+test("WorkBuddy supplements persist independently for every scene", () => {
+  const result = normalizeSystemPromptOverrides({
+    "enhance:workbuddy": "Keep the request focused.",
+    "upward-communication:workbuddy": "Lead with the decision.",
+    "chat-polish:workbuddy": "Keep the response polite.",
+    "ppt-copy:workbuddy": "Use one slide claim.",
+  });
+
+  assert.deepEqual(result, {
+    "enhance:workbuddy": "Keep the request focused.",
+    "upward-communication:workbuddy": "Lead with the decision.",
+    "chat-polish:workbuddy": "Keep the response polite.",
+    "ppt-copy:workbuddy": "Use one slide claim.",
+  });
 });
 
 test("system prompt store rejects an invalid user data path", () => {
@@ -88,6 +105,6 @@ test("system prompt store reports atomic save failures without leaking prompt te
       throw new Error("rename should not run");
     },
   });
-  const result = await store.save({ "enhance:creative": "private rule" });
+  const result = await store.save({ "enhance:workbuddy": "private rule" });
   assert.deepEqual(result, { saved: false, count: 1, reason: "WRITE_FAILED" });
 });

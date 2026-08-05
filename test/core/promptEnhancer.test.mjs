@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  ACTIVE_MODEL_STYLES,
   PROMPT_PROTOCOL_VERSION,
   buildEnhancementRequest,
   buildModelInstruction,
@@ -14,8 +15,10 @@ import {
   MAX_MODEL_REPAIR_RETRIES,
   MODEL_STYLES,
   PROMPT_MODES,
+  WORKBUDDY_SYSTEM_PROMPTS,
   isPromptMode,
   resolveModelStyle,
+  resolveActiveModelStyle,
   sanitizeModelOutput,
 } from '../../src/core/promptEnhancer.mjs';
 
@@ -35,25 +38,44 @@ test('prompt mode validation accepts mode values instead of object property name
   assert.equal(isPromptMode('unknown'), false);
 });
 
-test('prompt style registry exposes exactly four canonical tiers and migrates legacy values', () => {
+test('prompt style registry exposes five canonical tiers and migrates legacy values', () => {
   assert.deepEqual(MODEL_STYLES, {
     faithful: 'faithful',
     concise: 'concise',
     professional: 'professional',
     creative: 'creative',
+    workbuddy: 'workbuddy',
   });
 
   assert.equal(resolveModelStyle('faithful'), MODEL_STYLES.faithful);
   assert.equal(resolveModelStyle('concise'), MODEL_STYLES.concise);
   assert.equal(resolveModelStyle('professional'), MODEL_STYLES.professional);
   assert.equal(resolveModelStyle('creative'), MODEL_STYLES.creative);
+  assert.equal(resolveModelStyle('workbuddy'), MODEL_STYLES.workbuddy);
   assert.equal(resolveModelStyle('balanced'), MODEL_STYLES.concise);
   assert.equal(resolveModelStyle('detailed'), MODEL_STYLES.professional);
   assert.equal(resolveModelStyle('unknown'), null);
   assert.equal(resolveModelStyle(''), null);
 });
 
-test('four prompt tiers define visibly different structure length expertise and creativity contracts', () => {
+test('the product runtime exposes only WorkBuddy and migrates every saved tier to it', () => {
+  assert.deepEqual(ACTIVE_MODEL_STYLES, [MODEL_STYLES.workbuddy]);
+  for (const value of [
+    undefined,
+    'balanced',
+    'detailed',
+    'faithful',
+    'concise',
+    'professional',
+    'creative',
+    'workbuddy',
+    'unknown',
+  ]) {
+    assert.equal(resolveActiveModelStyle(value), MODEL_STYLES.workbuddy);
+  }
+});
+
+test('five prompt tiers define visibly different contracts', () => {
   const instructions = Object.fromEntries(
     Object.values(MODEL_STYLES).map((style) => [
       style,
@@ -80,8 +102,10 @@ test('four prompt tiers define visibly different structure length expertise and 
   assert.match(instructions.creative, /专业任务简报.*基础/);
   assert.match(instructions.creative, /创意方向|备选角度/);
   assert.match(instructions.creative, /建议.*事实|不得虚构/);
+  assert.match(instructions.workbuddy, /Prompt Engineering Expert/);
+  assert.match(instructions.workbuddy, /Provide only the enhanced prompt/);
 
-  assert.equal(new Set(Object.values(instructions)).size, 4);
+  assert.equal(new Set(Object.values(instructions)).size, 5);
   assert.ok(instructions.professional.length > instructions.concise.length);
   assert.ok(instructions.creative.length > instructions.concise.length);
 });
@@ -99,6 +123,11 @@ test('every mode and style combination injects its own optimization contract int
   for (const [mode, names] of Object.entries(expectedTierNames)) {
     styles.forEach((style, index) => {
       const instruction = buildModelInstruction('zh', style, mode);
+      if (style === MODEL_STYLES.workbuddy) {
+        assert.equal(instruction, WORKBUDDY_SYSTEM_PROMPTS[mode]);
+        contracts.add(instruction);
+        return;
+      }
       assert.match(instruction, new RegExp(`档位名称：${names[index]}`));
       assert.match(instruction, /档位目标：/);
       assert.match(instruction, /改动预算：/);
@@ -109,7 +138,7 @@ test('every mode and style combination injects its own optimization contract int
     });
   }
 
-  assert.equal(contracts.size, 16);
+  assert.equal(contracts.size, 20);
 });
 
 test('legacy and invalid prompt styles resolve before model instruction selection', () => {
@@ -509,7 +538,8 @@ test('model protocol repairs an introduced meta-rewrite prompt and returns the d
 });
 
 test('enhance instructions require decisive execution language without unsolicited permission seeking', () => {
-  for (const style of Object.values(MODEL_STYLES)) {
+  for (const style of Object.values(MODEL_STYLES)
+    .filter((value) => value !== MODEL_STYLES.workbuddy)) {
     const chinese = buildModelInstruction('zh', style, PROMPT_MODES.enhance);
     const english = buildModelInstruction('en', style, PROMPT_MODES.enhance);
 

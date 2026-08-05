@@ -1,1 +1,3 @@
-62A3AA63391D55C91E747B8BA520EE63FD75360F626F3B4CB0B8CFCD82C8B3F5  Prompt-Lift-latest-win32-x64.zip
+dce3534d301fafda0d2e3848d3c88bf14467edba4c4059f0ea20eb8f3a60ddff  Prompt-Lift-latest-darwin-arm64.zip
+992e5d8d354bf4bf74070845e68af330bc68db496ae7d599c49e532c2c6ecb5b  Prompt-Lift-latest-darwin-x64.zip
+fdc9c46960f49d7e9b2f56809af177463ae5f81258ace9589ffae288b0370961  Prompt-Lift-latest-win32-x64.zip

@@ -35,7 +35,8 @@ const EXPECTED_AUDIT_PROMPT = [
 ].join('\n');
 
 const MODES = Object.values(PROMPT_MODES);
-const STYLES = Object.values(MODEL_STYLES);
+const STYLES = Object.values(MODEL_STYLES)
+  .filter((style) => style !== MODEL_STYLES.workbuddy);
 
 function completion(mode, result, status = 'ok') {
   return {
@@ -71,7 +72,7 @@ function modelOptions(mode, style, fetchImpl) {
   };
 }
 
-test('all sixteen scene-tier prompts preserve pending task state and treat links as anchors, not evidence', () => {
+test('all sixteen Prompt Lift protocol scene-tier prompts preserve pending task state and treat links as anchors, not evidence', () => {
   for (const mode of MODES) {
     for (const style of STYLES) {
       const chinese = buildModelInstruction('zh', style, mode);
@@ -108,7 +109,7 @@ test('repository audit badcase is repaired from a fabricated report into an exec
   assert.match(calls[1].messages[0].content, /事实状态|伪造|已完成审计|链接.*证据/su);
 });
 
-test('every scene-tier rejects a repeated fabricated execution claim', async () => {
+test('every Prompt Lift protocol scene-tier rejects a repeated fabricated execution claim', async () => {
   for (const mode of MODES) {
     for (const style of STYLES) {
       let calls = 0;

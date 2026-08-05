@@ -398,11 +398,13 @@ test('[29] single-dimension regression: semantic fidelity loss blocks promotion'
   assert.equal(decision.nonRegressionChecks.semanticFidelity.passed, false);
 });
 
-test('[30] version regression: all 4 scenes × 4 tiers × 2 languages retain the compact hard gates', () => {
+test('[30] version regression: all 4 scenes × 4 Prompt Lift tiers × 2 languages retain the compact hard gates', () => {
   const instructions = [];
+  const protocolStyles = Object.values(MODEL_STYLES)
+    .filter((style) => style !== MODEL_STYLES.workbuddy);
   for (const language of ['zh', 'en']) {
     for (const mode of Object.values(PROMPT_MODES)) {
-      for (const style of Object.values(MODEL_STYLES)) {
+      for (const style of protocolStyles) {
         const instruction = buildModelInstruction(language, style, mode);
         instructions.push({ language, mode, style, instruction });
         assert.match(instruction, /SOURCE_MATERIAL_JSON|sourceText/u);

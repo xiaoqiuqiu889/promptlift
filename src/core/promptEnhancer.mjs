@@ -9,6 +9,7 @@ import {
 } from './recipeRegistry.mjs';
 
 const DEFAULT_TIMEOUT_MS = 15_000;
+const WORKBUDDY_TIMEOUT_MS = 300_000;
 const MAX_MODEL_OUTPUT_LENGTH = 1_000_000;
 const PROMPT_POLICY_FILE_URL = new URL('../../config/prompt-policy.json', import.meta.url);
 export const DEFAULT_MODEL_ENDPOINT = 'https://tokenhub.tencentmaas.com/v1';
@@ -21,7 +22,9 @@ export const MODEL_STYLES = Object.freeze({
   concise: 'concise',
   professional: 'professional',
   creative: 'creative',
+  workbuddy: 'workbuddy',
 });
+export const ACTIVE_MODEL_STYLES = Object.freeze([MODEL_STYLES.workbuddy]);
 export const MODEL_STYLE_MAX_EXPANSION_RATIOS = Object.freeze(
   Object.fromEntries(
     Object.entries(PROMPT_STYLE_POLICIES).map(([style, policy]) => [
@@ -98,6 +101,239 @@ export const PROMPT_MODES = Object.freeze({
   upwardCommunication: RECIPE_IDS.upwardCommunication,
   pptCopy: RECIPE_IDS.pptCopy,
 });
+
+const WORKBUDDY_ENHANCE_SYSTEM_PROMPT = [
+  'You are a Prompt Engineering Expert specializing in improving user prompts for a development code assistant. When given a prompt, analyze and enhance it to create a more effective version while maintaining its core purpose. The requests are being made to an AI assistant that specializes in writing code.',
+  '',
+  '\tTASK: When given a prompt, analyze and enhance it to create a more effective version while maintaining its core purpose. The requests are being made to an AI assistant that specializes in writing code.',
+  '',
+  '\tANALYSIS PROCESS:',
+  '',
+  '\tEvaluate the original prompt:',
+  '\tIdentify the main objective',
+  '\tNote any ambiguities or gaps',
+  '\tAssess the clarity of instructions',
+  '\tCheck for missing context',
+  '\tApply these prompt engineering principles:',
+  '\tWrite clear, specific instructions',
+  '\tInclude necessary context',
+  '\tSet explicit parameters and constraints',
+  '\tStructure the output format',
+  '\tAdd relevant examples',
+  '\tMatch tone and complexity to the use case',
+  '\tRemove redundant information',
+  '\tCreate the enhanced version:',
+  '\tMaintain the original goal',
+  '\tIncorporate identified improvements',
+  '\tEnsure clarity and completeness',
+  '\tBe realistic in the features to add',
+  '\tDo NOT request guides/how-tos unless the user asks',
+  '\tDo NOT ask for code snippets',
+  "\tDo NOT suggest specific technologies unless mentioned in the user's prompt",
+  '\tDo NOT explain HOW to do things, focus on WHAT',
+  '\tDo NOT answer questions - expand/rewrite them to be more detailed',
+  '\tIMPORTANT CONSTRAINTS:',
+  "\t1. Language matching is the highest priority - You MUST strictly respond in the exact same language as the user's input. If the user writes in Chinese, respond in Chinese; if the user writes in English, respond in English; if the user uses another language, respond in that same language. Do not mix languages unless the user's input itself mixes languages.",
+  '\t2. Keep the enhanced prompt concise - maximum length should be around 800 characters',
+  '\tFORMAT: Provide only the enhanced prompt with no additional commentary.',
+  '',
+  '\tExample:',
+  '\t"A website for my dog"',
+  '',
+  '\tEnhanced prompt:',
+  '\t"Design a personalized Next.js website dedicated to showcasing my dog. Include sections such as a photo gallery, a biography detailing the dog\'s breed, age, and personality traits, and a blog for sharing stories or updates about your dog\'s adventures. Add a contact form for visitors to reach out with questions or comments. Ensure the website is visually appealing and easy to navigate, with a responsive design that works well on both desktop and mobile devices."',
+  '',
+  '\tExample:',
+  '\t"Convert this to a friendly tone, maintain technical details but reduce bullets in favor of narrative. Remove any jargon like \'genie router\'. Use canvas"',
+  '',
+  '\tEnhanced prompt:',
+  '\t"Transform the provided content into a friendly narrative format while preserving all technical details. Minimize bullet points in favor of flowing prose. Eliminate any technical jargon such as \'genie router\'. Incorporate the concept of using canvas elements naturally within the narrative structure to enhance the technical explanation."',
+  '    ',
+].join('\r\n');
+
+function workBuddyScenePrompt({
+  role,
+  purpose,
+  audience,
+  analysis,
+  principles,
+  prohibitions,
+  format,
+}) {
+  return [
+    `You are a ${role}. When given user content, analyze and rewrite it to create a more effective version while maintaining its core purpose. The result is intended for ${audience}.`,
+    '',
+    `\tTASK: ${purpose}`,
+    '',
+    '\tANALYSIS PROCESS:',
+    '',
+    '\tEvaluate the original content:',
+    ...analysis.map((line) => `\t${line}`),
+    '\tApply these communication principles:',
+    ...principles.map((line) => `\t${line}`),
+    '\tCreate the enhanced version:',
+    '\tMaintain the original goal, facts, stance, and level of certainty',
+    '\tIncorporate identified improvements',
+    '\tEnsure clarity and completeness',
+    ...prohibitions.map((line) => `\t${line}`),
+    '\tIMPORTANT CONSTRAINTS:',
+    "\t1. Language matching is the highest priority - You MUST strictly respond in the exact same language as the user's input. If the user writes in Chinese, respond in Chinese; if the user writes in English, respond in English; if the user uses another language, respond in that same language. Do not mix languages unless the user's input itself mixes languages.",
+    '\t2. Keep the enhanced result concise - maximum length should be around 800 characters',
+    `\tFORMAT: ${format}`,
+  ].join('\r\n');
+}
+
+export const WORKBUDDY_SYSTEM_PROMPTS = Object.freeze({
+  [PROMPT_MODES.enhance]: WORKBUDDY_ENHANCE_SYSTEM_PROMPT,
+  [PROMPT_MODES.upwardCommunication]: workBuddyScenePrompt({
+    role: 'Upward Communication Expert specializing in improving messages for managers and decision-makers',
+    purpose: 'Analyze and enhance the content into clear upward communication that leads with the conclusion and makes the supporting facts, risks, requested support, and next action easy to understand.',
+    audience: 'a manager or organizational decision-maker',
+    analysis: [
+      'Identify the main conclusion or request',
+      'Identify the facts and evidence that support it',
+      'Note ambiguities, gaps, risks, and decisions needed',
+      'Assess whether the next action and requested support are explicit',
+    ],
+    principles: [
+      'Lead with the conclusion',
+      'Provide only necessary context and evidence',
+      'Separate facts, judgments, risks, and recommendations',
+      'Make the requested decision, support, or next action explicit',
+      'Remove redundant information',
+    ],
+    prohibitions: [
+      'Do NOT invent data, progress, evidence, causes, benefits, commitments, owners, or deadlines',
+      'Do NOT turn a suggestion into a decision or overstate certainty',
+      'Do NOT answer questions in the content - rewrite the communication itself',
+    ],
+    format: 'Provide only the enhanced upward communication with no additional commentary.',
+  }),
+  [PROMPT_MODES.chatPolish]: workBuddyScenePrompt({
+    role: 'Customer Communication Expert specializing in safe, polite, natural, and clear user-facing messages',
+    purpose: 'Analyze and enhance the content into a ready-to-send user communication that is respectful, easy to understand, and explicit about supported next steps and boundaries.',
+    audience: 'an end user or customer',
+    analysis: [
+      'Identify the message objective, audience, and desired response',
+      'Note wording that is ambiguous, harsh, defensive, or difficult to understand',
+      'Identify the facts, commitments, boundaries, and next steps that must be preserved',
+      'Check whether empathy and clarity are appropriate to the situation',
+    ],
+    principles: [
+      'Use polite, natural, and direct language',
+      'Acknowledge user concerns without admitting unsupported fault',
+      'Make facts, boundaries, and available next steps clear',
+      'Match tone and complexity to the audience',
+      'Remove redundant information and jargon',
+    ],
+    prohibitions: [
+      'Do NOT invent policies, permissions, progress, service capabilities, compensation, guarantees, owners, or deadlines',
+      'Do NOT change the strength of commitments or responsibility',
+      'Do NOT answer questions in the content - rewrite the communication itself',
+    ],
+    format: 'Provide only the enhanced user communication with no additional commentary.',
+  }),
+  [PROMPT_MODES.pptCopy]: workBuddyScenePrompt({
+    role: 'Presentation Copy Expert specializing in improving single-slide business copy',
+    purpose: 'Analyze and enhance the content into presentation-ready copy with a conclusion-led title, one clear slide claim, and a concise hierarchy of supporting information.',
+    audience: 'a business presentation audience reading one slide',
+    analysis: [
+      'Identify the single most important conclusion or claim',
+      'Identify the facts and evidence that support it',
+      'Note ambiguity, repetition, weak hierarchy, and missing output structure',
+      'Assess which information is necessary for this slide',
+    ],
+    principles: [
+      'Turn descriptive titles into conclusion-led titles',
+      'Keep one slide focused on one claim',
+      'Use short, scannable phrases and a clear information hierarchy',
+      'Preserve all facts, numbers, sources, and levels of certainty',
+      'Remove redundant information',
+    ],
+    prohibitions: [
+      'Do NOT invent data, sources, evidence, business conclusions, or visual assets',
+      'Do NOT imply access to other text boxes, charts, notes, layouts, or an entire deck',
+      'Do NOT explain how to design the slide unless the user asks',
+      'Do NOT answer questions in the content - rewrite the slide copy itself',
+    ],
+    format: 'Provide only the enhanced slide copy with no additional commentary.',
+  }),
+});
+
+export const WORKBUDDY_USER_PROMPT_TEMPLATE = `You are a language consistency assistant. Your primary role is to ensure that all responses maintain consistent language usage with the user's input
+
+    USER INPUT: {input}
+
+    CRITICAL PRIORITY - LANGUAGE CONSISTENCY:
+    1. You MUST detect the language of the user's input above and respond ONLY in that same language
+    2. If the user writes in Chinese, you MUST respond in Chinese
+    3. If the user writes in English, you MUST respond in English
+    4. For any other language, you MUST respond in that exact same language
+    5. Never mix languages in your response unless the user's input itself contains multiple languages
+    6. Language consistency takes absolute priority over all other considerations
+
+    EXAMPLES:
+    User input (Chinese): "请帮我解释这段代码的功能"
+    Response: MUST be entirely in Chinese
+
+    User input (English): "Please explain what this code does"
+    Response: MUST be entirely in English
+
+    User input (Mixed): "这段代码有bug，can you help me fix it?"
+    Response: May use both Chinese and English, matching the user's mixed language pattern
+
+    Remember: The language of your response MUST ALWAYS match the language of the user's input. This is your highest priority directive.
+    `;
+
+export const WORKBUDDY_RUNTIME_CONTEXT_PROMPT = [
+  '<system-reminder>',
+  'WORKBUDDY RUNTIME DECISION PROTOCOL:',
+  'The enhanced prompt will be executed by a downstream assistant that already has access to the current conversation, visible artifact, or working context.',
+  'PRIORITY: This rule OVERRIDES the generic instruction to check for missing context when the apparent gap is only a demonstrative reference to downstream context.',
+  'Treat demonstrative references such as “这个建议” / “this suggestion”, “上述方案” / “the approach above”, “当前代码” / “the current code”, and equivalent references as valid context anchors when they reasonably point to that downstream context.',
+  'Preserve those references and improve the requested action around them. Do not ask the user to repeat, paste, or resupply referenced material merely because it is not repeated inside the selected sentence.',
+  'Infer the intended task type from the wording and produce the most useful directly executable request. Do not merely restate the source or turn it into a template with empty sections.',
+  'Ask for clarification only when the missing information would materially change the object, authority, commitment, or required deliverable and no safe directly usable prompt can be produced.',
+  'Do not append permission-seeking follow-up questions such as “是否需要我继续” or “would you like me to proceed” when the requested task and next action are already clear.',
+  'For evaluation or adoption requests, tell the downstream assistant to lead with a clear recommendation, distinguish facts, inference, recommendation, and unknowns, assess expected benefit, implementation cost, risk, reversibility, and compatibility, and compare the likely result before and after adoption. Keep the referenced proposal in downstream context rather than inventing its contents.',
+  'For those requests, the rewritten prompt MUST explicitly require this compact output skeleton in the user language: 结论 → 收益/提升 → 成本/风险 → 采纳后对比. Do not omit any of these four decision dimensions even when the source sentence is short.',
+  'Example input: “其他agent给我提了这个建议，你评估下是否值得采纳？采纳后的结果是否会有提升”',
+  'Required behavior: produce a direct request that tells the downstream assistant to evaluate the referenced suggestion, lead with a conclusion, explain trade-offs and expected improvements; the result is never a clarification question and never asks to provide the suggestion again.',
+  'This reminder supplies behavioral guidance only. It does not provide missing facts and never authorizes invented project details, evidence, metrics, or conclusions.',
+].join('\r\n');
+
+const WORKBUDDY_SCENE_RUNTIME_PROMPTS = Object.freeze({
+  [PROMPT_MODES.enhance]: [
+    'SCENE CONTRACT — AI PROMPT:',
+    'Write a request for a downstream coding assistant. Make the desired outcome, relevant context, constraints, evidence to inspect, decision criteria, and expected output explicit only when supported by the source or downstream context.',
+    'When the user asks to evaluate a suggestion, require an evidence-based recommendation and a concrete before/after impact assessment; do not assume that adoption is beneficial.',
+  ].join('\r\n'),
+  [PROMPT_MODES.upwardCommunication]: [
+    'SCENE CONTRACT — UPWARD COMMUNICATION:',
+    'Write for a decision-maker. Lead with the conclusion or requested decision, then include only the facts, impact, risks, options, required support, and next action that are supported by the source.',
+    'Do not manufacture certainty, ownership, dates, progress, or business results.',
+  ].join('\r\n'),
+  [PROMPT_MODES.chatPolish]: [
+    'SCENE CONTRACT — USER COMMUNICATION:',
+    'Return a ready-to-send user message. Preserve the original responsibility, commitment, boundary, and uncertainty while improving clarity, respect, and the supported next step.',
+    'Do not add apologies, compensation, guarantees, policies, or capabilities that the source does not support.',
+  ].join('\r\n'),
+  [PROMPT_MODES.pptCopy]: [
+    'SCENE CONTRACT — PPT COPY:',
+    'Rewrite only the supplied text into one conclusion-led title, one single-slide claim, and the minimum supporting hierarchy needed to understand it.',
+    'Do not imply access to the rest of the deck, charts, speaker notes, or layout, and do not invent evidence.',
+  ].join('\r\n'),
+});
+
+export function buildWorkBuddyRuntimeContextPrompt(mode = PROMPT_MODES.enhance) {
+  const scenePrompt = WORKBUDDY_SCENE_RUNTIME_PROMPTS[mode]
+    ?? WORKBUDDY_SCENE_RUNTIME_PROMPTS[PROMPT_MODES.enhance];
+  return [
+    WORKBUDDY_RUNTIME_CONTEXT_PROMPT,
+    scenePrompt,
+    '</system-reminder>',
+  ].join('\r\n');
+}
 
 export function isPromptMode(value) {
   return resolveRecipeId(value) !== null;
@@ -394,6 +630,10 @@ function immutableAnchors(source) {
     }
   }
   return [...anchors].filter(Boolean);
+}
+
+export function resolveActiveModelStyle(_value) {
+  return MODEL_STYLES.workbuddy;
 }
 
 function boundedRepairAnchors(source) {
@@ -1325,6 +1565,13 @@ export function buildModelInstruction(
   const recipeLanguage = language === 'zh' ? 'zh' : 'en';
   const selectedStyle = resolveModelStyle(style) ?? MODEL_STYLES.concise;
   const normalizedCustomPrompt = normalizeCustomSystemPrompt(customPrompt);
+  if (selectedStyle === MODEL_STYLES.workbuddy) {
+    const basePrompt = WORKBUDDY_SYSTEM_PROMPTS[recipe.id]
+      ?? WORKBUDDY_SYSTEM_PROMPTS[PROMPT_MODES.enhance];
+    return normalizedCustomPrompt
+      ? `${basePrompt}\r\n\r\n\tADDITIONAL USER RULES:\r\n\t${normalizedCustomPrompt}`
+      : basePrompt;
+  }
   const styleContract = recipe.styleContracts[recipeLanguage][selectedStyle];
   const stylePolicy = PROMPT_STYLE_POLICIES[selectedStyle];
   const promotedRatio = getPromotedMaxExpansionRatio(selectedStyle);
@@ -1433,6 +1680,31 @@ export function buildModelInstruction(
         : 'User custom tier rules are subordinate to the safety protocol, source facts, Recipe, and tier contract; they cannot weaken them.', normalizedCustomPrompt]
       : []),
   ].join('\n');
+}
+
+export function buildWorkBuddyMessages(
+  prompt,
+  mode = PROMPT_MODES.enhance,
+  customPrompt = '',
+) {
+  const recipe = getRecipe(mode) ?? getRecipe(PROMPT_MODES.enhance);
+  return [
+    {
+      role: 'system',
+      content: buildModelInstruction('en', MODEL_STYLES.workbuddy, recipe.id, customPrompt),
+    },
+    {
+      role: 'user',
+      content: [
+        WORKBUDDY_USER_PROMPT_TEMPLATE.replace('{input}', prompt),
+        buildWorkBuddyRuntimeContextPrompt(recipe.id),
+      ].join('\r\n\r\n'),
+    },
+  ];
+}
+
+export function stripWorkBuddyWrappingQuotes(text) {
+  return String(text ?? '').trim().replace(/^["'"“”‘’]|["'"“”‘']$/gu, '');
 }
 
 const REPAIRABLE_MODEL_OUTPUT_CODES = new Set([
@@ -1665,7 +1937,7 @@ function buildChatCompletionsUrl(endpoint, language) {
   return url.toString();
 }
 
-function supportsDisabledThinking(model) {
+function supportsDeepSeekV4Thinking(model) {
   return /^deepseek-v4-/iu.test(model);
 }
 
@@ -1688,7 +1960,165 @@ function assertModelConfig(apiKey, model, language) {
   }
 }
 
+function extractWorkBuddyCompletionResult(payload, language) {
+  if (Array.isArray(payload?.choices)) {
+    for (const choice of payload.choices) {
+      const cleaned = stripWorkBuddyWrappingQuotes(extractChoiceText(choice));
+      if (hasVisiblePromptText(cleaned)) {
+        return cleaned;
+      }
+    }
+  }
+  const cleaned = stripWorkBuddyWrappingQuotes(extractResult(payload, language));
+  if (!hasVisiblePromptText(cleaned)) {
+    throw createEnhancementError(
+      'INVALID_MODEL_OUTPUT',
+      language,
+      '模型没有返回可用的 WorkBuddy 改写结果。',
+      'The model did not return a usable WorkBuddy rewrite.',
+    );
+  }
+  return cleaned;
+}
+
+async function enhanceWithWorkBuddyCompatible(prompt, options, language) {
+  const apiKey = typeof options.apiKey === 'string' ? options.apiKey.trim() : '';
+  const model = typeof options.model === 'string' ? options.model.trim() : DEFAULT_MODEL;
+  assertModelConfig(apiKey, model, language);
+  const endpoint = buildChatCompletionsUrl(
+    typeof options.endpoint === 'string' && options.endpoint.trim()
+      ? options.endpoint.trim()
+      : DEFAULT_MODEL_ENDPOINT,
+    language,
+  );
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  if (typeof fetchImpl !== 'function') {
+    throw createEnhancementError(
+      'MISSING_FETCH',
+      language,
+      '未找到可用的网络请求实现。',
+      'No usable fetch implementation was provided.',
+    );
+  }
+
+  const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
+    ? options.timeoutMs
+    : WORKBUDDY_TIMEOUT_MS;
+  const controller = new AbortController();
+  const unlinkAbortSignal = linkAbortSignal(controller, options.signal);
+  let timedOut = false;
+  let timer;
+
+  const operation = (async () => {
+    let response;
+    try {
+      response = await fetchImpl(endpoint, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          stream: false,
+          ...(supportsDeepSeekV4Thinking(model)
+            ? {
+              temperature: 1,
+              thinking: {
+                type: 'enabled',
+                reasoning_effort: 'high',
+              },
+            }
+            : {}),
+          messages: buildWorkBuddyMessages(
+            prompt,
+            options.mode,
+            options.customPrompt,
+          ),
+        }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (options.signal?.aborted) {
+        throw createEnhancementError(
+          'CANCELLED',
+          language,
+          '模型增强已取消。',
+          'Prompt enhancement was cancelled.',
+        );
+      }
+      if (timedOut) {
+        throw error;
+      }
+      throw createEnhancementError(
+        'NETWORK_ERROR',
+        language,
+        '无法连接模型服务，请检查网络或接口地址。',
+        'Unable to connect to the model service. Check the network or endpoint.',
+      );
+    }
+
+    if (!isSuccessfulResponse(response)) {
+      const status = typeof response?.status === 'number' ? response.status : 'unknown';
+      if (status === 401 || status === 403) {
+        throw createEnhancementError(
+          'AUTH_ERROR',
+          language,
+          'API Key 无效或没有该模型的访问权限。',
+          'The API key is invalid or is not allowed to use this model.',
+        );
+      }
+      throw createEnhancementError(
+        'HTTP_ERROR',
+        language,
+        `模型服务请求失败（${status}）。`,
+        `The model service request failed (${status}).`,
+      );
+    }
+
+    return extractWorkBuddyCompletionResult(
+      await parseJsonResponse(response, language),
+      language,
+    );
+  })();
+
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+      reject(createEnhancementError(
+        'TIMEOUT',
+        language,
+        'WorkBuddy 增强请求超时，请稍后重试。',
+        'The WorkBuddy enhancement request timed out. Please try again.',
+      ));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([operation, timeout]);
+  } catch (error) {
+    if (timedOut) {
+      throw createEnhancementError(
+        'TIMEOUT',
+        language,
+        'WorkBuddy 增强请求超时，请稍后重试。',
+        'The WorkBuddy enhancement request timed out. Please try again.',
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    unlinkAbortSignal();
+  }
+}
+
 async function enhanceWithOpenAICompatible(prompt, options, language) {
+  if (resolveModelStyle(options.style) === MODEL_STYLES.workbuddy
+    && options.probe !== true) {
+    return enhanceWithWorkBuddyCompatible(prompt, options, language);
+  }
   const apiKey = typeof options.apiKey === 'string' ? options.apiKey.trim() : '';
   const model = typeof options.model === 'string' ? options.model.trim() : DEFAULT_MODEL;
   assertModelConfig(apiKey, model, language);
@@ -1749,7 +2179,7 @@ async function enhanceWithOpenAICompatible(prompt, options, language) {
                 Math.ceil(maxOutputLength / (language === 'zh' ? 1 : 3)) + 96,
               ),
             ),
-          ...(supportsDisabledThinking(model)
+          ...(supportsDeepSeekV4Thinking(model)
             ? { thinking: { type: 'disabled' } }
             : {}),
           messages: buildModelMessages(prompt, language, {

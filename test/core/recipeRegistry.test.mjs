@@ -40,14 +40,14 @@ test('recipe registry exposes four complete versioned expression recipes', () =>
   }
 });
 
-test('each communication recipe defines four mode-specific optimization tier contracts', () => {
+test('each communication recipe defines five mode-specific optimization tier contracts', () => {
   const expectedTierNames = {
-    [RECIPE_IDS.enhance]: ['原意守护', '清晰直达', '专业展开', '创意策划'],
-    [RECIPE_IDS.upwardCommunication]: ['事实直报', '结论先行', '决策建议', '影响力表达'],
-    [RECIPE_IDS.chatPolish]: ['安全保真', '友好清晰', '专业服务', '共情化解'],
-    [RECIPE_IDS.pptCopy]: ['原文压缩', '结论标题', '结构化叙事', '创意提案'],
+    [RECIPE_IDS.enhance]: ['原意守护', '清晰直达', '专业展开', '创意策划', 'WorkBuddy'],
+    [RECIPE_IDS.upwardCommunication]: ['事实直报', '结论先行', '决策建议', '影响力表达', 'WorkBuddy'],
+    [RECIPE_IDS.chatPolish]: ['安全保真', '友好清晰', '专业服务', '共情化解', 'WorkBuddy'],
+    [RECIPE_IDS.pptCopy]: ['原文压缩', '结论标题', '结构化叙事', '创意提案', 'WorkBuddy'],
   };
-  const styleIds = ['faithful', 'concise', 'professional', 'creative'];
+  const styleIds = ['faithful', 'concise', 'professional', 'creative', 'workbuddy'];
   const serializedChineseContracts = new Set();
   const distinctChineseFields = {
     goal: new Set(),
@@ -88,9 +88,9 @@ test('each communication recipe defines four mode-specific optimization tier con
     assert.equal(Object.isFrozen(recipe.styleContracts.en), true);
   }
 
-  assert.equal(serializedChineseContracts.size, 16);
+  assert.equal(serializedChineseContracts.size, 20);
   for (const values of Object.values(distinctChineseFields)) {
-    assert.equal(values.size, 16);
+    assert.equal(values.size, 20);
   }
 });
 

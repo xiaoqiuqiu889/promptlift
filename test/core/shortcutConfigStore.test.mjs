@@ -45,3 +45,17 @@ test("shortcut store falls back to double Alt for missing or invalid data", asyn
   assert.equal(loaded.shortcut, "DoubleAlt");
   assert.equal(loaded.loadError, "SHORTCUT_CONFIG_INVALID");
 });
+
+test("shortcut store accepts a platform-specific default", async () => {
+  const store = createShortcutConfigStore({
+    userDataPath: "/tmp/PromptLiftShortcutTest",
+    defaultShortcut: "Shift+Super+P",
+    readFile: async () => {
+      const error = new Error("missing");
+      error.code = "ENOENT";
+      throw error;
+    },
+  });
+
+  assert.equal((await store.load()).shortcut, "Shift+Super+P");
+});

@@ -35,11 +35,11 @@ test("UI visual QA uses trusted input, read-only DOM inspection, and masked mock
   assert.doesNotMatch(runner, /Add-Type.*Automation|Get-UIAutomation|System\.Windows\.Automation/i);
 });
 
-test("UI visual QA locks four prompt tiers and four merged scene color semantics", async () => {
+test("UI visual QA locks the WorkBuddy-only tier and four merged scene color semantics", async () => {
   const runner = await readFile(path.join(projectRoot, "scripts/qa-ui-visual.mjs"), "utf8");
   assert.match(
     runner,
-    /PROMPT_TIERS\s*=\s*Object\.freeze\(\[\s*"faithful",\s*"concise",\s*"professional",\s*"creative",?\s*\]\)/s,
+    /PROMPT_TIERS\s*=\s*Object\.freeze\(\["workbuddy"\]\)/s,
   );
   assert.match(
     runner,
@@ -50,7 +50,7 @@ test("UI visual QA locks four prompt tiers and four merged scene color semantics
   assert.match(runner, /getPropertyValue\("--mode-accent"\)/);
   assert.match(runner, /new Set\(modeColors\)\.size !== WORK_MODES\.length/);
   assert.match(runner, /style-option\[data-style\].*strong/);
-  assert.match(runner, /new Set\(tierLabelSets\.map\(\(labels\) => JSON\.stringify\(labels\)\)\)\.size !== WORK_MODES\.length/);
+  assert.match(runner, /tierLabelSets/);
   assert.match(runner, /scene-selection-stays-in-process-hub/);
   assert.match(runner, /hub:\s*"process"/);
   assert.doesNotMatch(runner, /hub:\s*"scenes"/);

@@ -104,10 +104,11 @@ test("desktop assistant exposes left-click, right-click settings, and non-destru
   assert.match(preload, /modelGet: "prompt:model:get"/);
   assert.match(renderer, /getModelConfig/);
   assert.match(html, /id="modelStorageStatus"/);
-  assert.match(html, /data-style="faithful"/);
-  assert.match(html, /系统提示词规范 v2/);
+  assert.match(html, /data-style="workbuddy"/);
+  assert.doesNotMatch(html, /data-style="(?:faithful|concise|professional|creative)"/);
+  assert.match(html, /WorkBuddy 协议/);
   assert.match(html, /检查并保存/);
-  assert.match(renderer, /faithful:\s*"原意守护"/);
+  assert.match(renderer, /workbuddy:\s*"WorkBuddy"/);
   assert.match(renderer, /setAttribute\("aria-pressed"/);
   assert.match(html, /role="tablist"/);
   assert.match(html, /role="dialog"/);

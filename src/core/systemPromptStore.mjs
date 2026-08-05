@@ -3,14 +3,16 @@ import path from "node:path";
 
 import {
   MAX_CUSTOM_SYSTEM_PROMPT_LENGTH,
+  MODEL_STYLES,
   isPromptMode,
-  resolveModelStyle,
 } from "./promptEnhancer.mjs";
 
 export const SYSTEM_PROMPT_STORE_VERSION = 1;
 const CONFIG_FILE_NAME = "prompt-lift-system-prompts.json";
 
-const isCanonicalPair = (mode, style) => isPromptMode(mode) && Boolean(resolveModelStyle(style));
+const isCanonicalPair = (mode, style) => (
+  isPromptMode(mode) && style === MODEL_STYLES.workbuddy
+);
 
 function createStoragePath(userDataPath) {
   if (typeof userDataPath !== "string" || userDataPath.trim().length === 0) {
@@ -33,7 +35,7 @@ export function normalizeSystemPromptOverrides(overrides) {
   const normalized = {};
   for (const [rawKey, rawValue] of Object.entries(overrides)) {
     const [mode, style] = rawKey.split(":");
-    const canonicalStyle = resolveModelStyle(style);
+    const canonicalStyle = style === MODEL_STYLES.workbuddy ? style : null;
     const value = normalizeText(rawValue);
     if (!isCanonicalPair(mode, canonicalStyle) || !value) {
       continue;

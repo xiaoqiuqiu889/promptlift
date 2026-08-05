@@ -22,6 +22,7 @@ const MAX_PROMPT_LENGTH = 1_000_000;
 const MODE_STAGE_TIMEOUT_MS = 5_000;
 const CONFIGURE_STAGE_TIMEOUT_MS = 8_000;
 const MODEL_STAGE_TIMEOUT_MS = 20_000;
+const WORKBUDDY_MODEL_STAGE_TIMEOUT_MS = 300_000;
 const APPLY_STAGE_TIMEOUT_MS = 15_000;
 const DEFAULT_COMPACT_WIDTH = 120;
 const DEFAULT_COMPACT_HEIGHT = 140;
@@ -35,88 +36,41 @@ const COMPACT_SIZE_STORAGE_KEY = "prompt-pet.compact-size.v1";
 const REVIEW_MODE_STORAGE_KEY = "prompt-pet.review-mode.v1";
 const MASCOT_STORAGE_KEY = "prompt-pet.mascot.v1";
 const STYLE_LABELS = Object.freeze({
-  faithful: "原意守护",
-  concise: "清晰直达",
-  professional: "专业展开",
-  creative: "创意策划",
+  workbuddy: "WorkBuddy",
 });
 const MODE_STYLE_PRESENTATION = Object.freeze({
   enhance: Object.freeze({
-    faithful: Object.freeze({
-      label: "原意守护",
-      description: "只澄清目标与结构，不新增范围、假设或承诺",
-    }),
-    concise: Object.freeze({
-      label: "清晰直达",
-      description: "去除重复，补齐关键约束，用更短路径表达",
-    }),
-    professional: Object.freeze({
-      label: "专业展开",
-      description: "重组原文已有步骤、标准与边界，缺失项保持待确认",
-    }),
-    creative: Object.freeze({
-      label: "创意策划",
-      description: "在专业完整基础上增加可控创意方向与备选方案",
+    workbuddy: Object.freeze({
+      label: "WorkBuddy",
+      description: "识别会话上下文，补齐执行标准，信息足够时直接给出可执行请求",
     }),
   }),
   "upward-communication": Object.freeze({
-    faithful: Object.freeze({
-      label: "事实直报",
-      description: "保留事实、数字与原结论，不添加未经确认的判断",
-    }),
-    concise: Object.freeze({
-      label: "结论先行",
-      description: "结论前置，压缩背景，明确影响与下一步",
-    }),
-    professional: Object.freeze({
-      label: "决策建议",
-      description: "组织结论、依据、风险、选项与所需决策",
-    }),
-    creative: Object.freeze({
-      label: "影响力表达",
-      description: "在保真基础上增强叙事节奏与说服力，不夸大承诺",
+    workbuddy: Object.freeze({
+      label: "WorkBuddy",
+      description: "结论先行，组织依据、影响、风险、支持诉求和下一步",
     }),
   }),
   "chat-polish": Object.freeze({
-    faithful: Object.freeze({
-      label: "安全保真",
-      description: "保留原意与责任边界，不扩大承诺或推断",
-    }),
-    concise: Object.freeze({
-      label: "友好清晰",
-      description: "更礼貌、更易读，直接说明重点与下一步",
-    }),
-    professional: Object.freeze({
-      label: "专业服务",
-      description: "使用稳定、克制、可执行的服务沟通结构",
-    }),
-    creative: Object.freeze({
-      label: "共情化解",
-      description: "先承接情绪再化解问题，仍保持事实与边界",
+    workbuddy: Object.freeze({
+      label: "WorkBuddy",
+      description: "增强礼貌与清晰度，同时守住事实、承诺、责任和下一步",
     }),
   }),
   "ppt-copy": Object.freeze({
-    faithful: Object.freeze({
-      label: "原文压缩",
-      description: "压缩原文但保留事实、数字、逻辑与结论",
-    }),
-    concise: Object.freeze({
-      label: "结论标题",
-      description: "提炼结论型标题与一页最必要的信息",
-    }),
-    professional: Object.freeze({
-      label: "结构化叙事",
-      description: "构造成因、判断、证据与行动的清晰层级",
-    }),
-    creative: Object.freeze({
-      label: "创意提案",
-      description: "在事实不变前提下增加有记忆点的提案表达",
+    workbuddy: Object.freeze({
+      label: "WorkBuddy",
+      description: "生成结论型标题、单页主张和清晰支持层级",
     }),
   }),
 });
 const LEGACY_STYLE_ALIASES = Object.freeze({
-  balanced: "concise",
-  detailed: "professional",
+  balanced: "workbuddy",
+  detailed: "workbuddy",
+  faithful: "workbuddy",
+  concise: "workbuddy",
+  professional: "workbuddy",
+  creative: "workbuddy",
 });
 const MASCOTS = Object.freeze({
   cockapoo: Object.freeze({
@@ -199,6 +153,7 @@ const expressionSummaryMode = document.querySelector("#expressionSummaryMode");
 const expressionSummaryStyle = document.querySelector("#expressionSummaryStyle");
 const expressionSummaryLength = document.querySelector("#expressionSummaryLength");
 const expressionSummarySafety = document.querySelector("#expressionSummarySafety");
+const promptProtocolLabel = document.querySelector("#promptProtocolLabel");
 const cancelButton = document.querySelector("#cancelButton");
 const restoreButton = document.querySelector("#restoreButton");
 const copyButton = document.querySelector("#copyButton");
@@ -303,11 +258,10 @@ function persistReviewMode(enabled) {
 }
 
 function normalizeStyle(style) {
-  if (typeof style !== "string") {
-    return "concise";
-  }
-  const normalized = LEGACY_STYLE_ALIASES[style] ?? style;
-  return STYLE_LABELS[normalized] ? normalized : "concise";
+  const normalized = typeof style === "string"
+    ? LEGACY_STYLE_ALIASES[style] ?? style
+    : "workbuddy";
+  return STYLE_LABELS[normalized] ? normalized : "workbuddy";
 }
 
 function normalizeMascot(mascot) {
@@ -339,7 +293,7 @@ const state = {
   target: undefined,
   requestId: undefined,
   cancelled: false,
-  style: "concise",
+  style: "workbuddy",
   mode: "enhance",
   mascot: readMascot(),
   startup: false,
@@ -357,8 +311,10 @@ const state = {
   reviewMode: readReviewMode(),
   systemPrompts: [],
   systemPromptMode: "enhance",
-  systemPromptStyle: "concise",
+  systemPromptStyle: "workbuddy",
   systemPromptDirty: false,
+  platform: "win32",
+  defaultShortcut: DEFAULT_SHORTCUT,
   shortcut: DEFAULT_SHORTCUT,
   shortcutDraft: DEFAULT_SHORTCUT,
   shortcutRecording: false,
@@ -374,6 +330,10 @@ let resizeFrame;
 let compactScaleFrame;
 let resizeSettleToken = 0;
 let dragSession;
+
+function displayShortcut(input) {
+  return shortcutDisplayLabel(input, { platform: state.platform });
+}
 let suppressAvatarClickUntil = 0;
 let suppressMenuClickUntil = 0;
 let compactFeedbackTimer;
@@ -457,12 +417,14 @@ function updateExpressionSummary() {
   expressionSummaryMode.textContent = MODE_LABELS[resultMode] ?? MODE_LABELS.enhance;
   expressionSummaryStyle.textContent = MODE_STYLE_PRESENTATION[resultMode]?.[resultStyle]?.label
     ?? STYLE_LABELS[resultStyle]
-    ?? STYLE_LABELS.concise;
+    ?? STYLE_LABELS.workbuddy;
   expressionSummaryLength.textContent = `${state.originalText.length} → ${state.enhancedText.length}`;
-  expressionSummarySafety.textContent = state.validatedText
+  expressionSummarySafety.textContent = resultStyle === "workbuddy"
+    ? "WorkBuddy 直出"
+    : state.validatedText
     && state.enhancedText !== state.validatedText
-    ? "用户已编辑"
-    : "安全校验通过";
+      ? "用户已编辑"
+      : "安全校验通过";
 }
 
 function updateCompactScale() {
@@ -558,7 +520,10 @@ function updateStyleLabel() {
     ?? MODE_STYLE_PRESENTATION.enhance;
   currentStyleLabel.textContent = presentation[state.style]?.label
     ?? STYLE_LABELS[state.style]
-    ?? STYLE_LABELS.concise;
+    ?? STYLE_LABELS.workbuddy;
+  if (promptProtocolLabel) {
+    promptProtocolLabel.textContent = "WorkBuddy 协议 · 当前模型 · 自然文本直出 · 场景化判断";
+  }
   document.querySelectorAll(".style-option").forEach((button) => {
     const item = presentation[button.dataset.style];
     if (item) {
@@ -610,11 +575,11 @@ function renderSystemPromptPanel() {
     const sceneLabel = MODE_LABELS[state.systemPromptMode] ?? MODE_LABELS.enhance;
     const tierLabel = presentation[state.systemPromptStyle]?.label
       ?? STYLE_LABELS[state.systemPromptStyle]
-      ?? STYLE_LABELS.concise;
+      ?? STYLE_LABELS.workbuddy;
     systemPromptSelectionLabel.textContent = `${sceneLabel} · ${tierLabel}`;
   }
   if (!entry) {
-    systemPromptCurrent.textContent = "正在读取当前场景与档位的专属系统提示词…";
+    systemPromptCurrent.textContent = "正在读取当前场景的 WorkBuddy 系统提示词…";
     if (!state.systemPromptDirty) {
       systemPromptCustom.value = "";
     }
@@ -632,7 +597,7 @@ function renderSystemPromptPanel() {
   systemPromptStatus.textContent = state.systemPromptDirty
     ? "已修改但尚未保存；保存后仅影响本机当前用户。"
     : entry.customPrompt
-      ? "当前档位已使用本机自定义补充规则。"
+      ? "当前场景已使用本机自定义补充规则。"
       : "当前使用默认系统提示词。";
 }
 
@@ -647,26 +612,26 @@ async function loadSystemPrompts() {
 
 function openSystemPromptPanel() {
   state.systemPromptMode = state.mode;
-  state.systemPromptStyle = state.style;
+  state.systemPromptStyle = "workbuddy";
   state.systemPromptDirty = false;
   showPanel(systemPromptPanel);
   renderSystemPromptPanel();
   if (!state.systemPrompts.length) {
-    systemPromptStatus.textContent = "正在读取当前档位…";
+    systemPromptStatus.textContent = "正在读取当前场景…";
     void loadSystemPrompts().catch((error) => {
       systemPromptStatus.textContent = errorMessage(error, "系统提示词读取失败，请稍后重试。" );
     });
   }
 }
 
-function selectSystemPrompt(mode, style) {
+function selectSystemPrompt(mode) {
   if (state.systemPromptDirty) {
-    systemPromptStatus.textContent = "请先保存或恢复当前编辑，再切换场景或优化档位。";
+    systemPromptStatus.textContent = "请先保存或恢复当前编辑，再切换场景。";
     renderSystemPromptPanel();
     return;
   }
   state.systemPromptMode = mode;
-  state.systemPromptStyle = style;
+  state.systemPromptStyle = "workbuddy";
   renderSystemPromptPanel();
 }
 
@@ -689,8 +654,8 @@ async function handleSaveSystemPrompt() {
     state.systemPromptDirty = false;
     renderSystemPromptPanel();
     systemPromptStatus.textContent = saved?.customPrompt
-      ? "已保存；这条规则只会作用于本机当前用户和该模式×档位。"
-      : "已恢复默认；这条档位不再使用自定义规则。";
+      ? "已保存；这条规则只会作用于本机当前用户和该场景。"
+      : "已恢复默认；该场景不再使用自定义规则。";
   } catch (error) {
     renderSystemPromptPanel();
     systemPromptStatus.textContent = errorMessage(error, "系统提示词保存失败，请稍后重试。" );
@@ -731,8 +696,8 @@ function updateModeLabel() {
 }
 
 function updateShortcutPresentation() {
-  const activeLabel = shortcutDisplayLabel(state.shortcut);
-  const draftLabel = shortcutDisplayLabel(state.shortcutDraft);
+  const activeLabel = displayShortcut(state.shortcut);
+  const draftLabel = displayShortcut(state.shortcutDraft);
   currentShortcutLabel.textContent = activeLabel;
   helpShortcutLabel.textContent = activeLabel;
   shortcutValue.value = draftLabel;
@@ -743,14 +708,14 @@ function updateShortcutPresentation() {
   shortcutPanel.classList.toggle("is-recording", state.shortcutRecording);
   shortcutSaveButton.disabled = state.shortcutRecording || state.shortcutDraft === state.shortcut;
   shortcutResetButton.disabled = state.shortcutRecording
-    || (state.shortcut === DEFAULT_SHORTCUT && state.shortcutDraft === DEFAULT_SHORTCUT);
+    || (state.shortcut === state.defaultShortcut && state.shortcutDraft === state.defaultShortcut);
 }
 
 function openShortcutPanel() {
   state.shortcutDraft = state.shortcut;
   state.shortcutRecording = false;
   updateShortcutPresentation();
-  shortcutStatus.textContent = `当前已启用：${shortcutDisplayLabel(state.shortcut)}。`;
+  shortcutStatus.textContent = `当前已启用：${displayShortcut(state.shortcut)}。`;
   showPanel(shortcutPanel);
 }
 
@@ -811,7 +776,7 @@ function handleShortcutKeydown(event) {
   try {
     state.shortcutDraft = shortcutFromKeyboardEvent(event);
     state.shortcutRecording = false;
-    shortcutStatus.textContent = `已录制：${shortcutDisplayLabel(state.shortcutDraft)}。点击“保存并启用”后生效。`;
+    shortcutStatus.textContent = `已录制：${displayShortcut(state.shortcutDraft)}。点击“保存并启用”后生效。`;
   } catch (error) {
     shortcutStatus.textContent = errorMessage(error, "这个组合键不受支持，请重新录制。");
   }
@@ -836,8 +801,8 @@ async function applyShortcut(shortcut) {
     state.shortcutRecording = false;
     shortcutStatus.textContent = result?.warning
       ? String(result.warning)
-      : `已启用：${shortcutDisplayLabel(state.shortcut)}。`;
-    setStatus("success", `全局快捷键已更新为“${shortcutDisplayLabel(state.shortcut)}”。`);
+      : `已启用：${displayShortcut(state.shortcut)}。`;
+    setStatus("success", `全局快捷键已更新为“${displayShortcut(state.shortcut)}”。`);
   } catch (error) {
     state.shortcutRecording = false;
     shortcutStatus.textContent = errorMessage(error, "快捷键设置失败，原快捷键仍然有效。");
@@ -901,7 +866,7 @@ function updateHubPresentation() {
   const modeLabel = MODE_LABELS[state.mode] ?? MODE_LABELS.enhance;
   const styleLabel = MODE_STYLE_PRESENTATION[state.mode]?.[state.style]?.label
     ?? STYLE_LABELS[state.style]
-    ?? STYLE_LABELS.concise;
+    ?? STYLE_LABELS.workbuddy;
   const mascotLabel = MASCOTS[state.mascot]?.label ?? MASCOTS.cockapoo.label;
   const startupText = state.startup ? "已开启" : "已关闭";
   if (currentModeLabel) {
@@ -978,7 +943,7 @@ function updateModelStorageLabel() {
       hubModelStateLabel.textContent = "已配置";
     }
   } else if (state.storageAvailable) {
-    modelStorageStatus.textContent = "填写 API Key 后点击保存配置，将使用 Windows 加密存储。";
+    modelStorageStatus.textContent = "填写 API Key 后点击保存配置，将使用系统加密存储。";
     modelStorageStatus.dataset.state = "pending";
     apiKeyInput.placeholder = "请输入你的 API Key";
     if (hubModelStateLabel) {
@@ -1088,7 +1053,7 @@ function legacyErrorMessage(error, fallback = messages.error) {
     case "MODE_INVALID":
       return "场景无效，请重新选择。";
     case "SHORTCUT_INVALID":
-      return "快捷键无效；请选择双击左 Alt，或至少包含两个修饰键的组合键。";
+      return "快捷键无效；请选择系统默认快捷键，或至少包含两个修饰键的组合键。";
     case "SHORTCUT_CONFLICT":
       return "这个快捷键已被其他应用占用，原快捷键仍然有效。";
     case "SHORTCUT_UNAVAILABLE":
@@ -1147,7 +1112,7 @@ function legacyErrorMessage(error, fallback = messages.error) {
       return "自动回填未能可靠确认。请检查聊天输入框；增强结果已保留，可复制后手动粘贴。";
     case "POWERSHELL_START_FAILED":
     case "POWERSHELL_FAILED":
-      return "Windows 桥接失败，请确认目标应用运行在桌面环境。";
+      return "桌面输入桥接失败，请确认目标应用正在运行并已获得必要的系统权限。";
     case "EMPTY_PROMPT":
       return "当前输入框为空，请先输入提示词。";
     case "PROMPT_NOT_CAPTURED":
@@ -1523,7 +1488,9 @@ async function handleEnhance({ capturedSource, clarification } = {}) {
       replace: !state.reviewMode,
     }), {
       stage: "model",
-      timeoutMs: MODEL_STAGE_TIMEOUT_MS,
+      timeoutMs: state.style === "workbuddy"
+        ? WORKBUDDY_MODEL_STAGE_TIMEOUT_MS
+        : MODEL_STAGE_TIMEOUT_MS,
     });
     if (!isCurrentRequest(requestId)) {
       return;
@@ -2224,13 +2191,7 @@ stylePanel.addEventListener("click", (event) => {
 
 viewSystemPromptButton.addEventListener("click", openSystemPromptPanel);
 systemPromptModeSelect.addEventListener("change", () => {
-  selectSystemPrompt(systemPromptModeSelect.value, state.systemPromptStyle);
-});
-systemPromptPanel.addEventListener("click", (event) => {
-  const style = event.target.closest("[data-system-style]")?.dataset.systemStyle;
-  if (style) {
-    selectSystemPrompt(state.systemPromptMode, style);
-  }
+  selectSystemPrompt(systemPromptModeSelect.value);
 });
 systemPromptCustom.addEventListener("input", () => {
   state.systemPromptDirty = true;
@@ -2252,10 +2213,10 @@ mascotPanel.addEventListener("click", (event) => {
 
 shortcutCaptureButton.addEventListener("click", beginShortcutCapture);
 shortcutResetButton.addEventListener("click", () => {
-  state.shortcutDraft = DEFAULT_SHORTCUT;
+  state.shortcutDraft = state.defaultShortcut;
   state.shortcutRecording = false;
   updateShortcutPresentation();
-  void applyShortcut(DEFAULT_SHORTCUT);
+  void applyShortcut(state.defaultShortcut);
 });
 shortcutSaveButton.addEventListener("click", () => void applyShortcut(state.shortcutDraft));
 
@@ -2334,12 +2295,14 @@ void (async () => {
       updateStartupLabel();
     }
     const shortcut = await api.getShortcut();
-    state.shortcut = normalizeShortcut(shortcut?.shortcut ?? DEFAULT_SHORTCUT);
+    state.platform = shortcut?.platform === "darwin" ? "darwin" : "win32";
+    state.defaultShortcut = normalizeShortcut(shortcut?.defaultShortcut ?? DEFAULT_SHORTCUT);
+    state.shortcut = normalizeShortcut(shortcut?.shortcut ?? state.defaultShortcut);
     state.shortcutDraft = state.shortcut;
     updateShortcutPresentation();
     shortcutStatus.textContent = shortcut?.warning
       ? String(shortcut.warning)
-      : `当前已启用：${shortcutDisplayLabel(state.shortcut)}。`;
+      : `当前已启用：${displayShortcut(state.shortcut)}。`;
     const savedConfig = await api.getModelConfig();
     if (savedConfig?.endpoint) {
       modelEndpoint.value = savedConfig.endpoint;

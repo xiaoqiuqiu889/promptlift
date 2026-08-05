@@ -34,6 +34,8 @@ const KNOWN_ERROR_CODES = new Set([
   "REPLACE_NOT_CONFIRMED",
   "POWERSHELL_START_FAILED",
   "POWERSHELL_FAILED",
+  "MACOS_ACCESSIBILITY_REQUIRED",
+  "MACOS_AUTOMATION_FAILED",
   "EMPTY_PROMPT",
   "PROMPT_NOT_CAPTURED",
   "EMPTY_RESULT",
@@ -115,6 +117,8 @@ const ERROR_MESSAGES = Object.freeze({
   REPLACE_NOT_CONFIRMED: "回填校验未通过：目标输入框未确认收到增强结果，原文未改动。增强结果已保留，可复制后手动粘贴。",
   POWERSHELL_START_FAILED: "Windows 桥接启动失败：请确认目标应用运行在桌面环境。",
   POWERSHELL_FAILED: "Windows 桥接执行失败：请重新聚焦目标输入框后重试。",
+  MACOS_ACCESSIBILITY_REQUIRED: "缺少 macOS 辅助功能权限：请在“系统设置 → 隐私与安全性 → 辅助功能”中允许 Prompt Lift。",
+  MACOS_AUTOMATION_FAILED: "macOS 输入操作失败：请重新聚焦目标输入框后重试。",
   EMPTY_PROMPT: "目标输入框为空：请先输入内容。",
   PROMPT_NOT_CAPTURED: "未读到目标输入框：请先聚焦 Codex、Claude 或其他目标输入框。",
   EMPTY_RESULT: "模型没有返回可用内容：原文未改动。",
@@ -149,6 +153,10 @@ export function inferPromptErrorCode(error) {
     error?.details?.message,
     error?.cause?.message,
   ].filter((value) => typeof value === "string").join(" ");
+  const serializedCode = detail.match(/\b[A-Z][A-Z0-9_]{2,63}\b/u)?.[0] ?? "";
+  if (KNOWN_ERROR_CODES.has(serializedCode)) {
+    return serializedCode;
+  }
   for (const [code, pattern] of ERROR_CODE_PATTERNS) {
     if (pattern.test(detail)) {
       return code;
