@@ -4,6 +4,8 @@ release/
 release-*/
 deliverables/*
 !deliverables/Prompt-Lift-latest-win32-x64.zip
+!deliverables/Prompt-Lift-latest-darwin-arm64.zip
+!deliverables/Prompt-Lift-latest-darwin-x64.zip
 !deliverables/SHA256SUMS.txt
 .env
 *.log

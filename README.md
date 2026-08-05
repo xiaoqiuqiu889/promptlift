@@ -1,8 +1,8 @@
 # Prompt Lift
 
-> Windows 上的 WorkBuddy 风格表达助手。聚焦当前输入框，双击 `Alt`，把一句模糊表达整理成清晰、可执行、可直接发送的文本。
+> Windows 与 macOS 上的 WorkBuddy 风格表达助手。聚焦当前输入框，用一个快捷键把模糊表达整理成清晰、可执行、可直接发送的文本。
 
-[下载 Windows x64 便携版](deliverables/Prompt-Lift-latest-win32-x64.zip) · [查看 SHA-256](deliverables/SHA256SUMS.txt)
+[Windows x64](deliverables/Prompt-Lift-latest-win32-x64.zip) · [Mac Apple Silicon](deliverables/Prompt-Lift-latest-darwin-arm64.zip) · [Mac Intel](deliverables/Prompt-Lift-latest-darwin-x64.zip) · [SHA-256](deliverables/SHA256SUMS.txt)
 
 ![Prompt Lift 绿色骑士小精灵](src/renderer/assets/mascots/green-knight-pup.png)
 
@@ -10,7 +10,7 @@
 
 很多时候，不是没有想法，而是还没把目标、上下文、判断标准和输出要求组织清楚。
 
-Prompt Lift 常驻在 Windows 桌面，不替你聊天，也不替你执行原任务。它只处理当前输入框中的整段文字，将其优化为一个更容易被人或 AI 正确理解的结果，然后由你决定预览、复制、应用、重试或恢复原文。
+Prompt Lift 常驻在桌面，不替你聊天，也不替你执行原任务。它只处理当前输入框中的整段文字，将其优化为一个更容易被人或 AI 正确理解的结果，然后由你决定预览、复制、应用、重试或恢复原文。
 
 当前版本只保留 **WorkBuddy** 一套优化引擎。四个表达场景共用它的上下文理解方式，同时各自使用独立的场景规则。
 
@@ -45,7 +45,9 @@ Prompt Lift 会保留“这个建议”对当前会话内容的指代，不会�
 
 ## 快速开始
 
-### 1. 下载并完整解压
+### 1. 下载对应版本
+
+Windows x64：
 
 下载 [Prompt-Lift-latest-win32-x64.zip](deliverables/Prompt-Lift-latest-win32-x64.zip)，将整个 ZIP 解压到有写入权限的目录。
 
@@ -56,6 +58,15 @@ Prompt Lift-win32-x64/Prompt Lift.exe
 ```
 
 这是包含 Electron 运行时的 Windows x64 便携包，不需要另外安装 Node.js。请保留解压后的完整目录，不能只复制其中的 EXE 单独运行。
+
+macOS：
+
+- M1、M2、M3、M4 等 Apple 芯片下载 [Apple Silicon arm64 版](deliverables/Prompt-Lift-latest-darwin-arm64.zip)；
+- Intel 芯片下载 [Intel x64 版](deliverables/Prompt-Lift-latest-darwin-x64.zip)。
+
+解压后将 `Prompt Lift.app` 拖入“应用程序”。当前 macOS 包尚未经过 Apple Developer ID 签名和公证；首次启动请右键应用并选择“打开”。若系统仍阻止启动，请前往“系统设置 → 隐私与安全性”选择“仍要打开”。
+
+第一次读取输入框时，macOS 会要求辅助功能权限。请在“系统设置 → 隐私与安全性 → 辅助功能”中允许 Prompt Lift，否则应用不会模拟复制和粘贴。
 
 ### 2. 配置模型
 
@@ -71,12 +82,12 @@ Prompt Lift-win32-x64/Prompt Lift.exe
 - 模型名称；
 - API Key。
 
-点击“检查并保存”。API Key 通过 Electron `safeStorage` 加密保存，只对当前 Windows 用户可用，不会写入源码、日志或发布包。
+点击“检查并保存”。API Key 通过 Electron `safeStorage` 使用当前系统账户的安全存储加密保存，不会写入源码、日志或发布包。
 
 ### 3. 优化当前输入框
 
-1. 聚焦任意 Windows 应用中的文本输入框；
-2. 双击左 `Alt`，或单击桌面小精灵；
+1. 聚焦任意桌面应用中的文本输入框；
+2. Windows 双击左 `Alt`；macOS 按 `⌘⇧P`；也可以单击桌面小精灵；
 3. Prompt Lift 读取当前整段输入；
 4. WorkBuddy 按所选表达场景生成一个结果；
 5. 直接应用，或在审阅模式中查看差异后再决定。
@@ -171,16 +182,28 @@ npm run qa:double-alt
 npm run package:win
 ```
 
+生成 macOS Apple Silicon 与 Intel 两个 ZIP：
+
+```powershell
+npm run package:mac
+```
+
+macOS 包可从 Windows 交叉构建，但 Apple 签名与公证必须在具备相应证书的 macOS 环境完成；当前仓库没有声称这两个 ZIP 已签名或已公证。
+
 打包产物写入：
 
 ```text
 release/Prompt Lift-win32-x64/
+release-mac/Prompt Lift-darwin-arm64/
+release-mac/Prompt Lift-darwin-x64/
 ```
 
-GitHub 只跟踪一个最新 ZIP 和对应校验文件：
+GitHub 只跟踪三个当前平台 ZIP 和对应校验文件：
 
 ```text
 deliverables/Prompt-Lift-latest-win32-x64.zip
+deliverables/Prompt-Lift-latest-darwin-arm64.zip
+deliverables/Prompt-Lift-latest-darwin-x64.zip
 deliverables/SHA256SUMS.txt
 ```
 
@@ -188,9 +211,9 @@ ZIP 通过 Git LFS 管理。`release/`、`qa/evidence/`、解压运行时和历�
 
 ## 当前版本验收
 
-当前 WorkBuddy-only Windows 包已通过：
+当前 WorkBuddy-only 版本已通过：
 
-- 332 项自动化测试；
+- 343 项自动化测试；
 - 24 轮提示词协议回归；
 - 4 个表达场景 × 1 个 WorkBuddy 引擎的系统提示词矩阵；
 - 真实生产模型的上下文指代与评估结构验证；
@@ -199,10 +222,24 @@ ZIP 通过 Git LFS 管理。`release/`、`qa/evidence/`、解压运行时和历�
 - 0 个 UI 几何缺陷、0 个工作流缺陷；
 - 正式包文件清单、`app.asar` 内容和 Git LFS 下载校验。
 
+macOS 双架构包还额外通过了：
+
+- Apple Silicon `arm64` 与 Intel `x64` 主程序架构检查；
+- `.app` 主程序和 Framework 可执行权限检查；
+- macOS 抓取、替换、内容变更拦截和剪贴板恢复的行为测试；
+- 辅助功能权限错误的可操作提示验证。
+
 当前 Windows ZIP 的 SHA-256：
 
 ```text
 FDC9C46960F49D7E9B2F56809AF177463AE5F81258ACE9589FFAE288B0370961
+```
+
+当前 macOS ZIP 的 SHA-256：
+
+```text
+DCE3534D301FAFDA0D2E3848D3C88BF14467EDBA4C4059F0EA20EB8F3A60DDFF  Apple Silicon arm64
+992E5D8D354BF4BF74070845E68AF330BC68DB496AE7D599C49E532C2C6ECB5B  Intel x64
 ```
 
 ## 项目结构
@@ -213,7 +250,7 @@ src/main.mjs          Electron 主进程、IPC、窗口与替换事务
 src/renderer/         桌面小精灵、设置页和审阅界面
 scripts/              打包、真实模型检查和 UI 验收脚本
 test/                 单元测试与产品契约测试
-deliverables/         最新 Windows ZIP 与 SHA-256
+deliverables/         最新 Windows/macOS ZIP 与 SHA-256
 ```
 
 ## 参与改进

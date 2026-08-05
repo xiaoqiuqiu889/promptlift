@@ -313,6 +313,8 @@ const state = {
   systemPromptMode: "enhance",
   systemPromptStyle: "workbuddy",
   systemPromptDirty: false,
+  platform: "win32",
+  defaultShortcut: DEFAULT_SHORTCUT,
   shortcut: DEFAULT_SHORTCUT,
   shortcutDraft: DEFAULT_SHORTCUT,
   shortcutRecording: false,
@@ -328,6 +330,10 @@ let resizeFrame;
 let compactScaleFrame;
 let resizeSettleToken = 0;
 let dragSession;
+
+function displayShortcut(input) {
+  return shortcutDisplayLabel(input, { platform: state.platform });
+}
 let suppressAvatarClickUntil = 0;
 let suppressMenuClickUntil = 0;
 let compactFeedbackTimer;
@@ -690,8 +696,8 @@ function updateModeLabel() {
 }
 
 function updateShortcutPresentation() {
-  const activeLabel = shortcutDisplayLabel(state.shortcut);
-  const draftLabel = shortcutDisplayLabel(state.shortcutDraft);
+  const activeLabel = displayShortcut(state.shortcut);
+  const draftLabel = displayShortcut(state.shortcutDraft);
   currentShortcutLabel.textContent = activeLabel;
   helpShortcutLabel.textContent = activeLabel;
   shortcutValue.value = draftLabel;
@@ -702,14 +708,14 @@ function updateShortcutPresentation() {
   shortcutPanel.classList.toggle("is-recording", state.shortcutRecording);
   shortcutSaveButton.disabled = state.shortcutRecording || state.shortcutDraft === state.shortcut;
   shortcutResetButton.disabled = state.shortcutRecording
-    || (state.shortcut === DEFAULT_SHORTCUT && state.shortcutDraft === DEFAULT_SHORTCUT);
+    || (state.shortcut === state.defaultShortcut && state.shortcutDraft === state.defaultShortcut);
 }
 
 function openShortcutPanel() {
   state.shortcutDraft = state.shortcut;
   state.shortcutRecording = false;
   updateShortcutPresentation();
-  shortcutStatus.textContent = `当前已启用：${shortcutDisplayLabel(state.shortcut)}。`;
+  shortcutStatus.textContent = `当前已启用：${displayShortcut(state.shortcut)}。`;
   showPanel(shortcutPanel);
 }
 
@@ -770,7 +776,7 @@ function handleShortcutKeydown(event) {
   try {
     state.shortcutDraft = shortcutFromKeyboardEvent(event);
     state.shortcutRecording = false;
-    shortcutStatus.textContent = `已录制：${shortcutDisplayLabel(state.shortcutDraft)}。点击“保存并启用”后生效。`;
+    shortcutStatus.textContent = `已录制：${displayShortcut(state.shortcutDraft)}。点击“保存并启用”后生效。`;
   } catch (error) {
     shortcutStatus.textContent = errorMessage(error, "这个组合键不受支持，请重新录制。");
   }
@@ -795,8 +801,8 @@ async function applyShortcut(shortcut) {
     state.shortcutRecording = false;
     shortcutStatus.textContent = result?.warning
       ? String(result.warning)
-      : `已启用：${shortcutDisplayLabel(state.shortcut)}。`;
-    setStatus("success", `全局快捷键已更新为“${shortcutDisplayLabel(state.shortcut)}”。`);
+      : `已启用：${displayShortcut(state.shortcut)}。`;
+    setStatus("success", `全局快捷键已更新为“${displayShortcut(state.shortcut)}”。`);
   } catch (error) {
     state.shortcutRecording = false;
     shortcutStatus.textContent = errorMessage(error, "快捷键设置失败，原快捷键仍然有效。");
@@ -937,7 +943,7 @@ function updateModelStorageLabel() {
       hubModelStateLabel.textContent = "已配置";
     }
   } else if (state.storageAvailable) {
-    modelStorageStatus.textContent = "填写 API Key 后点击保存配置，将使用 Windows 加密存储。";
+    modelStorageStatus.textContent = "填写 API Key 后点击保存配置，将使用系统加密存储。";
     modelStorageStatus.dataset.state = "pending";
     apiKeyInput.placeholder = "请输入你的 API Key";
     if (hubModelStateLabel) {
@@ -1047,7 +1053,7 @@ function legacyErrorMessage(error, fallback = messages.error) {
     case "MODE_INVALID":
       return "场景无效，请重新选择。";
     case "SHORTCUT_INVALID":
-      return "快捷键无效；请选择双击左 Alt，或至少包含两个修饰键的组合键。";
+      return "快捷键无效；请选择系统默认快捷键，或至少包含两个修饰键的组合键。";
     case "SHORTCUT_CONFLICT":
       return "这个快捷键已被其他应用占用，原快捷键仍然有效。";
     case "SHORTCUT_UNAVAILABLE":
@@ -1106,7 +1112,7 @@ function legacyErrorMessage(error, fallback = messages.error) {
       return "自动回填未能可靠确认。请检查聊天输入框；增强结果已保留，可复制后手动粘贴。";
     case "POWERSHELL_START_FAILED":
     case "POWERSHELL_FAILED":
-      return "Windows 桥接失败，请确认目标应用运行在桌面环境。";
+      return "桌面输入桥接失败，请确认目标应用正在运行并已获得必要的系统权限。";
     case "EMPTY_PROMPT":
       return "当前输入框为空，请先输入提示词。";
     case "PROMPT_NOT_CAPTURED":
@@ -2207,10 +2213,10 @@ mascotPanel.addEventListener("click", (event) => {
 
 shortcutCaptureButton.addEventListener("click", beginShortcutCapture);
 shortcutResetButton.addEventListener("click", () => {
-  state.shortcutDraft = DEFAULT_SHORTCUT;
+  state.shortcutDraft = state.defaultShortcut;
   state.shortcutRecording = false;
   updateShortcutPresentation();
-  void applyShortcut(DEFAULT_SHORTCUT);
+  void applyShortcut(state.defaultShortcut);
 });
 shortcutSaveButton.addEventListener("click", () => void applyShortcut(state.shortcutDraft));
 
@@ -2289,12 +2295,14 @@ void (async () => {
       updateStartupLabel();
     }
     const shortcut = await api.getShortcut();
-    state.shortcut = normalizeShortcut(shortcut?.shortcut ?? DEFAULT_SHORTCUT);
+    state.platform = shortcut?.platform === "darwin" ? "darwin" : "win32";
+    state.defaultShortcut = normalizeShortcut(shortcut?.defaultShortcut ?? DEFAULT_SHORTCUT);
+    state.shortcut = normalizeShortcut(shortcut?.shortcut ?? state.defaultShortcut);
     state.shortcutDraft = state.shortcut;
     updateShortcutPresentation();
     shortcutStatus.textContent = shortcut?.warning
       ? String(shortcut.warning)
-      : `当前已启用：${shortcutDisplayLabel(state.shortcut)}。`;
+      : `当前已启用：${displayShortcut(state.shortcut)}。`;
     const savedConfig = await api.getModelConfig();
     if (savedConfig?.endpoint) {
       modelEndpoint.value = savedConfig.endpoint;

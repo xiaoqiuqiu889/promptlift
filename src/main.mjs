@@ -30,6 +30,7 @@ import { createEncryptedModelConfigStore } from './core/modelConfigStore.mjs';
 import { createGlobalShortcutController } from './core/globalShortcutController.mjs';
 import {
   DEFAULT_SHORTCUT,
+  defaultShortcutForPlatform,
   normalizeShortcut,
   shortcutDisplayLabel,
 } from './core/shortcutConfig.mjs';
@@ -49,11 +50,12 @@ import {
   copyText,
   getForegroundTarget,
   replacePrompt,
-} from './platform/windowsBridge.mjs';
+} from './platform/desktopBridge.mjs';
 import { createWindowsDoubleAltListener } from './platform/windowsAltShortcut.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const platformDefaultShortcut = defaultShortcutForPlatform(process.platform);
 
 let mainWindow;
 let tray;
@@ -71,7 +73,7 @@ let windowStateSaveTimer;
 let persistedWindowBounds;
 let shortcutConfigStore;
 let shortcutController;
-let shortcutPreference = DEFAULT_SHORTCUT;
+let shortcutPreference = platformDefaultShortcut;
 let shortcutWarning = '';
 let windowDragSession;
 let windowDragScheduled = false;
@@ -217,11 +219,14 @@ async function loadPersistedModelConfig() {
 async function loadPersistedShortcutConfig() {
   shortcutConfigStore = createShortcutConfigStore({
     userDataPath: app.getPath('userData'),
+    defaultShortcut: platformDefaultShortcut,
   });
   const persisted = await shortcutConfigStore.load();
-  shortcutPreference = normalizeShortcut(persisted.shortcut);
+  shortcutPreference = process.platform === 'darwin' && persisted.shortcut === DEFAULT_SHORTCUT
+    ? platformDefaultShortcut
+    : normalizeShortcut(persisted.shortcut);
   shortcutWarning = persisted.loadError
-    ? '原快捷键设置无效，已临时恢复为双击左 Alt。'
+    ? `原快捷键设置无效，已临时恢复为${shortcutDisplayLabel(platformDefaultShortcut)}。`
     : '';
 }
 
@@ -234,6 +239,7 @@ function getModelConfig() {
     targetWindowTitlePattern: modelConfig.targetWindowTitlePattern,
     apiKeySaved: modelConfig.apiKeySaved === true,
     storageAvailable: modelConfig.storageAvailable === true,
+    platform: process.platform,
   };
 }
 
@@ -248,7 +254,7 @@ function ensureShortcutController() {
       createDoubleAltListener: createWindowsDoubleAltListener,
       onTrigger: shortcutTrigger,
       onError: (error) => {
-        console.warn(`Prompt Pet: 快捷键监听不可用（${error?.message ?? 'Windows 键盘监听启动失败'}）。`);
+        console.warn(`Prompt Pet: 快捷键监听不可用（${error?.message ?? '系统快捷键监听启动失败'}）。`);
       },
     });
   }
@@ -257,13 +263,15 @@ function ensureShortcutController() {
 
 function getShortcutConfig() {
   const active = shortcutController?.getActive() ?? {
-    shortcut: DEFAULT_SHORTCUT,
-    label: shortcutDisplayLabel(DEFAULT_SHORTCUT),
-    kind: 'double-alt',
+    shortcut: platformDefaultShortcut,
+    label: shortcutDisplayLabel(platformDefaultShortcut),
+    kind: platformDefaultShortcut === DEFAULT_SHORTCUT ? 'double-alt' : 'accelerator',
   };
   return {
     ...active,
     configuredShortcut: shortcutPreference,
+    defaultShortcut: platformDefaultShortcut,
+    platform: process.platform,
     warning: shortcutWarning,
   };
 }
@@ -271,7 +279,7 @@ function getShortcutConfig() {
 async function setShortcutConfig(_event, input = {}) {
   const shortcut = normalizeShortcut(input.shortcut, { fallbackToDefault: false });
   const controller = ensureShortcutController();
-  const previous = controller.getActive()?.shortcut ?? DEFAULT_SHORTCUT;
+  const previous = controller.getActive()?.shortcut ?? platformDefaultShortcut;
   const activated = controller.activate(shortcut);
   try {
     await shortcutConfigStore.save(shortcut);
@@ -619,9 +627,9 @@ function startConfiguredShortcut() {
   try {
     controller.activate(shortcutPreference);
   } catch (error) {
-    shortcutWarning = `${error?.message ?? '自定义快捷键注册失败'} 已临时恢复为双击左 Alt。`;
-    shortcutPreference = DEFAULT_SHORTCUT;
-    controller.activate(DEFAULT_SHORTCUT);
+    shortcutWarning = `${error?.message ?? '自定义快捷键注册失败'} 已临时恢复为${shortcutDisplayLabel(platformDefaultShortcut)}。`;
+    shortcutPreference = platformDefaultShortcut;
+    controller.activate(platformDefaultShortcut);
     console.warn(`Prompt Pet: ${shortcutWarning}`);
   }
 }

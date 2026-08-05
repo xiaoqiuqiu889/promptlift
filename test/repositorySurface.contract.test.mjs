@@ -9,7 +9,7 @@ const read = (relativePath) => readFileSync(
   "utf8",
 );
 
-test("repository publishes one runnable archive without expanded runtime or generated QA evidence", () => {
+test("repository publishes only the three supported runtime archives without generated QA evidence", () => {
   const tracked = execFileSync(
     "git",
     ["ls-files"],
@@ -22,6 +22,8 @@ test("repository publishes one runnable archive without expanded runtime or gene
   const qaDocuments = tracked.filter((file) => file.startsWith("qa/"));
 
   assert.deepEqual(deliverables, [
+    "deliverables/Prompt-Lift-latest-darwin-arm64.zip",
+    "deliverables/Prompt-Lift-latest-darwin-x64.zip",
     "deliverables/Prompt-Lift-latest-win32-x64.zip",
     "deliverables/SHA256SUMS.txt",
   ]);
@@ -43,6 +45,8 @@ test("ignore and LFS rules keep future GitHub deliveries lean", () => {
 
   assert.match(gitignore, /deliverables\/\*/);
   assert.match(gitignore, /!deliverables\/Prompt-Lift-latest-win32-x64\.zip/);
+  assert.match(gitignore, /!deliverables\/Prompt-Lift-latest-darwin-arm64\.zip/);
+  assert.match(gitignore, /!deliverables\/Prompt-Lift-latest-darwin-x64\.zip/);
   assert.match(gitignore, /!deliverables\/SHA256SUMS\.txt/);
   assert.match(gitignore, /qa\/evidence\//);
   assert.match(gitignore, /qa\/UI_VISUAL_RESULTS\.md/);
@@ -51,6 +55,14 @@ test("ignore and LFS rules keep future GitHub deliveries lean", () => {
   assert.match(
     attributes,
     /^deliverables\/Prompt-Lift-latest-win32-x64\.zip filter=lfs diff=lfs merge=lfs -text$/mu,
+  );
+  assert.match(
+    attributes,
+    /^deliverables\/Prompt-Lift-latest-darwin-arm64\.zip filter=lfs diff=lfs merge=lfs -text$/mu,
+  );
+  assert.match(
+    attributes,
+    /^deliverables\/Prompt-Lift-latest-darwin-x64\.zip filter=lfs diff=lfs merge=lfs -text$/mu,
   );
   assert.doesNotMatch(attributes, /Prompt-Lift-20260804-r[456]/);
 });

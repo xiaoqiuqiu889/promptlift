@@ -214,7 +214,7 @@
                 </span>
               </span>
             </span>
-            <span><strong>Prompt Pet</strong><small>一起让表达变好 · Windows 任意输入框里的安全表达助手</small></span>
+            <span><strong>Prompt Pet</strong><small>一起让表达变好 · 桌面任意输入框里的安全表达助手</small></span>
           </div>
           <p class="hub-section-label">偏好</p>
           <div class="hub-group">
@@ -225,7 +225,7 @@
           <div class="hub-group">
             <button class="hub-row" type="button" data-menu-action="configure"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-key"></use></svg></span><span>模型与 Key<small>配置服务地址、模型和加密凭据</small></span><span id="hubModelStateLabel" class="menu-value" aria-live="polite">检查中</span></button>
             <button class="hub-row" type="button" data-menu-action="check"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-model-check"></use></svg></span><span>检查模型配置<small>验证连接并安全保存当前设置</small></span><span id="hubModelCheckLabel" class="menu-value" aria-live="polite">未检查</span></button>
-            <button class="hub-row" type="button" data-menu-action="startup"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-startup"></use></svg></span><span>开机自启动<small>登录 Windows 后自动唤起小精灵</small></span><span id="startupLabel" class="menu-value">已关闭</span></button>
+            <button class="hub-row" type="button" data-menu-action="startup"><span class="hub-row-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-startup"></use></svg></span><span>开机自启动<small>登录系统后自动唤起小精灵</small></span><span id="startupLabel" class="menu-value">已关闭</span></button>
           </div>
           <p class="hub-section-label">帮助与安全</p>
           <div class="hub-group">
@@ -275,13 +275,13 @@
           </div>
           <button class="panel-back" type="button" data-close-panel="shortcutPanel" aria-label="返回我的"><svg class="ui-icon" aria-hidden="true"><use href="#icon-back"></use></svg></button>
         </div>
-        <p class="panel-note">默认使用双击左 Alt。自定义组合键会在 Windows 全局生效，保存前先检查是否与系统或其他应用冲突。</p>
+        <p class="panel-note">默认快捷键由当前系统决定。自定义组合键会在桌面全局生效，保存前先检查是否与系统或其他应用冲突。</p>
         <label class="field-label" for="shortcutValue">当前准备使用</label>
         <input id="shortcutValue" class="panel-input shortcut-value" type="text" value="双击左 Alt" readonly />
         <button id="shortcutCaptureButton" class="shortcut-capture-button" type="button">录制新的组合键</button>
         <p class="panel-note shortcut-scope-note">按下至少两个修饰键（Ctrl / Alt / Shift / Win）和一个字母、数字、Space 或 F1–F12；按 Esc 取消录制。</p>
         <div class="panel-actions">
-          <button id="shortcutResetButton" class="text-button" type="button">恢复双击左 Alt</button>
+          <button id="shortcutResetButton" class="text-button" type="button">恢复默认快捷键</button>
           <button id="shortcutSaveButton" class="small-primary" type="button" disabled>保存并启用</button>
         </div>
         <p id="shortcutStatus" class="panel-note" role="status" aria-live="polite">正在读取当前快捷键…</p>
@@ -303,7 +303,7 @@
         <input id="apiKey" class="panel-input" type="password" placeholder="请输入你的 API Key" autocomplete="off" spellcheck="false" />
         <label class="field-label" for="targetWindowTitlePattern">目标窗口标题（可选）</label>
         <input id="targetWindowTitlePattern" class="panel-input" type="text" placeholder="留空使用当前目标窗口" autocomplete="off" />
-        <p id="modelStorageStatus" class="panel-note" role="status">API Key 使用 Windows 加密存储，可保存后留空复用。</p>
+        <p id="modelStorageStatus" class="panel-note" role="status">API Key 使用系统加密存储，可保存后留空复用。</p>
         <div class="panel-actions">
           <button id="checkModelButton" class="text-button" type="button">检查并保存</button>
           <button id="saveModelButton" class="small-primary" type="button">保存配置</button>
@@ -342,7 +342,7 @@
           <ul>
             <li>不保存输入内容或优化历史</li>
             <li>应用前校验目标窗口与原文</li>
-            <li>API Key 使用 Windows 加密存储</li>
+            <li>API Key 使用当前系统账户的加密存储</li>
           </ul>
         </div>
         <p class="panel-note">遇到异常时不会盲目覆盖输入；结果会保留在助手中供复制或重试。</p>

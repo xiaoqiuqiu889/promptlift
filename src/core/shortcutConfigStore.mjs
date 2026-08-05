@@ -15,12 +15,14 @@ function createStoragePath(userDataPath) {
 
 export function createShortcutConfigStore({
   userDataPath,
+  defaultShortcut = DEFAULT_SHORTCUT,
   readFile = fs.readFile,
   writeFile = fs.writeFile,
   renameFile = fs.rename,
   removeFile = fs.rm,
 } = {}) {
   const configPath = createStoragePath(userDataPath);
+  const fallbackShortcut = normalizeShortcut(defaultShortcut, { fallbackToDefault: false });
 
   async function load() {
     try {
@@ -29,10 +31,10 @@ export function createShortcutConfigStore({
       return { shortcut: normalizeShortcut(persisted?.shortcut, { fallbackToDefault: false }) };
     } catch (error) {
       if (error?.code === "ENOENT") {
-        return { shortcut: DEFAULT_SHORTCUT };
+        return { shortcut: fallbackShortcut };
       }
       return {
-        shortcut: DEFAULT_SHORTCUT,
+        shortcut: fallbackShortcut,
         loadError: "SHORTCUT_CONFIG_INVALID",
       };
     }

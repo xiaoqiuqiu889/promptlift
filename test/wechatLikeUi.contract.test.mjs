@@ -75,7 +75,7 @@ test("round 4 provides live status overview and bounded safety guidance", () => 
   for (const promise of [
     "不保存输入内容或优化历史",
     "应用前校验目标窗口与原文",
-    "API Key 使用 Windows 加密存储",
+    "API Key 使用当前系统账户的加密存储",
   ]) {
     assert.match(html, new RegExp(promise));
   }
